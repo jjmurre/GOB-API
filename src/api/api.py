@@ -83,40 +83,37 @@ def _entities(catalog_name, collection_name, page, page_size):
     }
 
 
-def _entity(catalog_name, collection_name, id):
-    """Returns a specific identity, identified by it's id, in the specified catalog collection
-
-    :param catalog_name: e.g. meetbouten
-    :param collection_name: e.g. meting
-    :param id: unique identifier of the entity
-    :return: the entity or None if not exists
-    """
-    assert(get_collection(catalog_name, collection_name))
-    assert(id)
-
-    return get_entity(collection_name, id)
-
-
 def _collection(catalog_name, collection_name):
-    """Returns the list of enitites within the specified collection or an individual entity
+    """Returns the list of entities within the specified collection
 
-    When an id parameter is specified an individual entity is returned.
-    Otherwise a list of entities is returned. This output is paged, default page 1 page size 100
+    A list of entities is returned. This output is paged, default page 1 page size 100
 
     :param catalog_name: e.g. meetbouten
     :param collection_name: e.g. meting
     :return:
     """
     if get_collection(catalog_name, collection_name):
-        id = request.args.get('id')
-        if id:
-            result = _entity(catalog_name, collection_name, id)
-            return hal_response(result) if result else not_found(f'{catalog_name}.{collection_name}:{id} not found')
-        else:
-            page = int(request.args.get('page', 1))
-            page_size = int(request.args.get('page_size', 100))
-            result, links = _entities(catalog_name, collection_name, page, page_size)
-            return hal_response(data=result, links=links)
+        page = int(request.args.get('page', 1))
+        page_size = int(request.args.get('page_size', 100))
+        result, links = _entities(catalog_name, collection_name, page, page_size)
+        return hal_response(data=result, links=links)
+    else:
+        return not_found(f'{catalog_name}.{collection_name} not found')
+
+
+def _entity(catalog_name, collection_name, entity_id):
+    """Returns the entity within the specified collection with the specified id
+
+    An individual entity is returned.
+
+    :param catalog_name: e.g. meetbouten
+    :param collection_name: e.g. meting
+    :param entity_id: unique identifier of the entity
+    :return:
+    """
+    if get_collection(catalog_name, collection_name):
+        result = get_entity(collection_name, entity_id)
+        return hal_response(result) if result else not_found(f'{catalog_name}.{collection_name}:{entity_id} not found')
     else:
         return not_found(f'{catalog_name}.{collection_name} not found')
 
@@ -135,7 +132,8 @@ def get_app():
     ROUTES = [
         ('/', _catalogs),
         ('/<catalog_name>/', _catalog),
-        ('/<catalog_name>/<collection_name>/', _collection)
+        ('/<catalog_name>/<collection_name>/', _collection),
+        ('/<catalog_name>/<collection_name>/<entity_id>/', _entity)
     ]
 
     app = Flask(__name__)

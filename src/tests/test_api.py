@@ -128,17 +128,22 @@ def test_entities(monkeypatch):
     assert(_entities('catalog', 'collection', 1, 1) == ({'page_size': 1, 'pages': 0, 'results': [], 'total_count': 0}, {'next': None, 'previous': None}))
 
 def test_entity(monkeypatch):
-    global collection
+    global catalog, collection
     global entity
 
     before_each_api_test(monkeypatch)
 
     from api.api import _entity
-    collection = 'collection'
-    assert(_entity('catalog', 'collection', 1) == None)
+    assert(_entity('catalog', 'collection', '1') == 'catalog.collection not found')
 
-    entity = {}
-    assert(_entity('catalog', 'collection', 1) == {})
+    catalog = 'catalog'
+    assert(_entity('catalog', 'collection', '1') == 'catalog.collection not found')
+
+    collection = 'collection'
+    assert(_entity('catalog', 'collection', '1') == 'catalog.collection:1 not found')
+
+    entity = {'id': 1}
+    assert(_entity('catalog', 'collection', 1) == (entity, None))
 
 def test_collection(monkeypatch):
     global mockRequest
@@ -152,11 +157,6 @@ def test_collection(monkeypatch):
 
     catalog = 'catalog'
     collection = 'collection'
-    mockRequest.args = {'id': 1}
-    assert(_collection('catalog', 'collection') == 'catalog.collection:1 not found')
-
-    entity = {'id': 1}
-    assert(_collection('catalog', 'collection') == ({'id': 1}, None))
 
     mockRequest.args = {}
     assert(_collection('catalog', 'collection') == (
@@ -180,18 +180,6 @@ def test_collection(monkeypatch):
              'pages': 0,
              'results': [],
              'total_count': 0
-         },{
-             'next': None,
-             'previous': None}
-        )))
-
-    entities = [{'id': 1}]
-    assert(_collection('catalog', 'collection') == (
-        ({
-             'page_size': 10,
-             'pages': 1,
-             'results': [{'id': 1}],
-             'total_count': 1
          },{
              'next': None,
              'previous': None}
