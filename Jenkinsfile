@@ -78,7 +78,7 @@ if (BRANCH == "master") {
     node {
         stage('Push production image') {
             tryStep "image tagging", {
-                def image = docker.image("build.datapunt.amsterdam.nl:5000/datapunt/gob_api_service:${env.BUILD_NUMBER}-preproduction")
+                def image = docker.image("build.datapunt.amsterdam.nl:5000/datapunt/gob_api_service:${env.BUILD_NUMBER}")
                 image.pull()
                 image.push("production")
                 image.push("latest")
