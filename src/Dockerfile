@@ -9,7 +9,7 @@ COPY requirements.txt /app/
 RUN pip3 install --no-cache-dir -r requirements.txt
 RUN rm requirements.txt
 
-# Copy gobuploadservice module
+# Copy gob api module
 COPY api api
 
 # Copy tests
@@ -17,4 +17,4 @@ COPY tests tests
 COPY .flake8 .flake8
 COPY test.sh test.sh
 
-CMD python3 -m api
+CMD uwsgi
