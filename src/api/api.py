@@ -9,7 +9,7 @@ The only public method is get_app() which returns a Flask application object.
 The API can be started by get_app().run()
 
 """
-from flask import Flask, request, Response
+from flask import Flask, request
 from flask_cors import CORS
 
 from api.storage import connect, get_catalogs, get_catalog, get_collections, get_collection, get_entities, get_entity
@@ -119,7 +119,7 @@ def _entity(catalog_name, collection_name, entity_id):
 
 
 def _health():
-    return Response('Connectivity OK', content_type='text/plain')
+    return 'Connectivity OK'
 
 
 def get_app():
