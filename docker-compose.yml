@@ -2,6 +2,20 @@ version: '3.0'
 
 services:
 
-  update_service:
+  api_service:
     build: src
+    ports:
+      - "8141:8000"
     container_name: api_service
+    environment:
+      DATABASE_PORT_OVERRIDE: 5432
+      DATABASE_HOST_OVERRIDE: database
+      UWSGI_HTTP: ":8000"
+      UWSGI_MODULE: "api.wsgi"
+      UWSGI_CALLABLE: "application"
+      UWSGI_MASTER: 1
+
+networks:
+  default:
+    external:
+      name: gob-network

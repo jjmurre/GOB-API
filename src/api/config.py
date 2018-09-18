@@ -6,15 +6,15 @@ and the specification of the model (get_gobmodel)
 Todo: CATALOGS and get_gobmodel() should be obtained from GOB-Core
 
 """
-import os
 import json
+import os
 
 GOB_DB = {
     'drivername': 'postgres',
-    'username': 'gob',
-    'password': 'insecure',
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'port': 5406
+    'username': os.getenv("DATABASE_USER", "gob"),
+    'password': os.getenv("DATABASE_PASSWORD", "insecure"),
+    'host': os.getenv("DATABASE_HOST_OVERRIDE", "localhost"),
+    'port': os.getenv("DATABASE_PORT_OVERRIDE", 5406),
 }
 
 CATALOGS = {

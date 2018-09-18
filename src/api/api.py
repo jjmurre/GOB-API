@@ -9,7 +9,7 @@ The only public method is get_app() which returns a Flask application object.
 The API can be started by get_app().run()
 
 """
-from flask import Flask, request
+from flask import Flask, request, Response
 from flask_cors import CORS
 
 from api.storage import connect, get_catalogs, get_catalog, get_collections, get_collection, get_entities, get_entity
@@ -118,6 +118,10 @@ def _entity(catalog_name, collection_name, entity_id):
         return not_found(f'{catalog_name}.{collection_name} not found')
 
 
+def _health():
+    return Response('Connectivity OK', content_type='text/plain')
+
+
 def get_app():
     """Returns a Flask application object
 
@@ -130,10 +134,13 @@ def get_app():
     connect()
 
     ROUTES = [
+        # Health check URL
+        ('/status/health/', _health),
+
         ('/', _catalogs),
         ('/<catalog_name>/', _catalog),
         ('/<catalog_name>/<collection_name>/', _collection),
-        ('/<catalog_name>/<collection_name>/<entity_id>/', _entity)
+        ('/<catalog_name>/<collection_name>/<entity_id>/', _entity),
     ]
 
     app = Flask(__name__)
