@@ -119,7 +119,7 @@ def _entity(catalog_name, collection_name, entity_id):
 
 
 def _health():
-    return Response('Connectivity OK', content_type='text/plain')
+    return 'Connectivity OK'
 
 
 def get_app():

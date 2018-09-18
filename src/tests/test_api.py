@@ -184,3 +184,15 @@ def test_collection(monkeypatch):
              'next': None,
              'previous': None}
         )))
+
+def test_health(monkeypatch):
+    before_each_api_test(monkeypatch)
+
+    from api.api import _health
+    assert(_health() == 'Connectivity OK')
+
+def test_wsgi(monkeypatch):
+    before_each_api_test(monkeypatch)
+
+    from api.wsgi import application
+    assert(not application == None)
