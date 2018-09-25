@@ -21,7 +21,7 @@ def _catalogs():
 
     :return: a list of catalogs (name, href)
     """
-    catalogs = [{'name': catalog, 'href': f'/{catalog}/'} for catalog in get_catalogs()]
+    catalogs = [{'name': catalog, 'href': f'/gob/{catalog}/'} for catalog in get_catalogs()]
     return hal_response({'catalogs': catalogs})
 
 
@@ -38,7 +38,7 @@ def _catalog(catalog_name):
             'collections': [
                 {
                     'name': collection,
-                    'href': f'/{catalog_name}/{collection}/'
+                    'href': f'/gob/{catalog_name}/{collection}/'
                 } for collection in get_collections(catalog_name)
             ]
         }
@@ -137,10 +137,10 @@ def get_app():
         # Health check URL
         ('/status/health/', _health),
 
-        ('/', _catalogs),
-        ('/<catalog_name>/', _catalog),
-        ('/<catalog_name>/<collection_name>/', _collection),
-        ('/<catalog_name>/<collection_name>/<entity_id>/', _entity),
+        ('/gob/', _catalogs),
+        ('/gob/<catalog_name>/', _catalog),
+        ('/gob/<catalog_name>/<collection_name>/', _collection),
+        ('/gob/<catalog_name>/<collection_name>/<entity_id>/', _entity),
     ]
 
     app = Flask(__name__)

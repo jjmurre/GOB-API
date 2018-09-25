@@ -102,7 +102,7 @@ def test_catalogs(monkeypatch):
     assert(_catalogs() == ({'catalogs': []}, None))
 
     catalogs = ['catalog']
-    assert(_catalogs() == ({'catalogs': [{'href': '/catalog/', 'name': 'catalog'}]}, None))
+    assert(_catalogs() == ({'catalogs': [{'href': '/gob/catalog/', 'name': 'catalog'}]}, None))
 
 def test_catalog(monkeypatch):
     global catalog
