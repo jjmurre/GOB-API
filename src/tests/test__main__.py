@@ -1,10 +1,10 @@
 import importlib
 
-import api
-importlib.reload(api)
+import gobapi
+importlib.reload(gobapi)
 
-import api.api
-importlib.reload(api.api)
+import gobapi.api
+importlib.reload(gobapi.api)
 
 
 class MockApp:
@@ -16,7 +16,7 @@ class MockApp:
 
 def test_main(monkeypatch):
     mockApp = MockApp()
-    monkeypatch.setattr(api.api, 'get_app', lambda: mockApp)
+    monkeypatch.setattr(gobapi.api, 'get_app', lambda: mockApp)
 
-    from api import __main__
+    from gobapi import __main__
     assert(mockApp.is_running)

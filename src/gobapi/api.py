@@ -12,8 +12,9 @@ The API can be started by get_app().run()
 from flask import Flask, request
 from flask_cors import CORS
 
-from api.storage import connect, get_catalogs, get_catalog, get_collections, get_collection, get_entities, get_entity
-from api.response import hal_response, not_found, get_page_ref
+from gobapi.response import hal_response, not_found, get_page_ref
+from gobapi.storage import connect, get_catalogs, get_catalog, get_collections, get_collection, get_entities,\
+    get_entity
 
 
 def _catalogs():
@@ -62,9 +63,9 @@ def _entities(catalog_name, collection_name, page, page_size):
     :param page_size: the number of entities per page
     :return: (result, links)
     """
-    assert(get_collection(catalog_name, collection_name))
-    assert(page >= 1)
-    assert(page_size >= 1)
+    assert (get_collection(catalog_name, collection_name))
+    assert (page >= 1)
+    assert (page_size >= 1)
 
     offset = (page - 1) * page_size
 
@@ -73,14 +74,14 @@ def _entities(catalog_name, collection_name, page, page_size):
     num_pages = (total_count + page_size - 1) // page_size
 
     return {
-        'total_count': total_count,
-        'page_size': page_size,
-        'pages': num_pages,
-        'results': entities
-    }, {
-        'next': get_page_ref(page + 1, num_pages),
-        'previous': get_page_ref(page - 1, num_pages)
-    }
+               'total_count': total_count,
+               'page_size': page_size,
+               'pages': num_pages,
+               'results': entities
+           }, {
+               'next': get_page_ref(page + 1, num_pages),
+               'previous': get_page_ref(page - 1, num_pages)
+           }
 
 
 def _collection(catalog_name, collection_name):
