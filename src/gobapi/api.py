@@ -13,7 +13,7 @@ from flask import Flask, request
 from flask_cors import CORS
 
 from gobapi.response import hal_response, not_found, get_page_ref
-from gobapi.storage import connect, get_catalogs, get_catalog, get_collections, get_collection, get_entities,\
+from gobapi.storage import connect, get_catalogs, get_catalog, get_collections, get_collection, get_entities, \
     get_entity
 
 
@@ -23,7 +23,7 @@ def _catalogs():
     :return: a list of catalogs (name, href)
     """
     catalogs = [{'name': catalog, 'href': f'/gob/{catalog}/'} for catalog in get_catalogs()]
-    return hal_response({'catalogs': catalogs})
+    return hal_response({'catalogs': catalogs}), 200, {'Content-Type': 'application/json'}
 
 
 def _catalog(catalog_name):
@@ -43,7 +43,7 @@ def _catalog(catalog_name):
                 } for collection in get_collections(catalog_name)
             ]
         }
-        return hal_response(result)
+        return hal_response(result), 200, {'Content-Type': 'application/json'}
     else:
         return not_found(f"Catalog {catalog_name} not found")
 
@@ -97,7 +97,7 @@ def _collection(catalog_name, collection_name):
         page = int(request.args.get('page', 1))
         page_size = int(request.args.get('page_size', 100))
         result, links = _entities(catalog_name, collection_name, page, page_size)
-        return hal_response(data=result, links=links)
+        return hal_response(data=result, links=links), 200, {'Content-Type': 'application/json'}
     else:
         return not_found(f'{catalog_name}.{collection_name} not found')
 
@@ -114,7 +114,8 @@ def _entity(catalog_name, collection_name, entity_id):
     """
     if get_collection(catalog_name, collection_name):
         result = get_entity(collection_name, entity_id)
-        return hal_response(result) if result else not_found(f'{catalog_name}.{collection_name}:{entity_id} not found')
+        return (hal_response(result), 200, {'Content-Type': 'application/json'}) if result is not None else not_found(
+            f'{catalog_name}.{collection_name}:{entity_id} not found')
     else:
         return not_found(f'{catalog_name}.{collection_name} not found')
 

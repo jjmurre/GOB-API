@@ -103,10 +103,10 @@ def test_catalogs(monkeypatch):
     before_each_api_test(monkeypatch)
 
     from gobapi.api import _catalogs
-    assert(_catalogs() == ({'catalogs': []}, None))
+    assert(_catalogs() == (({'catalogs': []}, None), 200, {'Content-Type': 'application/json'}))
 
     catalogs = ['catalog']
-    assert(_catalogs() == ({'catalogs': [{'href': '/gob/catalog/', 'name': 'catalog'}]}, None))
+    assert(_catalogs() == (({'catalogs': [{'href': '/gob/catalog/', 'name': 'catalog'}]}, None), 200, {'Content-Type': 'application/json'}))
 
 
 def test_catalog(monkeypatch):
@@ -121,7 +121,7 @@ def test_catalog(monkeypatch):
         'description': 'description',
         'collections': []
     }
-    assert(_catalog('catalog_name') == ({'collections': [], 'description': 'description'}, None))
+    assert(_catalog('catalog_name') == (({'collections': [], 'description': 'description'}, None), 200, {'Content-Type': 'application/json'}))
 
 
 def test_entities(monkeypatch):
@@ -147,10 +147,11 @@ def test_entity(monkeypatch):
     assert(_entity('catalog', 'collection', '1') == 'catalog.collection not found')
 
     collection = 'collection'
+    entity = None
     assert(_entity('catalog', 'collection', '1') == 'catalog.collection:1 not found')
 
     entity = {'id': 1}
-    assert(_entity('catalog', 'collection', 1) == (entity, None))
+    assert(_entity('catalog', 'collection', 1) == ((entity, None), 200, {'Content-Type': 'application/json'}))
 
 
 def test_collection(monkeypatch):
@@ -176,7 +177,7 @@ def test_collection(monkeypatch):
          },{
              'next': None,
             'previous': None}
-        )))
+        ), 200, {'Content-Type': 'application/json'}))
 
     mockRequest.args = {
         'page': 5,
@@ -191,7 +192,7 @@ def test_collection(monkeypatch):
          },{
              'next': None,
              'previous': None}
-        )))
+        ), 200, {'Content-Type': 'application/json'}))
 
 
 def test_health(monkeypatch):
