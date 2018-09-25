@@ -18,13 +18,16 @@ class MockFlask:
     def route(self, rule):
         return noop
 
+
 class MockCORS:
     def __init__(self, app):
         pass
 
+
 class MockRequest:
     args = {}
     path = 'path'
+
 
 mockRequest = MockRequest()
 
@@ -34,6 +37,7 @@ collections = []
 collection = None
 entities = []
 entity = None
+
 
 def mock_entities(collection, offset, limit):
     global entities
@@ -48,11 +52,11 @@ def before_each_api_test(monkeypatch):
     import flask_cors
     importlib.reload(flask_cors)
 
-    import api.storage
-    importlib.reload(api.storage)
+    import gobapi.storage
+    importlib.reload(gobapi.storage)
 
-    import api.response
-    importlib.reload(api.response)
+    import gobapi.response
+    importlib.reload(gobapi.response)
 
     global catalogs, catalog
     global collections, collection
@@ -70,26 +74,26 @@ def before_each_api_test(monkeypatch):
 
     monkeypatch.setattr(flask, 'request', mockRequest)
 
-    monkeypatch.setattr(api.response, 'hal_response', lambda data, links=None: (data, links))
-    monkeypatch.setattr(api.response, 'not_found', lambda msg: msg)
+    monkeypatch.setattr(gobapi.response, 'hal_response', lambda data, links=None: (data, links))
+    monkeypatch.setattr(gobapi.response, 'not_found', lambda msg: msg)
 
-    monkeypatch.setattr(api.storage, 'connect', noop)
-    monkeypatch.setattr(api.storage, 'get_catalogs', lambda: catalogs)
-    monkeypatch.setattr(api.storage, 'get_catalog', lambda name: catalog)
-    monkeypatch.setattr(api.storage, 'get_collections', lambda name: collections)
-    monkeypatch.setattr(api.storage, 'get_collection', lambda name1, name2: collection)
-    monkeypatch.setattr(api.storage, 'get_entities', mock_entities)
-    monkeypatch.setattr(api.storage, 'get_entity', lambda name, id: entity)
+    monkeypatch.setattr(gobapi.storage, 'connect', noop)
+    monkeypatch.setattr(gobapi.storage, 'get_catalogs', lambda: catalogs)
+    monkeypatch.setattr(gobapi.storage, 'get_catalog', lambda name: catalog)
+    monkeypatch.setattr(gobapi.storage, 'get_collections', lambda name: collections)
+    monkeypatch.setattr(gobapi.storage, 'get_collection', lambda name1, name2: collection)
+    monkeypatch.setattr(gobapi.storage, 'get_entities', mock_entities)
+    monkeypatch.setattr(gobapi.storage, 'get_entity', lambda name, id: entity)
 
-    import api.api
-    importlib.reload(api.api)
+    import gobapi.api
+    importlib.reload(gobapi.api)
 
 
 def test_app(monkeypatch):
     before_each_api_test(monkeypatch)
 
 
-    from api.api import get_app
+    from gobapi.api import get_app
     assert(not get_app() == None)
 
 
@@ -98,34 +102,37 @@ def test_catalogs(monkeypatch):
 
     before_each_api_test(monkeypatch)
 
-    from api.api import _catalogs
-    assert(_catalogs() == ({'catalogs': []}, None))
+    from gobapi.api import _catalogs
+    assert(_catalogs() == (({'catalogs': []}, None), 200, {'Content-Type': 'application/json'}))
 
     catalogs = ['catalog']
-    assert(_catalogs() == ({'catalogs': [{'href': '/catalog/', 'name': 'catalog'}]}, None))
+    assert(_catalogs() == (({'catalogs': [{'href': '/gob/catalog/', 'name': 'catalog'}]}, None), 200, {'Content-Type': 'application/json'}))
+
 
 def test_catalog(monkeypatch):
     global catalog
 
     before_each_api_test(monkeypatch)
 
-    from api.api import _catalog
+    from gobapi.api import _catalog
     assert(_catalog('catalog_name') == 'Catalog catalog_name not found')
 
     catalog = {
         'description': 'description',
         'collections': []
     }
-    assert(_catalog('catalog_name') == ({'collections': [], 'description': 'description'}, None))
+    assert(_catalog('catalog_name') == (({'collections': [], 'description': 'description'}, None), 200, {'Content-Type': 'application/json'}))
+
 
 def test_entities(monkeypatch):
     global collection
 
     before_each_api_test(monkeypatch)
 
-    from api.api import _entities
+    from gobapi.api import _entities
     collection = 'collection'
     assert(_entities('catalog', 'collection', 1, 1) == ({'page_size': 1, 'pages': 0, 'results': [], 'total_count': 0}, {'next': None, 'previous': None}))
+
 
 def test_entity(monkeypatch):
     global catalog, collection
@@ -133,17 +140,19 @@ def test_entity(monkeypatch):
 
     before_each_api_test(monkeypatch)
 
-    from api.api import _entity
+    from gobapi.api import _entity
     assert(_entity('catalog', 'collection', '1') == 'catalog.collection not found')
 
     catalog = 'catalog'
     assert(_entity('catalog', 'collection', '1') == 'catalog.collection not found')
 
     collection = 'collection'
+    entity = None
     assert(_entity('catalog', 'collection', '1') == 'catalog.collection:1 not found')
 
     entity = {'id': 1}
-    assert(_entity('catalog', 'collection', 1) == (entity, None))
+    assert(_entity('catalog', 'collection', 1) == ((entity, None), 200, {'Content-Type': 'application/json'}))
+
 
 def test_collection(monkeypatch):
     global mockRequest
@@ -152,7 +161,7 @@ def test_collection(monkeypatch):
 
     before_each_api_test(monkeypatch)
 
-    from api.api import _collection
+    from gobapi.api import _collection
     assert(_collection('catalog', 'collection') == 'catalog.collection not found')
 
     catalog = 'catalog'
@@ -168,7 +177,7 @@ def test_collection(monkeypatch):
          },{
              'next': None,
             'previous': None}
-        )))
+        ), 200, {'Content-Type': 'application/json'}))
 
     mockRequest.args = {
         'page': 5,
@@ -183,16 +192,18 @@ def test_collection(monkeypatch):
          },{
              'next': None,
              'previous': None}
-        )))
+        ), 200, {'Content-Type': 'application/json'}))
+
 
 def test_health(monkeypatch):
     before_each_api_test(monkeypatch)
 
-    from api.api import _health
+    from gobapi.api import _health
     assert(_health() == 'Connectivity OK')
+
 
 def test_wsgi(monkeypatch):
     before_each_api_test(monkeypatch)
 
-    from api.wsgi import application
+    from gobapi.wsgi import application
     assert(not application == None)

@@ -10,7 +10,7 @@ from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.automap import automap_base
 
-from api.config import GOB_DB, get_gobmodel, CATALOGS
+from gobapi.config import GOB_DB, get_gobmodel, CATALOGS
 
 # Ths session and Base will be initialised by the _init() method
 # The _init() method is called at the end of this module

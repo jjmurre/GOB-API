@@ -100,34 +100,34 @@ def before_each_storage_test(monkeypatch):
     import sqlalchemy.orm
     importlib.reload(sqlalchemy.orm)
 
-    import api.config
-    importlib.reload(api.config)
+    import gobapi.config
+    importlib.reload(gobapi.config)
 
     monkeypatch.setattr(sqlalchemy, 'create_engine', mock_create_engine)
     monkeypatch.setattr(sqlalchemy.ext.automap, 'automap_base', mock_automap_base)
     monkeypatch.setattr(sqlalchemy.orm, 'Session', MockSession)
 
-    monkeypatch.setattr(api.config, 'CATALOGS', mock_CATALOGS)
-    monkeypatch.setattr(api.config, 'get_gobmodel', mock_get_gobmodel)
+    monkeypatch.setattr(gobapi.config, 'CATALOGS', mock_CATALOGS)
+    monkeypatch.setattr(gobapi.config, 'get_gobmodel', mock_get_gobmodel)
 
-    import api.storage
-    importlib.reload(api.storage)
+    import gobapi.storage
+    importlib.reload(gobapi.storage)
 
-    from api.storage import connect
+    from gobapi.storage import connect
     connect()
 
 
 def test_catalogs(monkeypatch):
     before_each_storage_test(monkeypatch)
 
-    from api.storage import get_catalogs
+    from gobapi.storage import get_catalogs
     assert(get_catalogs() == ['catalog1', 'catalog2'])
 
 
 def test_catalog(monkeypatch):
     before_each_storage_test(monkeypatch)
 
-    from api.storage import get_catalog
+    from gobapi.storage import get_catalog
     assert(get_catalog('catalog1') == {'collections': ['collection1', 'collection2'], 'description': 'Catalog1'})
     assert(get_catalog('catalog2') == {'collections': [], 'description': 'Catalog2'})
     assert(get_catalog('non existing catalog') == None)
@@ -136,7 +136,7 @@ def test_catalog(monkeypatch):
 def test_collections(monkeypatch):
     before_each_storage_test(monkeypatch)
 
-    from api.storage import get_collections
+    from gobapi.storage import get_collections
     assert(get_collections('catalog1') == ['collection1', 'collection2'])
     assert(get_collections('catalog2') == [])
     assert(get_collections('non existing catalog') == None)
@@ -145,7 +145,7 @@ def test_collections(monkeypatch):
 def test_collection(monkeypatch):
     before_each_storage_test(monkeypatch)
 
-    from api.storage import get_collection
+    from gobapi.storage import get_collection
     assert(get_collection('catalog1', 'collection1') == 'collection1')
     assert(get_collection('catalog1', 'collection2') == 'collection2')
     assert(get_collection('catalog1', 'non existing collection') == None)
@@ -156,7 +156,7 @@ def test_collection(monkeypatch):
 def test_entities(monkeypatch):
     before_each_storage_test(monkeypatch)
 
-    from api.storage import get_entities
+    from gobapi.storage import get_entities
     MockEntities.all_entities = []
     assert(get_entities('collection1', 0, 1) == ([], 0))
 
@@ -176,7 +176,7 @@ def test_entities(monkeypatch):
 def test_entity(monkeypatch):
     before_each_storage_test(monkeypatch)
 
-    from api.storage import get_entity
+    from gobapi.storage import get_entity
     assert(get_entity('collection1', 'id') == None)
 
     mockEntity = MockEntity('id', 'attribute')

@@ -10,7 +10,7 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 RUN rm requirements.txt
 
 # Copy gob api module
-COPY api api
+COPY gobapi gobapi
 
 # Copy tests
 COPY tests tests

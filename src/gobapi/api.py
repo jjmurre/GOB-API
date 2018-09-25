@@ -12,8 +12,9 @@ The API can be started by get_app().run()
 from flask import Flask, request
 from flask_cors import CORS
 
-from api.storage import connect, get_catalogs, get_catalog, get_collections, get_collection, get_entities, get_entity
-from api.response import hal_response, not_found, get_page_ref
+from gobapi.response import hal_response, not_found, get_page_ref
+from gobapi.storage import connect, get_catalogs, get_catalog, get_collections, get_collection, get_entities, \
+    get_entity
 
 
 def _catalogs():
@@ -21,8 +22,8 @@ def _catalogs():
 
     :return: a list of catalogs (name, href)
     """
-    catalogs = [{'name': catalog, 'href': f'/{catalog}/'} for catalog in get_catalogs()]
-    return hal_response({'catalogs': catalogs})
+    catalogs = [{'name': catalog, 'href': f'/gob/{catalog}/'} for catalog in get_catalogs()]
+    return hal_response({'catalogs': catalogs}), 200, {'Content-Type': 'application/json'}
 
 
 def _catalog(catalog_name):
@@ -38,11 +39,11 @@ def _catalog(catalog_name):
             'collections': [
                 {
                     'name': collection,
-                    'href': f'/{catalog_name}/{collection}/'
+                    'href': f'/gob/{catalog_name}/{collection}/'
                 } for collection in get_collections(catalog_name)
             ]
         }
-        return hal_response(result)
+        return hal_response(result), 200, {'Content-Type': 'application/json'}
     else:
         return not_found(f"Catalog {catalog_name} not found")
 
@@ -62,9 +63,9 @@ def _entities(catalog_name, collection_name, page, page_size):
     :param page_size: the number of entities per page
     :return: (result, links)
     """
-    assert(get_collection(catalog_name, collection_name))
-    assert(page >= 1)
-    assert(page_size >= 1)
+    assert (get_collection(catalog_name, collection_name))
+    assert (page >= 1)
+    assert (page_size >= 1)
 
     offset = (page - 1) * page_size
 
@@ -73,14 +74,14 @@ def _entities(catalog_name, collection_name, page, page_size):
     num_pages = (total_count + page_size - 1) // page_size
 
     return {
-        'total_count': total_count,
-        'page_size': page_size,
-        'pages': num_pages,
-        'results': entities
-    }, {
-        'next': get_page_ref(page + 1, num_pages),
-        'previous': get_page_ref(page - 1, num_pages)
-    }
+               'total_count': total_count,
+               'page_size': page_size,
+               'pages': num_pages,
+               'results': entities
+           }, {
+               'next': get_page_ref(page + 1, num_pages),
+               'previous': get_page_ref(page - 1, num_pages)
+           }
 
 
 def _collection(catalog_name, collection_name):
@@ -96,7 +97,7 @@ def _collection(catalog_name, collection_name):
         page = int(request.args.get('page', 1))
         page_size = int(request.args.get('page_size', 100))
         result, links = _entities(catalog_name, collection_name, page, page_size)
-        return hal_response(data=result, links=links)
+        return hal_response(data=result, links=links), 200, {'Content-Type': 'application/json'}
     else:
         return not_found(f'{catalog_name}.{collection_name} not found')
 
@@ -113,7 +114,8 @@ def _entity(catalog_name, collection_name, entity_id):
     """
     if get_collection(catalog_name, collection_name):
         result = get_entity(collection_name, entity_id)
-        return hal_response(result) if result else not_found(f'{catalog_name}.{collection_name}:{entity_id} not found')
+        return (hal_response(result), 200, {'Content-Type': 'application/json'}) if result is not None else not_found(
+            f'{catalog_name}.{collection_name}:{entity_id} not found')
     else:
         return not_found(f'{catalog_name}.{collection_name} not found')
 
@@ -137,10 +139,10 @@ def get_app():
         # Health check URL
         ('/status/health/', _health),
 
-        ('/', _catalogs),
-        ('/<catalog_name>/', _catalog),
-        ('/<catalog_name>/<collection_name>/', _collection),
-        ('/<catalog_name>/<collection_name>/<entity_id>/', _entity),
+        ('/gob/', _catalogs),
+        ('/gob/<catalog_name>/', _catalog),
+        ('/gob/<catalog_name>/<collection_name>/', _collection),
+        ('/gob/<catalog_name>/<collection_name>/<entity_id>/', _entity),
     ]
 
     app = Flask(__name__)
