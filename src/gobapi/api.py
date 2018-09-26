@@ -13,8 +13,8 @@ from flask import Flask, request
 from flask_cors import CORS
 
 from gobapi.response import hal_response, not_found, get_page_ref
-from gobapi.storage import connect, get_catalogs, get_catalog, get_collections, get_collection, get_entities, \
-    get_entity
+from gobapi.storage import connect, get_entities, get_entity
+from gobapi.core.model import get_catalog, get_catalog_names, get_collections, get_collection
 
 
 def _catalogs():
@@ -22,7 +22,7 @@ def _catalogs():
 
     :return: a list of catalogs (name, href)
     """
-    catalogs = [{'name': catalog, 'href': f'/gob/{catalog}/'} for catalog in get_catalogs()]
+    catalogs = [{'name': catalog, 'href': f'/gob/{catalog}/'} for catalog in get_catalog_names()]
     return hal_response({'catalogs': catalogs}), 200, {'Content-Type': 'application/json'}
 
 

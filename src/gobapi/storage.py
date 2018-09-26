@@ -5,12 +5,14 @@ The API returns GOB data by calling any of the methods in this module.
 By using this module the API does not need to have any knowledge about the underlying storage
 
 """
+from gobcore.typesystem import get_gob_type
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.automap import automap_base
 
-from gobapi.config import GOB_DB, get_gobmodel, CATALOGS
+from gobcore.model import GOBModel
+from gobapi.config import GOB_DB
 
 # Ths session and Base will be initialised by the _init() method
 # The _init() method is called at the end of this module
@@ -36,56 +38,6 @@ def connect():
     session = Session(engine)
 
 
-def get_catalogs():
-    """Catalogs
-
-    Returns a list of catalog names
-
-    :return:
-    """
-    return list(CATALOGS.keys())
-
-
-def get_catalog(catalog_name):
-    """Catalog
-
-    Returns the catalog in the list of catalogs with the specified name
-    If the name does not exist, None is returned
-
-    :param catalog_name:
-    :return:
-    """
-    if catalog_name in get_catalogs():
-        return CATALOGS[catalog_name]
-
-
-def get_collections(catalog_name):
-    """Collections
-
-    Returns the list of collections within the specified catalog
-
-    :param catalog_name:
-    :return:
-    """
-    if catalog_name in get_catalogs():
-        return CATALOGS[catalog_name]['collections']
-
-
-def get_collection(catalog_name, collection_name):
-    """ Collection
-
-    Returns the collection with the specified name within the specified catalog
-    If any of the catalog and collection does not exist, None is returned
-
-    :param catalog_name:
-    :param collection_name:
-    :return:
-    """
-    catalog = get_catalog(catalog_name)
-    if catalog and collection_name in catalog['collections']:
-        return collection_name
-
-
 def _get_table_and_model(collection_name):
     """Table and Model
 
@@ -94,7 +46,15 @@ def _get_table_and_model(collection_name):
     :param collection_name:
     :return:
     """
-    return getattr(Base.classes, collection_name), get_gobmodel()[collection_name]
+    return getattr(Base.classes, collection_name), GOBModel().get_model(collection_name)
+
+
+def _to_gob_value(entity, field, spec):
+    gob_type = get_gob_type(spec['type'])
+    entity_value = getattr(entity, field)
+    gob_value = gob_type.from_value(entity_value)
+
+    return gob_value
 
 
 def _entity_to_dict(entity, model):
@@ -107,7 +67,8 @@ def _entity_to_dict(entity, model):
     :param model:
     :return:
     """
-    return {key: getattr(entity, key) for key in model['attributes'].keys()}
+
+    return {k: _to_gob_value(entity, k, v) for k, v in model['attributes'].items()}
 
 
 def get_entities(collection_name, offset, limit):
