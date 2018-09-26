@@ -12,8 +12,9 @@ When a requested item can not be found, a 404 not found is returned
 The not_found method provides for logic to generate 404 responses
 
 """
+import json
+
 import datetime
-import simplejson as json
 import urllib
 
 from flask import request

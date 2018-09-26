@@ -55,6 +55,9 @@ def before_each_api_test(monkeypatch):
     import gobapi.storage
     importlib.reload(gobapi.storage)
 
+    import gobapicore.model
+    importlib.reload(gobapicore.model)
+
     import gobapi.response
     importlib.reload(gobapi.response)
 
@@ -62,7 +65,7 @@ def before_each_api_test(monkeypatch):
     global collections, collection
     global entities, entity
 
-    catalogs = []
+    catalogs = {}
     catalog = None
     collections = []
     collection = None
@@ -77,11 +80,12 @@ def before_each_api_test(monkeypatch):
     monkeypatch.setattr(gobapi.response, 'hal_response', lambda data, links=None: (data, links))
     monkeypatch.setattr(gobapi.response, 'not_found', lambda msg: msg)
 
+    monkeypatch.setattr(gobapicore.model, 'get_catalogs', lambda: catalogs)
+    monkeypatch.setattr(gobapicore.model, 'get_catalog', lambda name: catalog)
+    monkeypatch.setattr(gobapicore.model, 'get_collections', lambda name: collections)
+    monkeypatch.setattr(gobapicore.model, 'get_collection', lambda name1, name2: collection)
+
     monkeypatch.setattr(gobapi.storage, 'connect', noop)
-    monkeypatch.setattr(gobapi.storage, 'get_catalogs', lambda: catalogs)
-    monkeypatch.setattr(gobapi.storage, 'get_catalog', lambda name: catalog)
-    monkeypatch.setattr(gobapi.storage, 'get_collections', lambda name: collections)
-    monkeypatch.setattr(gobapi.storage, 'get_collection', lambda name1, name2: collection)
     monkeypatch.setattr(gobapi.storage, 'get_entities', mock_entities)
     monkeypatch.setattr(gobapi.storage, 'get_entity', lambda name, id: entity)
 
@@ -105,7 +109,7 @@ def test_catalogs(monkeypatch):
     from gobapi.api import _catalogs
     assert(_catalogs() == (({'catalogs': []}, None), 200, {'Content-Type': 'application/json'}))
 
-    catalogs = ['catalog']
+    catalogs = {'catalog': {}}
     assert(_catalogs() == (({'catalogs': [{'href': '/gob/catalog/', 'name': 'catalog'}]}, None), 200, {'Content-Type': 'application/json'}))
 
 
