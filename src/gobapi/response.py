@@ -14,10 +14,28 @@ The not_found method provides for logic to generate 404 responses
 """
 import json
 
+import datetime
 import urllib
 
 from flask import request
-from gobcore.typesystem.json import GobTypeJSONEncoder
+
+
+def _as_json(data):
+    """Converts data to json
+
+    :param data: any data object
+    :return: the data in json format
+    """
+    def custom_encode(value):
+        """Encoder for any types that are not supported by teh json library
+
+        :param value: any value
+        :return: the encoded value
+        """
+        if isinstance(value, datetime.date):
+            return datetime.date.isoformat(value)
+
+    return json.dumps(data,  default=custom_encode)
 
 
 def _error_response(error, msg):
@@ -29,7 +47,7 @@ def _error_response(error, msg):
     :param msg: the message that describes the error
     :return:
     """
-    return json.dumps({
+    return _as_json({
         'error': error,
         'text': str(msg)
     }), error
@@ -54,7 +72,7 @@ def hal_response(data, links={}):
     }
     response.update(data)
 
-    return json.dumps(response, cls=GobTypeJSONEncoder)
+    return _as_json(response)
 
 
 def not_found(msg):
