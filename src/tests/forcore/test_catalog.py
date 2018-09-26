@@ -3,7 +3,7 @@ from unittest import mock, TestCase
 from unittest.mock import MagicMock
 
 from tests import fixtures
-from gobapicore.model import get_catalog_names, get_catalog, get_collections, get_collection
+from gobapi.core.model import get_catalog_names, get_catalog, get_collections, get_collection
 
 
 class TestConfig(TestCase):
@@ -18,7 +18,7 @@ class TestConfig(TestCase):
         mock_model.get_model_names.return_value = expected
 
         # Reload for this test
-        from gobapicore import model
+        from gobapi.core import model
         importlib.reload(model)
 
         catalogs = model.get_catalogs()
@@ -27,7 +27,7 @@ class TestConfig(TestCase):
         mock_model.get_model_names.assert_called()
         self.assertEqual(expected, catalogs['meetbouten']['collections'])
 
-    @mock.patch('gobapicore.model.get_catalogs')
+    @mock.patch('gobapi.core.model.get_catalogs')
     def test_catalog_names(self, mock_catalogs):
         # setup fixtures
         name = fixtures.random_string()

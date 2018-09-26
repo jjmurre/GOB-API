@@ -14,7 +14,7 @@ from flask_cors import CORS
 
 from gobapi.response import hal_response, not_found, get_page_ref
 from gobapi.storage import connect, get_entities, get_entity
-from gobapicore.model import get_catalog, get_catalog_names, get_collections, get_collection
+from gobapi.core.model import get_catalog, get_catalog_names, get_collections, get_collection
 
 
 def _catalogs():

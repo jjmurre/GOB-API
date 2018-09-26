@@ -55,8 +55,8 @@ def before_each_api_test(monkeypatch):
     import gobapi.storage
     importlib.reload(gobapi.storage)
 
-    import gobapicore.model
-    importlib.reload(gobapicore.model)
+    import gobapi.core.model
+    importlib.reload(gobapi.core.model)
 
     import gobapi.response
     importlib.reload(gobapi.response)
@@ -80,10 +80,10 @@ def before_each_api_test(monkeypatch):
     monkeypatch.setattr(gobapi.response, 'hal_response', lambda data, links=None: (data, links))
     monkeypatch.setattr(gobapi.response, 'not_found', lambda msg: msg)
 
-    monkeypatch.setattr(gobapicore.model, 'get_catalogs', lambda: catalogs)
-    monkeypatch.setattr(gobapicore.model, 'get_catalog', lambda name: catalog)
-    monkeypatch.setattr(gobapicore.model, 'get_collections', lambda name: collections)
-    monkeypatch.setattr(gobapicore.model, 'get_collection', lambda name1, name2: collection)
+    monkeypatch.setattr(gobapi.core.model, 'get_catalogs', lambda: catalogs)
+    monkeypatch.setattr(gobapi.core.model, 'get_catalog', lambda name: catalog)
+    monkeypatch.setattr(gobapi.core.model, 'get_collections', lambda name: collections)
+    monkeypatch.setattr(gobapi.core.model, 'get_collection', lambda name1, name2: collection)
 
     monkeypatch.setattr(gobapi.storage, 'connect', noop)
     monkeypatch.setattr(gobapi.storage, 'get_entities', mock_entities)
