@@ -23,18 +23,6 @@ def before_each_response_test(monkeypatch):
     importlib.reload(gobapi.response)
 
 
-def test_json_conversion(monkeypatch):
-    before_each_response_test(monkeypatch)
-
-    from gobapi.response import _as_json
-    assert(_as_json(1) == '1')
-    assert(_as_json('a') == '"a"')
-    assert(_as_json({}) == '{}')
-    assert(_as_json({'a': 5}) == '{"a": 5}')
-    assert(_as_json({'a': 'b'}) == '{"a": "b"}')
-    assert(_as_json({'a': datetime.date(2020, 1, 5)}) == '{"a": "2020-01-05"}')
-
-
 def test_not_found(monkeypatch):
     before_each_response_test(monkeypatch)
 
@@ -61,8 +49,4 @@ def test_hal_response(monkeypatch):
 
     from gobapi.response import hal_response
     assert(hal_response({}) == '{"_links": {"self": {"href": "path?arg=value"}}}')
-
-    date = datetime.date(2020, 1, 20)
-    assert(hal_response({'date': date}) == '{"_links": {"self": {"href": "path?arg=value"}}, "date": "2020-01-20"}')
-
     assert(hal_response({}, {'link': 'href'}) == '{"_links": {"link": {"href": "href"}, "self": {"href": "path?arg=value"}}}')
