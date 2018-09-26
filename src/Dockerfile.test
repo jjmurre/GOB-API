@@ -8,8 +8,15 @@ WORKDIR /app
 COPY requirements.txt /app/
 RUN pip3 install --no-cache-dir -r requirements.txt
 RUN rm requirements.txt
+RUN rm -rf /app/src/gobcore/tests
 
 # Copy gob api module
 COPY gobapi gobapi
 
-CMD uwsgi
+# Copy tests
+COPY tests tests
+COPY .flake8 .flake8
+COPY test.sh test.sh
+
+# Copy jenkins files
+COPY .jenkins /.jenkins

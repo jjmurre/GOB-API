@@ -12,9 +12,10 @@ The API can be started by get_app().run()
 from flask import Flask, request
 from flask_cors import CORS
 
-from gobapi.response import hal_response, not_found, get_page_ref
-from gobapi.storage import connect, get_entities, get_entity
 from gobapicore.model import get_catalog, get_catalog_names, get_collections, get_collection
+from gobapicore.storage.handler import GOBStorageHandler
+
+from gobapi.response import hal_response, not_found, get_page_ref
 
 
 def _catalogs():
@@ -69,19 +70,21 @@ def _entities(catalog_name, collection_name, page, page_size):
 
     offset = (page - 1) * page_size
 
-    entities, total_count = get_entities(collection_name, offset=offset, limit=page_size)
+    storage = GOBStorageHandler(collection_name)
+    with storage.get_session():
+        total_count, entities = storage.get_count_and_entities_as_dict(offset=offset, limit=page_size)
 
-    num_pages = (total_count + page_size - 1) // page_size
+        num_pages = (total_count + page_size - 1) // page_size
 
-    return {
-               'total_count': total_count,
-               'page_size': page_size,
-               'pages': num_pages,
-               'results': entities
-           }, {
-               'next': get_page_ref(page + 1, num_pages),
-               'previous': get_page_ref(page - 1, num_pages)
-           }
+        return {
+                   'total_count': total_count,
+                   'page_size': page_size,
+                   'pages': num_pages,
+                   'results': entities
+               }, {
+                   'next': get_page_ref(page + 1, num_pages),
+                   'previous': get_page_ref(page - 1, num_pages)
+               }
 
 
 def _collection(catalog_name, collection_name):
@@ -112,10 +115,14 @@ def _entity(catalog_name, collection_name, entity_id):
     :param entity_id: unique identifier of the entity
     :return:
     """
+
     if get_collection(catalog_name, collection_name):
-        result = get_entity(collection_name, entity_id)
-        return (hal_response(result), 200, {'Content-Type': 'application/json'}) if result is not None else not_found(
-            f'{catalog_name}.{collection_name}:{entity_id} not found')
+        storage = GOBStorageHandler(collection_name)
+        with storage.get_session():
+            result = storage.get_entity_as_dict(entity_id)
+            if result is not None:
+                return hal_response(result), 200, {'Content-Type': 'application/json'}
+        return not_found(f'{catalog_name}.{collection_name}:{entity_id} not found')
     else:
         return not_found(f'{catalog_name}.{collection_name} not found')
 
@@ -133,7 +140,6 @@ def get_app():
 
     :return: a Flask application object
     """
-    connect()
 
     ROUTES = [
         # Health check URL
