@@ -39,7 +39,7 @@ def get_catalog(catalog_name):
     :return:
     """
     catalogs = get_catalogs()
-    return get_catalogs()[catalog_name] if catalog_name in catalogs else None
+    return catalogs[catalog_name] if catalog_name in catalogs else None
 
 
 def get_collections(catalog_name):
