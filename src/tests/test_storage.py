@@ -79,6 +79,16 @@ def mock_get_gobmodel():
                             'type': 'GOB.String',
                             'description': 'Some attribute'
                         }
+                    },
+                    'fields': {
+                        'id': {
+                            'type': 'GOB.String',
+                            'description': 'Unique id of the collection'
+                        },
+                        'attribute': {
+                            'type': 'GOB.String',
+                            'description': 'Some attribute'
+                        }
                     }
                 }
             }[name]
