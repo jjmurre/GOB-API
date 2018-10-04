@@ -68,7 +68,7 @@ def _entity_to_dict(entity, model):
     :return:
     """
 
-    return {k: _to_gob_value(entity, k, v) for k, v in model['attributes'].items()}
+    return {k: _to_gob_value(entity, k, v) for k, v in model['fields'].items()}
 
 
 def get_entities(collection_name, offset, limit):
