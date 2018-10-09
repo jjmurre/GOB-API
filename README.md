@@ -39,10 +39,10 @@ Start the API
 
 ```
     cd src
-    python -m api
+    python -m gobapi
 ```
 
-The API is exposed at http://127.0.0.1:5000/
+The API is exposed at http://127.0.0.1:5000/gob/
 
 ### Tests
 
