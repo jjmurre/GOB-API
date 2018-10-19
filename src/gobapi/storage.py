@@ -6,6 +6,7 @@ By using this module the API does not need to have any knowledge about the under
 
 """
 from gobcore.typesystem import get_gob_type
+from gobcore.model.metadata import PUBLIC_META_FIELDS
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import Session
@@ -57,7 +58,7 @@ def _to_gob_value(entity, field, spec):
     return gob_value
 
 
-def _entity_to_dict(entity, model):
+def _entity_to_dict(entity, model, meta={}):
     """Entity - Dictionary conversion
 
     Converts an entity to a dictionary.
@@ -67,8 +68,8 @@ def _entity_to_dict(entity, model):
     :param model:
     :return:
     """
-
-    return {k: _to_gob_value(entity, k, v) for k, v in model['fields'].items()}
+    items = list(model['fields'].items()) + list(meta.items())
+    return {k: _to_gob_value(entity, k, v) for k, v in items}
 
 
 def get_entities(collection_name, offset, limit):
@@ -119,4 +120,4 @@ def get_entity(collection_name, id):
 
     entity = session.query(table).filter_by(**filter).one_or_none()
 
-    return _entity_to_dict(entity, model) if entity else None
+    return _entity_to_dict(entity, model, PUBLIC_META_FIELDS) if entity else None
