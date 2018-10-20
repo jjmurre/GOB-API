@@ -64,6 +64,14 @@ def mock_automap_base():
     return MockBase()
 
 
+mock_PUBLIC_META_FIELDS = {
+    "meta": {
+        "type": "GOB.String",
+        "description": "metadescription"
+    }
+}
+
+
 def mock_get_gobmodel():
     class model:
         def get_model(self, name):
@@ -114,6 +122,7 @@ def before_each_storage_test(monkeypatch):
     monkeypatch.setattr(sqlalchemy.orm, 'Session', MockSession)
 
     monkeypatch.setattr(gobcore.model, 'GOBModel', mock_get_gobmodel)
+    monkeypatch.setattr(gobcore.model.metadata, 'PUBLIC_META_FIELDS', mock_PUBLIC_META_FIELDS)
 
     import gobapi.storage
     importlib.reload(gobapi.storage)
@@ -148,6 +157,6 @@ def test_entity(monkeypatch):
     from gobapi.storage import get_entity
     assert(get_entity('collection1', 'id') == None)
 
-    mockEntity = MockEntity('id', 'attribute')
+    mockEntity = MockEntity('id', 'attribute', 'meta')
     MockEntities.one_entity = mockEntity
-    assert(get_entity('collection1', 'id') == {'attribute': 'attribute', 'id': 'id'})
+    assert(get_entity('collection1', 'id') == {'attribute': 'attribute', 'id': 'id', 'meta': 'meta'})
