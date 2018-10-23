@@ -43,15 +43,20 @@ def connect():
     metadata = MetaData(engine)
 
 
-def _get_table_and_model(collection_name):
+def _get_table_and_model(collection_name, view):
     """Table and Model
 
-    Utility method to retrieve the Table and Model for a specific collection
+    Utility method to retrieve the Table and Model for a specific collection.
+    When a view is provided use the and do not retun the GOBModel.
 
     :param collection_name:
+    :param view:
     :return:
     """
-    return getattr(Base.classes, collection_name), GOBModel().get_model(collection_name)
+    if view:
+        return Table(view, metadata, autoload=True), None
+    else:
+        return getattr(Base.classes, collection_name), GOBModel().get_model(collection_name)
 
 
 def _to_gob_value(entity, field, spec):
@@ -66,30 +71,39 @@ def _to_gob_value(entity, field, spec):
     return gob_value
 
 
-def _entity_to_dict(entity, model, meta={}):
-    """Entity - Dictionary conversion
+def _get_convert_for_model(model, meta={}):
+    """Get the entity to dict convert function for GOBModels
 
-    Converts an entity to a dictionary.
     The model is used to extract only the public attributes of the entity.
 
     :param entity:
     :param model:
     :return:
     """
+    def convert(entity):
+        return {k: _to_gob_value(entity, k, v) for k, v in items}
+
     items = list(model['fields'].items()) + list(meta.items())
-    return {k: _to_gob_value(entity, k, v) for k, v in items}
+    return convert
 
 
-def _entity_to_dict_from_sql_type(entity, columns):
-    """Entity - Dictionary conversion using the sql type returned from a database view
+def _get_convert_for_table(table, filter={}):
+    """Get the entity to dict convert function for database Tables or Views
 
-    Converts an entity to a dictionary.
+    The table columns are used to extract only the public attributes of the entity.
 
     :param entity:
-    :param columns:
+    :param model:
     :return:
     """
-    return {column.name: _to_gob_value(entity, column.name, type(column.type)) for column in columns}
+    def convert(entity):
+        # Use the sqltypes to get the correct gobtype and return a dict
+        return {column.name: _to_gob_value(entity, column.name, type(column.type)) for column in columns}
+
+    # Get all metadata fields and filter them from the columns returned by the database view
+    metadata_column_list = [k for k in filter.keys()]
+    columns = [c for c in table.columns if c.name not in metadata_column_list]
+    return convert
 
 
 def get_entities(collection_name, offset, limit, view=None):
@@ -105,10 +119,7 @@ def get_entities(collection_name, offset, limit, view=None):
     """
     assert(session and Base)
 
-    if view:
-        table = Table(view, metadata, autoload=True)
-    else:
-        table, model = _get_table_and_model(collection_name)
+    table, model = _get_table_and_model(collection_name, view)
 
     all_entities = session.query(table)
     all_count = all_entities.count()
@@ -116,20 +127,12 @@ def get_entities(collection_name, offset, limit, view=None):
     page_entities = all_entities.offset(offset).limit(limit).all()
 
     if view:
-        # Get all metadata fields and filter them from the columns returned by the database view
-        metadata_column_list = [k for k in {**PUBLIC_META_FIELDS, **PRIVATE_META_FIELDS, **FIXED_COLUMNS}.keys()]
-        columns = [c for c in table.columns if c.name not in metadata_column_list]
-
-        # Use the sqltypes to get the correct gobtype and return a dict
-        entities = [
-            _entity_to_dict_from_sql_type(entity, columns)
-            for entity in page_entities
-        ]
+        entity_convert = _get_convert_for_table(table,
+                                                {**PUBLIC_META_FIELDS, **PRIVATE_META_FIELDS, **FIXED_COLUMNS})
     else:
-        entities = [
-            _entity_to_dict(entity, model)
-            for entity in page_entities
-        ]
+        entity_convert = _get_convert_for_model(model)
+
+    entities = [entity_convert(entity) for entity in page_entities]
 
     return entities, all_count
 
@@ -152,18 +155,14 @@ def get_entity(collection_name, id, view=None):
         "_date_deleted": None
     }
 
-    if view:
-        table = Table(view, metadata, autoload=True)
-    else:
-        table, model = _get_table_and_model(collection_name)
+    table, model = _get_table_and_model(collection_name, view)
 
     entity = session.query(table).filter_by(**filter).one_or_none()
 
     if view:
-        # Get the private and fixed metadata fields and filter them from the columns returned by the database view
-        metadata_column_list = [k for k in {**PRIVATE_META_FIELDS, **FIXED_COLUMNS}.keys()]
-        columns = [c for c in table.columns if c.name not in metadata_column_list]
-
-        return _entity_to_dict_from_sql_type(entity, columns) if entity else None
+        entity_convert = _get_convert_for_table(table,
+                                                {**PRIVATE_META_FIELDS, **FIXED_COLUMNS})
     else:
-        return _entity_to_dict(entity, model, PUBLIC_META_FIELDS) if entity else None
+        entity_convert = _get_convert_for_model(model, PUBLIC_META_FIELDS)
+
+    return entity_convert(entity) if entity else None
