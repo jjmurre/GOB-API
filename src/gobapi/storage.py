@@ -80,7 +80,15 @@ def _entity_to_dict(entity, model, meta={}):
     return {k: _to_gob_value(entity, k, v) for k, v in items}
 
 
-def _entity_to_dict_from_sql_type(entity, columns, meta={}):
+def _entity_to_dict_from_sql_type(entity, columns):
+    """Entity - Dictionary conversion using the sql type returned from a database view
+
+    Converts an entity to a dictionary.
+
+    :param entity:
+    :param columns:
+    :return:
+    """
     return {column.name: _to_gob_value(entity, column.name, type(column.type)) for column in columns}
 
 
@@ -96,49 +104,40 @@ def get_entities(collection_name, offset, limit, view=None):
     :return:
     """
     assert(session and Base)
+
     if view:
-        return _get_entities_from_view(view, offset, limit)
+        table = Table(view, metadata, autoload=True)
     else:
-        return _get_entities_from_collection(collection_name, offset, limit)
-
-
-def _get_entities_from_collection(collection_name, offset, limit):
-    table, model = _get_table_and_model(collection_name)
+        table, model = _get_table_and_model(collection_name)
 
     all_entities = session.query(table)
-
     all_count = all_entities.count()
 
-    entities = [
-        _entity_to_dict(entity, model)
-        for entity in all_entities.offset(offset).limit(limit).all()
-    ]
+    page_entities = all_entities.offset(offset).limit(limit).all()
 
-    return (entities, all_count)
+    if view:
+        # Get all metadata fields and filter them from the columns returned by the database view
+        metadata_column_list = [k for k in {**PUBLIC_META_FIELDS, **PRIVATE_META_FIELDS, **FIXED_COLUMNS}.keys()]
+        columns = [c for c in table.columns if c.name not in metadata_column_list]
 
+        # Use the sqltypes to get the correct gobtype and return a dict
+        entities = [
+            _entity_to_dict_from_sql_type(entity, columns)
+            for entity in page_entities
+        ]
+    else:
+        entities = [
+            _entity_to_dict(entity, model)
+            for entity in page_entities
+        ]
 
-def _get_entities_from_view(view_name, offset, limit):
-    assert(session and Base)
-    view = Table(view_name, metadata, autoload=True)
-    all_entities = session.query(view)
-
-    all_count = all_entities.count()
-
-    metadata_column_list = [k for k in {**PUBLIC_META_FIELDS, **PRIVATE_META_FIELDS, **FIXED_COLUMNS}.keys()]
-    columns = [c for c in view.columns if c.name not in metadata_column_list]
-
-    entities = [
-        _entity_to_dict_from_sql_type(entity, columns)
-        for entity in all_entities.offset(offset).limit(limit).all()
-    ]
-
-    return (entities, all_count)
+    return entities, all_count
 
 
 def get_entity(collection_name, id, view=None):
     """Entity
 
-    Returns the entity within the specified collection identied by the id parameter.
+    Returns the entity from the specified collection or the view identied by the id parameter.
     If the entity cannot be found, None is returned
 
     :param collection_name:
@@ -147,45 +146,24 @@ def get_entity(collection_name, id, view=None):
     :return:
     """
     assert(session and Base)
-    if view:
-        return _get_entity_from_view(view, id)
-    else:
-        return _get_entity_from_collection(collection_name, id)
-
-
-def _get_entity_from_collection(collection_name, id):
-    table, model = _get_table_and_model(collection_name)
 
     filter = {
         "_id": id,
         "_date_deleted": None
     }
+
+    if view:
+        table = Table(view, metadata, autoload=True)
+    else:
+        table, model = _get_table_and_model(collection_name)
 
     entity = session.query(table).filter_by(**filter).one_or_none()
 
-    return _entity_to_dict(entity, model, PUBLIC_META_FIELDS) if entity else None
+    if view:
+        # Get the private and fixed metadata fields and filter them from the columns returned by the database view
+        metadata_column_list = [k for k in {**PRIVATE_META_FIELDS, **FIXED_COLUMNS}.keys()]
+        columns = [c for c in table.columns if c.name not in metadata_column_list]
 
-
-def _get_entity_from_view(view_name, id):
-    """Entity
-
-    Returns the entity within the specified view identied by the id parameter.
-    If the entity cannot be found, None is returned
-
-    :param view_name:
-    :param id:
-    :return:
-    """
-    assert(session and Base)
-    view = Table(view_name, metadata, autoload=True)
-
-    filter = {
-        "_id": id,
-        "_date_deleted": None
-    }
-
-    metadata_column_list = [k for k in {**PRIVATE_META_FIELDS, **FIXED_COLUMNS}.keys()]
-    columns = [c for c in view.columns if c.name not in metadata_column_list]
-
-    entity = session.query(view).filter_by(**filter).one_or_none()
-    return _entity_to_dict_from_sql_type(entity, columns) if entity else None
+        return _entity_to_dict_from_sql_type(entity, columns) if entity else None
+    else:
+        return _entity_to_dict(entity, model, PUBLIC_META_FIELDS) if entity else None

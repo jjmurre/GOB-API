@@ -70,12 +70,7 @@ def _entities(catalog_name, collection_name, page, page_size, view=None):
 
     offset = (page - 1) * page_size
 
-    if view:
-        view_name = f"{catalog_name}_{collection_name}_{view}"
-    else:
-        view_name = None
-
-    entities, total_count = get_entities(collection_name, offset=offset, limit=page_size, view=view_name)
+    entities, total_count = get_entities(collection_name, offset=offset, limit=page_size, view=view)
 
     num_pages = (total_count + page_size - 1) // page_size
 
@@ -102,8 +97,11 @@ def _collection(catalog_name, collection_name):
     if get_collection(catalog_name, collection_name):
         page = int(request.args.get('page', 1))
         page_size = int(request.args.get('page_size', 100))
+
         view = request.args.get('view', None)
-        result, links = _entities(catalog_name, collection_name, page, page_size, view)
+        view_name = f"{catalog_name}_{collection_name}_{view}" if view else None
+
+        result, links = _entities(catalog_name, collection_name, page, page_size, view_name)
         return hal_response(data=result, links=links), 200, {'Content-Type': 'application/json'}
     else:
         return not_found(f'{catalog_name}.{collection_name} not found')
@@ -120,13 +118,9 @@ def _entity(catalog_name, collection_name, entity_id, view=None):
     :param view: the database view that's being used to get the entity, defaults to the entity table
     :return:
     """
-    view = request.args.get('view', None)
-
     if get_collection(catalog_name, collection_name):
-        if view:
-            view_name = f"{catalog_name}_{collection_name}_{view}"
-        else:
-            view_name = None
+        view = request.args.get('view', None)
+        view_name = f"{catalog_name}_{collection_name}_{view}" if view else None
 
         result = get_entity(collection_name, entity_id, view_name)
         return (hal_response(result), 200, {'Content-Type': 'application/json'}) if result is not None else not_found(
