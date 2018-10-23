@@ -5,6 +5,7 @@ As it is a unit test all external dependencies are mocked
 
 """
 import importlib
+import sqlalchemy
 
 
 class MockClasses:
@@ -46,6 +47,20 @@ class MockEntities:
 
     def one_or_none(self):
         return self.one_entity
+
+
+class MockColumn:
+
+    def __init__(self, name):
+        self.name = name
+    type = sqlalchemy.types.VARCHAR()
+
+class MockTable():
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    columns = [MockColumn('id'), MockColumn('attribute'), MockColumn('meta')]
 
 
 class MockSession:
@@ -118,6 +133,7 @@ def before_each_storage_test(monkeypatch):
     importlib.reload(gobapi.config)
 
     monkeypatch.setattr(sqlalchemy, 'create_engine', mock_create_engine)
+    monkeypatch.setattr(sqlalchemy, 'Table', MockTable)
     monkeypatch.setattr(sqlalchemy.ext.automap, 'automap_base', mock_automap_base)
     monkeypatch.setattr(sqlalchemy.orm, 'Session', MockSession)
 
@@ -151,6 +167,26 @@ def test_entities(monkeypatch):
     assert(get_entities('collection1', 0, 1) == ([{'attribute': 'attribute', 'id': 'id'}], 1))
 
 
+def test_entities_with_view(monkeypatch):
+    before_each_storage_test(monkeypatch)
+
+    from gobapi.storage import get_entities
+    MockEntities.all_entities = []
+    assert(get_entities('collection1', 0, 1, 'enhanced') == ([], 0))
+
+    mockEntity = MockEntity('id', 'attribute')
+    MockEntities.all_entities = [
+        mockEntity
+    ]
+    assert(get_entities('collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'id': 'id'}], 1))
+
+    mockEntity = MockEntity('id', 'attribute', 'non_existing_attribute')
+    MockEntities.all_entities = [
+        mockEntity
+    ]
+    assert(get_entities('collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'id': 'id'}], 1))
+
+
 def test_entity(monkeypatch):
     before_each_storage_test(monkeypatch)
 
@@ -160,3 +196,15 @@ def test_entity(monkeypatch):
     mockEntity = MockEntity('id', 'attribute', 'meta')
     MockEntities.one_entity = mockEntity
     assert(get_entity('collection1', 'id') == {'attribute': 'attribute', 'id': 'id', 'meta': 'meta'})
+
+
+def test_entity_with_view(monkeypatch):
+    before_each_storage_test(monkeypatch)
+
+    MockEntities.one_entity = None
+    from gobapi.storage import get_entity
+    assert(get_entity('collection1', 'id', 'enhanced') == None)
+
+    mockEntity = MockEntity('id', 'attribute', 'meta')
+    MockEntities.one_entity = mockEntity
+    assert(get_entity('collection1', 'id', 'enhanced') == {'attribute': 'attribute', 'id': 'id', 'meta': 'meta'})

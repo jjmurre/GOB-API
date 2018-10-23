@@ -10,5 +10,4 @@ echo "Running unit tests"
 pytest
 
 echo "Running coverage tests"
-export COVERAGE_FILE=/tmp/.coverage
-pytest --cov=gobapi --cov-fail-under=100 tests/
+pytest --cov=gobapi --cov-report html --cov-fail-under=100 tests/
