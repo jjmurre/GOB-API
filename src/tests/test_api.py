@@ -29,6 +29,12 @@ class MockRequest:
     path = 'path'
 
 
+class MockGOBViews:
+    views = {}
+
+    def get_views(self, catalog, collection):
+        return self.views
+
 mockRequest = MockRequest()
 
 catalogs = []
@@ -37,6 +43,7 @@ collections = []
 collection = None
 entities = []
 entity = None
+views = {}
 
 
 def mock_entities(collection, offset, limit, view=None):
@@ -85,6 +92,8 @@ def before_each_api_test(monkeypatch):
     monkeypatch.setattr(gobapi.core.model, 'get_catalog', lambda name: catalog)
     monkeypatch.setattr(gobapi.core.model, 'get_collections', lambda name: collections)
     monkeypatch.setattr(gobapi.core.model, 'get_collection', lambda name1, name2: collection)
+
+    monkeypatch.setattr(gobapi.core.views, 'GOBViews', MockGOBViews)
 
     monkeypatch.setattr(gobapi.storage, 'connect', noop)
     monkeypatch.setattr(gobapi.storage, 'get_entities', mock_entities)
@@ -140,7 +149,7 @@ def test_entities(monkeypatch):
 
 
 def test_entities_with_view(monkeypatch):
-    global collection
+    global collection, views
 
     before_each_api_test(monkeypatch)
 
@@ -187,6 +196,11 @@ def test_entity_with_view(monkeypatch):
 
     collection = 'collection'
     entity = None
+    assert(_entity('catalog', 'collection', '1') == 'catalog.collection?view=enhanced not found')
+
+    MockGOBViews.views = {
+        'enhanced': {}
+    }
     assert(_entity('catalog', 'collection', '1') == 'catalog.collection:1 not found')
 
     entity = {'id': 1}
@@ -232,6 +246,41 @@ def test_collection(monkeypatch):
              'next': None,
              'previous': None}
         ), 200, {'Content-Type': 'application/json'}))
+
+
+def test_collection_with_view(monkeypatch):
+    global mockRequest
+    global catalog, collection
+    global entities, entity
+
+    before_each_api_test(monkeypatch)
+
+    from gobapi.api import _collection
+    assert(_collection('catalog', 'collection') == 'catalog.collection not found')
+
+    catalog = 'catalog'
+    collection = 'collection'
+
+    mockRequest.args = {
+        'view': 'enhanced'
+    }
+    MockGOBViews.views = {}
+    assert(_collection('catalog', 'collection') == 'catalog.collection?view=enhanced not found')
+
+    MockGOBViews.views = {
+        'enhanced': {}
+    }
+    assert(_collection('catalog', 'collection') == (
+        ({
+             'page_size': 100,
+             'pages': 0,
+             'results': [],
+             'total_count': 0
+         },{
+             'next': None,
+             'previous': None}
+        ), 200, {'Content-Type': 'application/json'}))
+
 
 
 def test_health(monkeypatch):

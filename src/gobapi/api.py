@@ -15,6 +15,7 @@ from flask_cors import CORS
 from gobapi.response import hal_response, not_found, get_page_ref
 from gobapi.storage import connect, get_entities, get_entity
 from gobapi.core.model import get_catalog, get_catalog_names, get_collections, get_collection
+from gobapi.core.views import get_view
 
 
 def _catalogs():
@@ -94,11 +95,17 @@ def _collection(catalog_name, collection_name):
     :param collection_name: e.g. meting
     :return:
     """
+
     if get_collection(catalog_name, collection_name):
         page = int(request.args.get('page', 1))
         page_size = int(request.args.get('page_size', 100))
 
         view = request.args.get('view', None)
+
+        # If a view is requested and doesn't exist return a 404
+        if view and not get_view(catalog_name, collection_name, view):
+            return not_found(f'{catalog_name}.{collection_name}?view={view} not found')
+
         view_name = f"{catalog_name}_{collection_name}_{view}" if view else None
 
         result, links = _entities(catalog_name, collection_name, page, page_size, view_name)
@@ -120,6 +127,11 @@ def _entity(catalog_name, collection_name, entity_id, view=None):
     """
     if get_collection(catalog_name, collection_name):
         view = request.args.get('view', None)
+
+        # If a view is requested and doesn't exist return a 404
+        if view and not get_view(catalog_name, collection_name, view):
+            return not_found(f'{catalog_name}.{collection_name}?view={view} not found')
+
         view_name = f"{catalog_name}_{collection_name}_{view}" if view else None
 
         result = get_entity(collection_name, entity_id, view_name)
