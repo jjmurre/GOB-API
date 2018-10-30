@@ -15,6 +15,7 @@ from flask_cors import CORS
 from gobapi.response import hal_response, not_found, get_page_ref
 from gobapi.storage import connect, get_entities, get_entity
 from gobapi.core.model import get_catalog, get_catalog_names, get_collections, get_collection
+from gobapi.core.views import get_view
 
 
 def _catalogs():
@@ -48,7 +49,7 @@ def _catalog(catalog_name):
         return not_found(f"Catalog {catalog_name} not found")
 
 
-def _entities(catalog_name, collection_name, page, page_size):
+def _entities(catalog_name, collection_name, page, page_size, view=None):
     """Returns the entities in the specified catalog collection
 
     The page and page_size are used to calculate the offset and number of entities to return
@@ -61,6 +62,7 @@ def _entities(catalog_name, collection_name, page, page_size):
     :param collection_name: e.g. meting
     :param page: any page number, page numbering starts at 1
     :param page_size: the number of entities per page
+    :param view: the database view that's being used to get the entities, defaults to the entity table
     :return: (result, links)
     """
     assert (get_collection(catalog_name, collection_name))
@@ -69,7 +71,7 @@ def _entities(catalog_name, collection_name, page, page_size):
 
     offset = (page - 1) * page_size
 
-    entities, total_count = get_entities(collection_name, offset=offset, limit=page_size)
+    entities, total_count = get_entities(collection_name, offset=offset, limit=page_size, view=view)
 
     num_pages = (total_count + page_size - 1) // page_size
 
@@ -93,16 +95,26 @@ def _collection(catalog_name, collection_name):
     :param collection_name: e.g. meting
     :return:
     """
+
     if get_collection(catalog_name, collection_name):
         page = int(request.args.get('page', 1))
         page_size = int(request.args.get('page_size', 100))
-        result, links = _entities(catalog_name, collection_name, page, page_size)
+
+        view = request.args.get('view', None)
+
+        # If a view is requested and doesn't exist return a 404
+        if view and not get_view(catalog_name, collection_name, view):
+            return not_found(f'{catalog_name}.{collection_name}?view={view} not found')
+
+        view_name = f"{catalog_name}_{collection_name}_{view}" if view else None
+
+        result, links = _entities(catalog_name, collection_name, page, page_size, view_name)
         return hal_response(data=result, links=links), 200, {'Content-Type': 'application/json'}
     else:
         return not_found(f'{catalog_name}.{collection_name} not found')
 
 
-def _entity(catalog_name, collection_name, entity_id):
+def _entity(catalog_name, collection_name, entity_id, view=None):
     """Returns the entity within the specified collection with the specified id
 
     An individual entity is returned.
@@ -110,10 +122,19 @@ def _entity(catalog_name, collection_name, entity_id):
     :param catalog_name: e.g. meetbouten
     :param collection_name: e.g. meting
     :param entity_id: unique identifier of the entity
+    :param view: the database view that's being used to get the entity, defaults to the entity table
     :return:
     """
     if get_collection(catalog_name, collection_name):
-        result = get_entity(collection_name, entity_id)
+        view = request.args.get('view', None)
+
+        # If a view is requested and doesn't exist return a 404
+        if view and not get_view(catalog_name, collection_name, view):
+            return not_found(f'{catalog_name}.{collection_name}?view={view} not found')
+
+        view_name = f"{catalog_name}_{collection_name}_{view}" if view else None
+
+        result = get_entity(collection_name, entity_id, view_name)
         return (hal_response(result), 200, {'Content-Type': 'application/json'}) if result is not None else not_found(
             f'{catalog_name}.{collection_name}:{entity_id} not found')
     else:
