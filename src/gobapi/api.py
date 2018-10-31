@@ -13,7 +13,7 @@ from flask import Flask, request
 from flask_cors import CORS
 
 from gobapi.response import hal_response, not_found, get_page_ref
-from gobapi.storage import connect, get_entities, get_entity
+from gobapi.storage import connect, get_entities, get_entity, shutdown_session
 from gobapi.core.model import get_catalog, get_catalog_names, get_collections, get_collection
 from gobapi.core.views import get_view
 
@@ -168,6 +168,8 @@ def get_app():
 
     app = Flask(__name__)
     CORS(app)
+
+    app.teardown_appcontext(shutdown_session)
 
     for route, view_func in ROUTES:
         app.route(rule=route)(view_func)

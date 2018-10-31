@@ -7,7 +7,7 @@ By using this module the API does not need to have any knowledge about the under
 """
 from sqlalchemy import create_engine, Table, MetaData
 from sqlalchemy.engine.url import URL
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.ext.automap import automap_base
 
 from gobcore.model import GOBModel
@@ -35,12 +35,18 @@ def connect():
     global session, Base, metadata
 
     engine = create_engine(URL(**GOB_DB))
-
+    session = scoped_session(sessionmaker(autocommit=False,
+                                          autoflush=False,
+                                          bind=engine))
     Base = automap_base()
     Base.prepare(engine, reflect=True)
-    session = Session(engine)
 
     metadata = MetaData(engine)
+
+
+def shutdown_session(exception=None):
+    global session
+    session.remove()
 
 
 def _get_table_and_model(collection_name, view):

@@ -18,6 +18,9 @@ class MockFlask:
     def route(self, rule):
         return noop
 
+    def teardown_appcontext(self, func):
+        return None
+
 
 class MockCORS:
     def __init__(self, app):
