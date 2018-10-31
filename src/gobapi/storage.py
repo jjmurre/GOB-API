@@ -14,7 +14,7 @@ from gobcore.model import GOBModel
 from gobcore.typesystem import get_gob_type, get_gob_type_from_sql_type
 from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS
 
-from gobapi.config import GOB_DB
+from gobapi.config import GOB_DB, API_BASE_PATH
 
 # Ths session and Base will be initialised by the _init() method
 # The _init() method is called at the end of this module
@@ -65,6 +65,20 @@ def _get_table_and_model(collection_name, view):
         return getattr(Base.classes, collection_name), GOBModel().get_model(collection_name)
 
 
+def _create_reference_link(entity, field, spec):
+    id = getattr(entity, f'{field}_id', None)
+    if not id:
+        return None
+
+    catalog, collection = spec['ref'].split(':')
+
+    # If we have an array of id's in a JSON field, return an array of links
+    if spec['type'] == 'GOB.JSON':
+        return [{'href': f'{API_BASE_PATH}/{catalog}/{collection}/{v}/'} for v in id]
+    else:
+        return {'href': f'{API_BASE_PATH}/{catalog}/{collection}/{id}/'}
+
+
 def _to_gob_value(entity, field, spec):
     if isinstance(spec, dict):
         gob_type = get_gob_type(spec['type'])
@@ -77,7 +91,7 @@ def _to_gob_value(entity, field, spec):
     return gob_value
 
 
-def _get_convert_for_model(model, meta={}):
+def _get_convert_for_model(catalog, collection, model, meta={}):
     """Get the entity to dict convert function for GOBModels
 
     The model is used to extract only the public attributes of the entity.
@@ -87,9 +101,22 @@ def _get_convert_for_model(model, meta={}):
     :return:
     """
     def convert(entity):
-        return {k: _to_gob_value(entity, k, v) for k, v in items}
+        hal_entity = {k: _to_gob_value(entity, k, v) for k, v in items}
 
-    items = list(model['fields'].items()) + list(meta.items())
+        # Add link to self in each entity
+        id = getattr(entity, '_id')
+        hal_entity['_links'] = {
+            'self': {'href': f'{API_BASE_PATH}/{catalog}/{collection}/{id}'}
+        }
+
+        # Add references to other entities
+        hal_entity['_links'].update({k: _create_reference_link(entity, k, v) for k, v in model['references'].items()})
+        return hal_entity
+
+    # Get the attributes which are not a reference to another entity
+    attributes = {k: v for k, v in model['attributes'].items() if k not in model['references'].keys()}
+    items = list(attributes.items()) + list(meta.items())
+
     return convert
 
 
@@ -112,7 +139,7 @@ def _get_convert_for_table(table, filter={}):
     return convert
 
 
-def get_entities(collection_name, offset, limit, view=None):
+def get_entities(catalog, collection, offset, limit, view=None):
     """Entities
 
     Returns the list of entities within a collection.
@@ -125,7 +152,7 @@ def get_entities(collection_name, offset, limit, view=None):
     """
     assert(session and Base)
 
-    table, model = _get_table_and_model(collection_name, view)
+    table, model = _get_table_and_model(collection, view)
 
     all_entities = session.query(table)
     all_count = all_entities.count()
@@ -136,14 +163,14 @@ def get_entities(collection_name, offset, limit, view=None):
         entity_convert = _get_convert_for_table(table,
                                                 {**PUBLIC_META_FIELDS, **PRIVATE_META_FIELDS, **FIXED_COLUMNS})
     else:
-        entity_convert = _get_convert_for_model(model)
+        entity_convert = _get_convert_for_model(catalog, collection, model)
 
     entities = [entity_convert(entity) for entity in page_entities]
 
     return entities, all_count
 
 
-def get_entity(collection_name, id, view=None):
+def get_entity(catalog, collection, id, view=None):
     """Entity
 
     Returns the entity from the specified collection or the view identied by the id parameter.
@@ -161,7 +188,7 @@ def get_entity(collection_name, id, view=None):
         "_date_deleted": None
     }
 
-    table, model = _get_table_and_model(collection_name, view)
+    table, model = _get_table_and_model(collection, view)
 
     entity = session.query(table).filter_by(**filter).one_or_none()
 
@@ -169,6 +196,6 @@ def get_entity(collection_name, id, view=None):
         entity_convert = _get_convert_for_table(table,
                                                 {**PRIVATE_META_FIELDS, **FIXED_COLUMNS})
     else:
-        entity_convert = _get_convert_for_model(model, PUBLIC_META_FIELDS)
+        entity_convert = _get_convert_for_model(catalog, collection, model, PUBLIC_META_FIELDS)
 
     return entity_convert(entity) if entity else None

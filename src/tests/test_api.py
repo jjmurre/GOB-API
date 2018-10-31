@@ -49,7 +49,7 @@ entity = None
 views = {}
 
 
-def mock_entities(collection, offset, limit, view=None):
+def mock_entities(catalog, collection, offset, limit, view=None):
     global entities
 
     return entities, len(entities)
@@ -100,7 +100,7 @@ def before_each_api_test(monkeypatch):
 
     monkeypatch.setattr(gobapi.storage, 'connect', noop)
     monkeypatch.setattr(gobapi.storage, 'get_entities', mock_entities)
-    monkeypatch.setattr(gobapi.storage, 'get_entity', lambda name, id, view: entity)
+    monkeypatch.setattr(gobapi.storage, 'get_entity', lambda catalog, collection, id, view: entity)
 
     import gobapi.api
     importlib.reload(gobapi.api)

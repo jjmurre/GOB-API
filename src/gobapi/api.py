@@ -12,6 +12,7 @@ The API can be started by get_app().run()
 from flask import Flask, request
 from flask_cors import CORS
 
+from gobapi.config import API_BASE_PATH
 from gobapi.response import hal_response, not_found, get_page_ref
 from gobapi.storage import connect, get_entities, get_entity, shutdown_session
 from gobapi.core.model import get_catalog, get_catalog_names, get_collections, get_collection
@@ -71,7 +72,7 @@ def _entities(catalog_name, collection_name, page, page_size, view=None):
 
     offset = (page - 1) * page_size
 
-    entities, total_count = get_entities(collection_name, offset=offset, limit=page_size, view=view)
+    entities, total_count = get_entities(catalog_name, collection_name, offset=offset, limit=page_size, view=view)
 
     num_pages = (total_count + page_size - 1) // page_size
 
@@ -134,7 +135,7 @@ def _entity(catalog_name, collection_name, entity_id, view=None):
 
         view_name = f"{catalog_name}_{collection_name}_{view}" if view else None
 
-        result = get_entity(collection_name, entity_id, view_name)
+        result = get_entity(catalog_name, collection_name, entity_id, view_name)
         return (hal_response(result), 200, {'Content-Type': 'application/json'}) if result is not None else not_found(
             f'{catalog_name}.{collection_name}:{entity_id} not found')
     else:
@@ -160,10 +161,10 @@ def get_app():
         # Health check URL
         ('/status/health/', _health),
 
-        ('/gob/', _catalogs),
-        ('/gob/<catalog_name>/', _catalog),
-        ('/gob/<catalog_name>/<collection_name>/', _collection),
-        ('/gob/<catalog_name>/<collection_name>/<entity_id>/', _entity),
+        (f'{API_BASE_PATH}/', _catalogs),
+        (f'{API_BASE_PATH}/<catalog_name>/', _catalog),
+        (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/', _collection),
+        (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/<entity_id>/', _entity),
     ]
 
     app = Flask(__name__)

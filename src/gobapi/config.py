@@ -6,6 +6,8 @@ and the specification of the model (get_gobmodel)
 """
 import os
 
+API_BASE_PATH = '/gob'
+
 GOB_DB = {
     'drivername': 'postgres',
     'username': os.getenv("DATABASE_USER", "gob"),
