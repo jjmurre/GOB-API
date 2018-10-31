@@ -65,14 +65,22 @@ class MockTable():
 
 class MockSession:
     def __init__(self, engine):
+        self._remove = False
         pass
 
     def query(self, table):
         return MockEntities()
 
+    def remove(self):
+        self._remove = True
 
 def mock_create_engine(url):
     return 'engine'
+
+
+def mock_scoped_session(func):
+    engine = mock_create_engine('test')
+    return MockSession(engine)
 
 
 def mock_automap_base():
@@ -135,7 +143,7 @@ def before_each_storage_test(monkeypatch):
     monkeypatch.setattr(sqlalchemy, 'create_engine', mock_create_engine)
     monkeypatch.setattr(sqlalchemy, 'Table', MockTable)
     monkeypatch.setattr(sqlalchemy.ext.automap, 'automap_base', mock_automap_base)
-    monkeypatch.setattr(sqlalchemy.orm, 'Session', MockSession)
+    monkeypatch.setattr(sqlalchemy.orm, 'scoped_session', mock_scoped_session)
 
     monkeypatch.setattr(gobcore.model, 'GOBModel', mock_get_gobmodel)
     monkeypatch.setattr(gobcore.model.metadata, 'PUBLIC_META_FIELDS', mock_PUBLIC_META_FIELDS)
@@ -208,3 +216,12 @@ def test_entity_with_view(monkeypatch):
     mockEntity = MockEntity('id', 'attribute', 'meta')
     MockEntities.one_entity = mockEntity
     assert(get_entity('collection1', 'id', 'enhanced') == {'attribute': 'attribute', 'id': 'id', 'meta': 'meta'})
+
+def test_teardown_session(monkeypatch):
+    before_each_storage_test(monkeypatch)
+
+    from gobapi.storage import shutdown_session, session
+
+    assert(session._remove == False)
+    shutdown_session()
+    assert(session._remove == True)
