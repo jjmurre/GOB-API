@@ -2,11 +2,11 @@ version: '3.0'
 
 services:
 
-  api_service:
+  gobapi:
     build: src
     ports:
       - "8141:8000"
-    container_name: api_service
+    container_name: gobapi
     environment:
       DATABASE_PORT_OVERRIDE: 5432
       DATABASE_HOST_OVERRIDE: database

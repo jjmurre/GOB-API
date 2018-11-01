@@ -11,6 +11,7 @@ import sqlalchemy
 class MockClasses:
     def __init__(self):
         self.collection1 = 'collection1'
+        self.collection2 = 'collection2'
 
 
 class MockBase:
@@ -22,6 +23,8 @@ class MockBase:
 
 class MockEntity:
     def __init__(self, *args):
+        self._id = 1
+        self.json_reference_id = [1, 2]
         for key in args:
             setattr(self, key, key)
 
@@ -120,6 +123,42 @@ def mock_get_gobmodel():
                             'type': 'GOB.String',
                             'description': 'Some attribute'
                         }
+                    },
+                    'references': {}
+                },
+                'collection2': {
+                    'entity_id': 'id',
+                    'attributes': {
+                        'id': {
+                            'type': 'GOB.String',
+                            'description': 'Unique id of the collection'
+                        },
+                        'attribute': {
+                            'type': 'GOB.String',
+                            'description': 'Some attribute'
+                        }
+                    },
+                    'fields': {
+                        'id': {
+                            'type': 'GOB.String',
+                            'description': 'Unique id of the collection'
+                        },
+                        'attribute': {
+                            'type': 'GOB.String',
+                            'description': 'Some attribute'
+                        }
+                    },
+                    'references': {
+                        'reference': {
+                            'type': 'GOB.String',
+                            'description': 'Reference to another entity',
+                            'ref': 'catalog:collection'
+                        },
+                        'json_reference': {
+                            'type': 'GOB.JSON',
+                            'description': 'Reference to another json entity',
+                            'ref': 'catalog:json'
+                        }
                     }
                 }
             }[name]
@@ -160,19 +199,55 @@ def test_entities(monkeypatch):
 
     from gobapi.storage import get_entities
     MockEntities.all_entities = []
-    assert(get_entities('collection1', 0, 1) == ([], 0))
+    assert(get_entities('catalog', 'collection1', 0, 1) == ([], 0))
 
     mockEntity = MockEntity('id', 'attribute')
     MockEntities.all_entities = [
         mockEntity
     ]
-    assert(get_entities('collection1', 0, 1) == ([{'attribute': 'attribute', 'id': 'id'}], 1))
+    assert(get_entities('catalog', 'collection1', 0, 1) == ([{'attribute': 'attribute', 'id': 'id', '_links': {'self': {'href': '/gob/catalog/collection1/1'}}}], 1))
 
     mockEntity = MockEntity('id', 'attribute', 'non_existing_attribute')
     MockEntities.all_entities = [
         mockEntity
     ]
-    assert(get_entities('collection1', 0, 1) == ([{'attribute': 'attribute', 'id': 'id'}], 1))
+    assert(get_entities('catalog', 'collection1', 0, 1) == ([{'attribute': 'attribute', 'id': 'id', '_links': {'self': {'href': '/gob/catalog/collection1/1'}}}], 1))
+
+
+def test_entities_with_reference(monkeypatch):
+    before_each_storage_test(monkeypatch)
+
+    from gobapi.storage import get_entities
+    MockEntities.all_entities = []
+    assert(get_entities('catalog', 'collection2', 0, 1) == ([], 0))
+
+    mockEntity = MockEntity('id', 'attribute')
+    MockEntities.all_entities = [
+        mockEntity
+    ]
+    assert(get_entities('catalog', 'collection2', 0, 1) == ([{
+        'attribute': 'attribute',
+        'id': 'id',
+        '_links': {
+            'self': {'href': '/gob/catalog/collection2/1'},
+            'reference': None,
+            'json_reference': [{'href': '/gob/catalog/json/1/'}, {'href': '/gob/catalog/json/2/'}]
+        }
+    }], 1))
+
+    mockEntity = MockEntity('id', 'attribute', 'reference_id')
+    MockEntities.all_entities = [
+        mockEntity
+    ]
+    assert(get_entities('catalog', 'collection2', 0, 1) == ([{
+        'attribute': 'attribute',
+        'id': 'id',
+        '_links': {
+            'self': {'href': '/gob/catalog/collection2/1'},
+            'reference': {'href': '/gob/catalog/collection/reference_id/'},
+            'json_reference': [{'href': '/gob/catalog/json/1/'}, {'href': '/gob/catalog/json/2/'}]
+        }
+    }], 1))
 
 
 def test_entities_with_view(monkeypatch):
@@ -180,30 +255,30 @@ def test_entities_with_view(monkeypatch):
 
     from gobapi.storage import get_entities
     MockEntities.all_entities = []
-    assert(get_entities('collection1', 0, 1, 'enhanced') == ([], 0))
+    assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([], 0))
 
     mockEntity = MockEntity('id', 'attribute')
     MockEntities.all_entities = [
         mockEntity
     ]
-    assert(get_entities('collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'id': 'id'}], 1))
+    assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'id': 'id'}], 1))
 
     mockEntity = MockEntity('id', 'attribute', 'non_existing_attribute')
     MockEntities.all_entities = [
         mockEntity
     ]
-    assert(get_entities('collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'id': 'id'}], 1))
+    assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'id': 'id'}], 1))
 
 
 def test_entity(monkeypatch):
     before_each_storage_test(monkeypatch)
 
     from gobapi.storage import get_entity
-    assert(get_entity('collection1', 'id') == None)
+    assert(get_entity('catalog', 'collection1', 'id') == None)
 
     mockEntity = MockEntity('id', 'attribute', 'meta')
     MockEntities.one_entity = mockEntity
-    assert(get_entity('collection1', 'id') == {'attribute': 'attribute', 'id': 'id', 'meta': 'meta'})
+    assert(get_entity('catalog', 'catalog', 'collection1', 'id') == {'attribute': 'attribute', 'id': 'id', 'meta': 'meta'})
 
 
 def test_entity_with_view(monkeypatch):
@@ -211,11 +286,11 @@ def test_entity_with_view(monkeypatch):
 
     MockEntities.one_entity = None
     from gobapi.storage import get_entity
-    assert(get_entity('collection1', 'id', 'enhanced') == None)
+    assert(get_entity('catalog', 'collection1', 'id', 'enhanced') == None)
 
     mockEntity = MockEntity('id', 'attribute', 'meta')
     MockEntities.one_entity = mockEntity
-    assert(get_entity('collection1', 'id', 'enhanced') == {'attribute': 'attribute', 'id': 'id', 'meta': 'meta'})
+    assert(get_entity('catalog', 'collection1', 'id', 'enhanced') == {'attribute': 'attribute', 'id': 'id', 'meta': 'meta'})
 
 def test_teardown_session(monkeypatch):
     before_each_storage_test(monkeypatch)
