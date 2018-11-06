@@ -65,18 +65,26 @@ def _get_table_and_model(collection_name, view):
         return getattr(Base.classes, collection_name), GOBModel().get_model(collection_name)
 
 
-def _create_reference_link(entity, field, spec):
-    id = getattr(entity, f'{field}_id', None)
-    if not id:
-        return None
+def _create_reference_link(reference, catalog, collection):
+    id = reference.get('id')
+    if id:
+        return {'_links': {'self': {'href': f'{API_BASE_PATH}/{catalog}/{collection}/{id}/'}}}
+    else:
+        return {}
 
+
+def _create_reference(entity, field, spec):
+    # Get the dict or array of dicts from a (Many)Reference field
+    embedded = _to_gob_value(entity, field, spec).to_db
     catalog, collection = spec['ref'].split(':')
 
-    # If we have an array of id's in a JSON field, return an array of links
-    if spec['type'] == 'GOB.JSON':
-        return [{'href': f'{API_BASE_PATH}/{catalog}/{collection}/{v}/'} for v in id]
+    if spec['type'] == 'GOB.ManyReference':
+        for reference in embedded:
+            reference.update(_create_reference_link(reference, catalog, collection))
     else:
-        return {'href': f'{API_BASE_PATH}/{catalog}/{collection}/{id}/'}
+        embedded.update(_create_reference_link(embedded, catalog, collection))
+
+    return embedded
 
 
 def _to_gob_value(entity, field, spec):
@@ -110,7 +118,8 @@ def _get_convert_for_model(catalog, collection, model, meta={}):
         }
 
         # Add references to other entities
-        hal_entity['_links'].update({k: _create_reference_link(entity, k, v) for k, v in model['references'].items()})
+        if model['references']:
+            hal_entity['_embedded'] = {k: _create_reference(entity, k, v) for k, v in model['references'].items()}
         return hal_entity
 
     # Get the attributes which are not a reference to another entity
