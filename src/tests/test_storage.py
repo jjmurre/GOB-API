@@ -6,6 +6,7 @@ As it is a unit test all external dependencies are mocked
 """
 import importlib
 import sqlalchemy
+import sqlalchemy_filters
 
 
 class MockClasses:
@@ -127,6 +128,15 @@ def mock_get_gobmodel():
                             'description': 'Some attribute'
                         }
                     },
+                    'api': {
+                        "filters": [
+                            {
+                                "field": "attribute",
+                                "op": "==",
+                                "value": "attribute"
+                            }
+                        ]
+                    },
                     'fields': {
                         'id': {
                             'type': 'GOB.String',
@@ -196,6 +206,7 @@ def before_each_storage_test(monkeypatch):
     monkeypatch.setattr(sqlalchemy, 'Table', MockTable)
     monkeypatch.setattr(sqlalchemy.ext.automap, 'automap_base', mock_automap_base)
     monkeypatch.setattr(sqlalchemy.orm, 'scoped_session', mock_scoped_session)
+    monkeypatch.setattr(sqlalchemy_filters, 'apply_filters', lambda q, f: q)
 
     monkeypatch.setattr(gobcore.model, 'GOBModel', mock_get_gobmodel)
     monkeypatch.setattr(gobcore.model.metadata, 'PUBLIC_META_FIELDS', mock_PUBLIC_META_FIELDS)
@@ -218,13 +229,13 @@ def test_entities(monkeypatch):
     MockEntities.all_entities = [
         mockEntity
     ]
-    assert(get_entities('catalog', 'collection1', 0, 1) == ([{'attribute': 'attribute', 'id': 'id', '_links': {'self': {'href': '/gob/catalog/collection1/1'}}}], 1))
+    assert(get_entities('catalog', 'collection1', 0, 1) == ([{'attribute': 'attribute', 'id': 'id', '_links': {'self': {'href': '/gob/catalog/collection1/1/'}}}], 1))
 
     mockEntity = MockEntity('id', 'attribute', 'non_existing_attribute')
     MockEntities.all_entities = [
         mockEntity
     ]
-    assert(get_entities('catalog', 'collection1', 0, 1) == ([{'attribute': 'attribute', 'id': 'id', '_links': {'self': {'href': '/gob/catalog/collection1/1'}}}], 1))
+    assert(get_entities('catalog', 'collection1', 0, 1) == ([{'attribute': 'attribute', 'id': 'id', '_links': {'self': {'href': '/gob/catalog/collection1/1/'}}}], 1))
 
 
 def test_entities_with_references(monkeypatch):
@@ -240,7 +251,7 @@ def test_entities_with_references(monkeypatch):
         'attribute': 'attribute',
         'id': 'id',
         '_links': {
-            'self': {'href': '/gob/catalog/collection2/1'}
+            'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
             'reference': {'bronwaarde': 1, 'id': 1, '_links': {'self': {'href': '/gob/catalog/collection/1/'}}},
@@ -265,7 +276,7 @@ def test_entities_without_reference_id(monkeypatch):
         'attribute': 'attribute',
         'id': 'id',
         '_links': {
-            'self': {'href': '/gob/catalog/collection2/1'}
+            'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
             'reference': {'bronwaarde': 1, 'id': None},
