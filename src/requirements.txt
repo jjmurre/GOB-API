@@ -23,4 +23,5 @@ pytest-cov==2.5.1
 Shapely==1.6.4.post2
 six==1.11.0
 SQLAlchemy==1.2.11
+sqlalchemy-filters==0.8.0
 Werkzeug==0.14.1
