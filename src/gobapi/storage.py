@@ -9,6 +9,7 @@ from sqlalchemy import create_engine, Table, MetaData
 from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.ext.automap import automap_base
+from sqlalchemy_filters import apply_filters
 
 from gobcore.model import GOBModel
 from gobcore.typesystem import get_gob_type, get_gob_type_from_sql_type
@@ -65,18 +66,27 @@ def _get_table_and_model(collection_name, view):
         return getattr(Base.classes, collection_name), GOBModel().get_model(collection_name)
 
 
-def _create_reference_link(entity, field, spec):
-    id = getattr(entity, f'{field}_id', None)
-    if not id:
-        return None
-
-    catalog, collection = spec['ref'].split(':')
-
-    # If we have an array of id's in a JSON field, return an array of links
-    if spec['type'] == 'GOB.JSON':
-        return [{'href': f'{API_BASE_PATH}/{catalog}/{collection}/{v}/'} for v in id]
+def _create_reference_link(reference, catalog, collection):
+    id = reference.get('id')
+    if id:
+        return {'_links': {'self': {'href': f'{API_BASE_PATH}/{catalog}/{collection}/{id}/'}}}
     else:
-        return {'href': f'{API_BASE_PATH}/{catalog}/{collection}/{id}/'}
+        return {}
+
+
+def _create_reference(entity, field, spec):
+    # Get the dict or array of dicts from a (Many)Reference field
+    embedded = _to_gob_value(entity, field, spec).to_db
+
+    if embedded is not None:
+        catalog, collection = spec['ref'].split(':')
+        if spec['type'] == 'GOB.ManyReference':
+            for reference in embedded:
+                reference.update(_create_reference_link(reference, catalog, collection))
+        else:
+            embedded.update(_create_reference_link(embedded, catalog, collection))
+
+    return embedded
 
 
 def _to_gob_value(entity, field, spec):
@@ -106,11 +116,12 @@ def _get_convert_for_model(catalog, collection, model, meta={}):
         # Add link to self in each entity
         id = getattr(entity, '_id')
         hal_entity['_links'] = {
-            'self': {'href': f'{API_BASE_PATH}/{catalog}/{collection}/{id}'}
+            'self': {'href': f'{API_BASE_PATH}/{catalog}/{collection}/{id}/'}
         }
 
         # Add references to other entities
-        hal_entity['_links'].update({k: _create_reference_link(entity, k, v) for k, v in model['references'].items()})
+        if model['references']:
+            hal_entity['_embedded'] = {k: _create_reference(entity, k, v) for k, v in model['references'].items()}
         return hal_entity
 
     # Get the attributes which are not a reference to another entity
@@ -155,8 +166,18 @@ def get_entities(catalog, collection, offset, limit, view=None):
     table, model = _get_table_and_model(collection, view)
 
     all_entities = session.query(table)
+
+    # Apply filters if defined in model
+    try:
+        filters = model['api']['filters']
+    except (KeyError, TypeError) as e:
+        pass
+    else:
+        all_entities = apply_filters(all_entities, filters)
+
     all_count = all_entities.count()
 
+    # Limit and offset for pagination
     page_entities = all_entities.offset(offset).limit(limit).all()
 
     if view:

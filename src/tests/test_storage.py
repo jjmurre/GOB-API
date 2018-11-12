@@ -6,6 +6,7 @@ As it is a unit test all external dependencies are mocked
 """
 import importlib
 import sqlalchemy
+import sqlalchemy_filters
 
 
 class MockClasses:
@@ -24,7 +25,20 @@ class MockBase:
 class MockEntity:
     def __init__(self, *args):
         self._id = 1
-        self.json_reference_id = [1, 2]
+        self.reference = {
+            'id': 1,
+            'bronwaarde': 1
+        }
+        self.manyreference = [
+            {
+                'id': 1,
+                'bronwaarde': 1
+            },
+            {
+                'id': 2,
+                'bronwaarde': 2
+            }
+        ]
         for key in args:
             setattr(self, key, key)
 
@@ -114,6 +128,15 @@ def mock_get_gobmodel():
                             'description': 'Some attribute'
                         }
                     },
+                    'api': {
+                        "filters": [
+                            {
+                                "field": "attribute",
+                                "op": "==",
+                                "value": "attribute"
+                            }
+                        ]
+                    },
                     'fields': {
                         'id': {
                             'type': 'GOB.String',
@@ -150,14 +173,14 @@ def mock_get_gobmodel():
                     },
                     'references': {
                         'reference': {
-                            'type': 'GOB.String',
+                            'type': 'GOB.Reference',
                             'description': 'Reference to another entity',
                             'ref': 'catalog:collection'
                         },
-                        'json_reference': {
-                            'type': 'GOB.JSON',
-                            'description': 'Reference to another json entity',
-                            'ref': 'catalog:json'
+                        'manyreference': {
+                            'type': 'GOB.ManyReference',
+                            'description': 'Reference array to another entity',
+                            'ref': 'catalog:collection2'
                         }
                     }
                 }
@@ -183,6 +206,7 @@ def before_each_storage_test(monkeypatch):
     monkeypatch.setattr(sqlalchemy, 'Table', MockTable)
     monkeypatch.setattr(sqlalchemy.ext.automap, 'automap_base', mock_automap_base)
     monkeypatch.setattr(sqlalchemy.orm, 'scoped_session', mock_scoped_session)
+    monkeypatch.setattr(sqlalchemy_filters, 'apply_filters', lambda q, f: q)
 
     monkeypatch.setattr(gobcore.model, 'GOBModel', mock_get_gobmodel)
     monkeypatch.setattr(gobcore.model.metadata, 'PUBLIC_META_FIELDS', mock_PUBLIC_META_FIELDS)
@@ -205,21 +229,19 @@ def test_entities(monkeypatch):
     MockEntities.all_entities = [
         mockEntity
     ]
-    assert(get_entities('catalog', 'collection1', 0, 1) == ([{'attribute': 'attribute', 'id': 'id', '_links': {'self': {'href': '/gob/catalog/collection1/1'}}}], 1))
+    assert(get_entities('catalog', 'collection1', 0, 1) == ([{'attribute': 'attribute', 'id': 'id', '_links': {'self': {'href': '/gob/catalog/collection1/1/'}}}], 1))
 
     mockEntity = MockEntity('id', 'attribute', 'non_existing_attribute')
     MockEntities.all_entities = [
         mockEntity
     ]
-    assert(get_entities('catalog', 'collection1', 0, 1) == ([{'attribute': 'attribute', 'id': 'id', '_links': {'self': {'href': '/gob/catalog/collection1/1'}}}], 1))
+    assert(get_entities('catalog', 'collection1', 0, 1) == ([{'attribute': 'attribute', 'id': 'id', '_links': {'self': {'href': '/gob/catalog/collection1/1/'}}}], 1))
 
 
-def test_entities_with_reference(monkeypatch):
+def test_entities_with_references(monkeypatch):
     before_each_storage_test(monkeypatch)
 
     from gobapi.storage import get_entities
-    MockEntities.all_entities = []
-    assert(get_entities('catalog', 'collection2', 0, 1) == ([], 0))
 
     mockEntity = MockEntity('id', 'attribute')
     MockEntities.all_entities = [
@@ -229,13 +251,24 @@ def test_entities_with_reference(monkeypatch):
         'attribute': 'attribute',
         'id': 'id',
         '_links': {
-            'self': {'href': '/gob/catalog/collection2/1'},
-            'reference': None,
-            'json_reference': [{'href': '/gob/catalog/json/1/'}, {'href': '/gob/catalog/json/2/'}]
+            'self': {'href': '/gob/catalog/collection2/1/'}
+        },
+        '_embedded': {
+            'reference': {'bronwaarde': 1, 'id': 1, '_links': {'self': {'href': '/gob/catalog/collection/1/'}}},
+            'manyreference': [
+                {'bronwaarde': 1, 'id': 1, '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
+                {'bronwaarde': 2, 'id': 2, '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
+            ]
         }
     }], 1))
 
-    mockEntity = MockEntity('id', 'attribute', 'reference_id')
+
+def test_entities_without_reference_id(monkeypatch):
+    before_each_storage_test(monkeypatch)
+    from gobapi.storage import get_entities
+
+    mockEntity = MockEntity('id', 'attribute')
+    mockEntity.reference['id'] = None
     MockEntities.all_entities = [
         mockEntity
     ]
@@ -243,9 +276,14 @@ def test_entities_with_reference(monkeypatch):
         'attribute': 'attribute',
         'id': 'id',
         '_links': {
-            'self': {'href': '/gob/catalog/collection2/1'},
-            'reference': {'href': '/gob/catalog/collection/reference_id/'},
-            'json_reference': [{'href': '/gob/catalog/json/1/'}, {'href': '/gob/catalog/json/2/'}]
+            'self': {'href': '/gob/catalog/collection2/1/'}
+        },
+        '_embedded': {
+            'reference': {'bronwaarde': 1, 'id': None},
+            'manyreference': [
+                {'bronwaarde': 1, 'id': 1, '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
+                {'bronwaarde': 2, 'id': 2, '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
+            ]
         }
     }], 1))
 
