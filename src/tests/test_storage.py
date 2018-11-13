@@ -11,8 +11,8 @@ import sqlalchemy_filters
 
 class MockClasses:
     def __init__(self):
-        self.collection1 = 'collection1'
-        self.collection2 = 'collection2'
+        self.catalog_collection1 = 'catalog_collection1'
+        self.catalog_collection2 = 'catalog_collection2'
 
 
 class MockBase:
@@ -114,7 +114,7 @@ mock_PUBLIC_META_FIELDS = {
 
 def mock_get_gobmodel():
     class model:
-        def get_model(self, name):
+        def get_collection(self, catalog_name, collection_name):
             return {
                 'collection1': {
                     'entity_id': 'id',
@@ -184,7 +184,7 @@ def mock_get_gobmodel():
                         }
                     }
                 }
-            }[name]
+            }[collection_name]
 
     return model()
 
