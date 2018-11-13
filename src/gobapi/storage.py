@@ -212,7 +212,17 @@ def get_entity(catalog, collection, id, view=None):
 
     table, model = _get_table_and_model(catalog, collection, view)
 
-    entity = session.query(table).filter_by(**filter).one_or_none()
+    entity = session.query(table).filter_by(**filter)
+
+    # Apply filters if defined in model
+    try:
+        filters = model['api']['filters']
+    except (KeyError, TypeError) as e:
+        pass
+    else:
+        entity = apply_filters(entity, filters)
+
+    entity = entity.one_or_none()
 
     if view:
         entity_convert = _get_convert_for_table(table,
