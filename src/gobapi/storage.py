@@ -63,7 +63,7 @@ def _get_table_and_model(catalog_name, collection_name, view):
     if view:
         return Table(view, metadata, autoload=True), None
     else:
-        return getattr(Base.classes, f'{catalog_name}_{collection_name}'), \
+        return getattr(Base.classes, GOBModel().get_table_name(catalog_name, collection_name)), \
                        GOBModel().get_collection(catalog_name, collection_name)
 
 
