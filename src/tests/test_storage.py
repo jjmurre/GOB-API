@@ -185,7 +185,8 @@ def mock_get_gobmodel():
                     }
                 }
             }[collection_name]
-
+        def get_table_name(self, catalog_name, collection_name):
+            return f'{catalog_name}_{collection_name}'
     return model()
 
 def before_each_storage_test(monkeypatch):
