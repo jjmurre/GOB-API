@@ -50,7 +50,7 @@ def shutdown_session(exception=None):
     session.remove()
 
 
-def _get_table_and_model(collection_name, view):
+def _get_table_and_model(catalog_name, collection_name, view):
     """Table and Model
 
     Utility method to retrieve the Table and Model for a specific collection.
@@ -63,7 +63,8 @@ def _get_table_and_model(collection_name, view):
     if view:
         return Table(view, metadata, autoload=True), None
     else:
-        return getattr(Base.classes, collection_name), GOBModel().get_model(collection_name)
+        return getattr(Base.classes, GOBModel().get_table_name(catalog_name, collection_name)), \
+                       GOBModel().get_collection(catalog_name, collection_name)
 
 
 def _create_reference_link(reference, catalog, collection):
@@ -163,7 +164,7 @@ def get_entities(catalog, collection, offset, limit, view=None):
     """
     assert(session and Base)
 
-    table, model = _get_table_and_model(collection, view)
+    table, model = _get_table_and_model(catalog, collection, view)
 
     all_entities = session.query(table)
 
@@ -209,9 +210,19 @@ def get_entity(catalog, collection, id, view=None):
         "_date_deleted": None
     }
 
-    table, model = _get_table_and_model(collection, view)
+    table, model = _get_table_and_model(catalog, collection, view)
 
-    entity = session.query(table).filter_by(**filter).one_or_none()
+    entity = session.query(table).filter_by(**filter)
+
+    # Apply filters if defined in model
+    try:
+        filters = model['api']['filters']
+    except (KeyError, TypeError) as e:
+        pass
+    else:
+        entity = apply_filters(entity, filters)
+
+    entity = entity.one_or_none()
 
     if view:
         entity_convert = _get_convert_for_table(table,

@@ -6,7 +6,6 @@ As it is a unit test all external dependencies are mocked
 """
 import importlib
 
-
 def noop(*args):
     pass
 
@@ -49,6 +48,27 @@ entity = None
 views = {}
 
 
+class MockGOBModel:
+    def __init__(self):
+        pass
+
+    def get_catalogs(self):
+        global catalogs
+        return catalogs
+
+    def get_catalog(self, catalog_name):
+        global catalog
+        return catalog
+
+    def get_collection_names(self, catalog_name):
+        global catalog
+        return catalog['collections'].keys()
+
+    def get_collection(self, catalog_name, collection_name):
+        global collection
+        return collection
+
+
 def mock_entities(catalog, collection, offset, limit, view=None):
     global entities
 
@@ -62,11 +82,8 @@ def before_each_api_test(monkeypatch):
     import flask_cors
     importlib.reload(flask_cors)
 
-    import gobapi.storage
-    importlib.reload(gobapi.storage)
-
-    import gobapi.core.model
-    importlib.reload(gobapi.core.model)
+    import gobcore.model
+    importlib.reload(gobcore.model)
 
     import gobapi.response
     importlib.reload(gobapi.response)
@@ -91,19 +108,19 @@ def before_each_api_test(monkeypatch):
     monkeypatch.setattr(gobapi.response, 'hal_response', lambda data, links=None: (data, links))
     monkeypatch.setattr(gobapi.response, 'not_found', lambda msg: msg)
 
-    monkeypatch.setattr(gobapi.core.model, 'get_catalogs', lambda: catalogs)
-    monkeypatch.setattr(gobapi.core.model, 'get_catalog', lambda name: catalog)
-    monkeypatch.setattr(gobapi.core.model, 'get_collections', lambda name: collections)
-    monkeypatch.setattr(gobapi.core.model, 'get_collection', lambda name1, name2: collection)
-
-    monkeypatch.setattr(gobapi.core.views, 'GOBViews', MockGOBViews)
+    monkeypatch.setattr(gobcore.views, 'GOBViews', MockGOBViews)
 
     monkeypatch.setattr(gobapi.storage, 'connect', noop)
     monkeypatch.setattr(gobapi.storage, 'get_entities', mock_entities)
     monkeypatch.setattr(gobapi.storage, 'get_entity', lambda catalog, collection, id, view: entity)
 
+    monkeypatch.setattr(gobcore.model, 'GOBModel', MockGOBModel)
+
     import gobapi.api
     importlib.reload(gobapi.api)
+
+    import gobapi.storage
+    importlib.reload(gobapi.storage)
 
 
 def test_app(monkeypatch):
@@ -120,10 +137,10 @@ def test_catalogs(monkeypatch):
     before_each_api_test(monkeypatch)
 
     from gobapi.api import _catalogs
-    assert(_catalogs() == (({'catalogs': []}, None), 200, {'Content-Type': 'application/json'}))
+    assert(_catalogs() == (({'_embedded': {'catalogs':[] }}, None), 200, {'Content-Type': 'application/json'}))
 
-    catalogs = {'catalog': {}}
-    assert(_catalogs() == (({'catalogs': [{'href': '/gob/catalog/', 'name': 'catalog'}]}, None), 200, {'Content-Type': 'application/json'}))
+    catalogs = {'catalog': {'description': 'catalog'}}
+    assert(_catalogs() == (({'_embedded': {'catalogs': [{'_links': {'self': {'href': '/gob/catalog/'}}, 'name': 'catalog', 'description': 'catalog'}]}}, None), 200, {'Content-Type': 'application/json'}))
 
 
 def test_catalog(monkeypatch):
@@ -136,9 +153,9 @@ def test_catalog(monkeypatch):
 
     catalog = {
         'description': 'description',
-        'collections': []
+        'collections': {}
     }
-    assert(_catalog('catalog_name') == (({'collections': [], 'description': 'description'}, None), 200, {'Content-Type': 'application/json'}))
+    assert(_catalog('catalog_name') == (({'_embedded': {'collections': []}, 'description': 'description'}, None), 200, {'Content-Type': 'application/json'}))
 
 
 def test_entities(monkeypatch):
@@ -147,6 +164,7 @@ def test_entities(monkeypatch):
     before_each_api_test(monkeypatch)
 
     from gobapi.api import _entities
+
     collection = 'collection'
     assert(_entities('catalog', 'collection', 1, 1) == ({'page_size': 1, 'pages': 0, 'results': [], 'total_count': 0}, {'next': None, 'previous': None}))
 

@@ -12,11 +12,12 @@ The API can be started by get_app().run()
 from flask import Flask, request
 from flask_cors import CORS
 
+from gobcore.model import GOBModel
+from gobcore.views import GOBViews
+
 from gobapi.config import API_BASE_PATH
 from gobapi.response import hal_response, not_found, get_page_ref
 from gobapi.storage import connect, get_entities, get_entity, shutdown_session
-from gobapi.core.model import get_catalog, get_catalog_names, get_collections, get_collection
-from gobapi.core.views import get_view
 
 
 def _catalogs():
@@ -24,8 +25,22 @@ def _catalogs():
 
     :return: a list of catalogs (name, href)
     """
-    catalogs = [{'name': catalog, 'href': f'/gob/{catalog}/'} for catalog in get_catalog_names()]
-    return hal_response({'catalogs': catalogs}), 200, {'Content-Type': 'application/json'}
+    result = {
+        '_embedded': {
+            'catalogs': [
+                {
+                    'name': catalog_name,
+                    'description': catalog['description'],
+                    '_links': {
+                        'self': {
+                            'href': f'{API_BASE_PATH}/{catalog_name}/'
+                        }
+                    }
+                } for catalog_name, catalog in GOBModel().get_catalogs().items()
+            ]
+        }
+    }
+    return hal_response(result), 200, {'Content-Type': 'application/json'}
 
 
 def _catalog(catalog_name):
@@ -34,16 +49,22 @@ def _catalog(catalog_name):
     :param catalog_name: e.g. meetbouten
     :return: the details of the specified catalog {name, href}
     """
-    catalog = get_catalog(catalog_name)
+    catalog = GOBModel().get_catalog(catalog_name)
     if catalog:
         result = {
             'description': catalog['description'],
-            'collections': [
-                {
-                    'name': collection,
-                    'href': f'/gob/{catalog_name}/{collection}/'
-                } for collection in get_collections(catalog_name)
-            ]
+            '_embedded': {
+                'collections': [
+                    {
+                        'name': collection_name,
+                        '_links': {
+                            'self': {
+                                'href': f'/gob/{catalog_name}/{collection_name}/'
+                            }
+                        }
+                    } for collection_name in GOBModel().get_collection_names(catalog_name)
+                ]
+            }
         }
         return hal_response(result), 200, {'Content-Type': 'application/json'}
     else:
@@ -66,7 +87,7 @@ def _entities(catalog_name, collection_name, page, page_size, view=None):
     :param view: the database view that's being used to get the entities, defaults to the entity table
     :return: (result, links)
     """
-    assert (get_collection(catalog_name, collection_name))
+    assert (GOBModel().get_collection(catalog_name, collection_name))
     assert (page >= 1)
     assert (page_size >= 1)
 
@@ -97,14 +118,14 @@ def _collection(catalog_name, collection_name):
     :return:
     """
 
-    if get_collection(catalog_name, collection_name):
+    if GOBModel().get_collection(catalog_name, collection_name):
         page = int(request.args.get('page', 1))
         page_size = int(request.args.get('page_size', 100))
 
         view = request.args.get('view', None)
 
         # If a view is requested and doesn't exist return a 404
-        if view and not get_view(catalog_name, collection_name, view):
+        if view and view not in GOBViews().get_views(catalog_name, collection_name):
             return not_found(f'{catalog_name}.{collection_name}?view={view} not found')
 
         view_name = f"{catalog_name}_{collection_name}_{view}" if view else None
@@ -126,11 +147,11 @@ def _entity(catalog_name, collection_name, entity_id, view=None):
     :param view: the database view that's being used to get the entity, defaults to the entity table
     :return:
     """
-    if get_collection(catalog_name, collection_name):
+    if GOBModel().get_collection(catalog_name, collection_name):
         view = request.args.get('view', None)
 
         # If a view is requested and doesn't exist return a 404
-        if view and not get_view(catalog_name, collection_name, view):
+        if view and view not in GOBViews().get_views(catalog_name, collection_name):
             return not_found(f'{catalog_name}.{collection_name}?view={view} not found')
 
         view_name = f"{catalog_name}_{collection_name}_{view}" if view else None
