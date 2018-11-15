@@ -168,6 +168,10 @@ def get_entities(catalog, collection, offset, limit, view=None):
 
     all_entities = session.query(table)
 
+    if view is None:
+        # The default result is without deleted items
+        all_entities = all_entities.filter_by(_date_deleted=None)
+
     # Apply filters if defined in model
     try:
         filters = model['api']['filters']
@@ -207,8 +211,10 @@ def get_entity(catalog, collection, id, view=None):
 
     filter = {
         "_id": id,
-        "_date_deleted": None
     }
+    if view is None:
+        # The default result is without deleted items
+        filter["_date_deleted"] = None
 
     table, model = _get_table_and_model(catalog, collection, view)
 
