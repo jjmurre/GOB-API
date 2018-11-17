@@ -105,7 +105,7 @@ def before_each_api_test(monkeypatch):
 
     monkeypatch.setattr(flask, 'request', mockRequest)
 
-    monkeypatch.setattr(gobapi.response, 'hal_response', lambda data, links=None: (data, links))
+    monkeypatch.setattr(gobapi.response, 'hal_response', lambda data, links=None: ((data, links), 200, {'Content-Type': 'application/json'}))
     monkeypatch.setattr(gobapi.response, 'not_found', lambda msg: msg)
 
     monkeypatch.setattr(gobcore.views, 'GOBViews', MockGOBViews)

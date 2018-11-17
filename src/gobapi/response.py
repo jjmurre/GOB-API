@@ -12,11 +12,46 @@ When a requested item can not be found, a 404 not found is returned
 The not_found method provides for logic to generate 404 responses
 
 """
+import re
 import json
 import urllib
 
 from flask import request
 from gobcore.typesystem.json import GobTypeJSONEncoder
+
+
+def _to_camelcase(s):
+    """Converts a snake_case string to camelCase
+
+    Example:
+        _to_camelcase(snake_case) => snakeCase
+
+    :param s: string to convert to camelCase
+    :return:
+    """
+    def _camelcase_converter(m):
+        return m.group(1).upper()
+
+    _RE_TO_CAMELCASE = re.compile(r'(?!^)_([a-zA-Z])')
+    return re.sub(_RE_TO_CAMELCASE, _camelcase_converter, s)
+
+
+def _dict_to_camelcase(d):
+    """Converts a dict with snake_case key names to a dict with camelCase key names
+
+    Recursive function to convert dictionaries with arbitrary depth to camelCase dictionaries
+
+    Example:
+        _dict_to_camelcase({"snake_case": "value}) => {"snakeCase": "value}
+
+    :param d:
+    :return:
+    """
+
+    obj = {}
+    for k, v in d.items():
+        obj[_to_camelcase(k)] = _dict_to_camelcase(v) if isinstance(v, dict) else v
+    return obj
 
 
 def _error_response(error, msg):
@@ -31,7 +66,7 @@ def _error_response(error, msg):
     return json.dumps({
         'error': error,
         'text': str(msg)
-    }), error
+    }), error, {'Content-Type': 'application/json'}
 
 
 def hal_response(data, links={}):
@@ -52,8 +87,9 @@ def hal_response(data, links={}):
         '_links': {key: {'href': href} for key, href in links.items()}
     }
     response.update(data)
+    response = _dict_to_camelcase(response)
 
-    return json.dumps(response, cls=GobTypeJSONEncoder)
+    return json.dumps(response, cls=GobTypeJSONEncoder), 200, {'Content-Type': 'application/json'}
 
 
 def not_found(msg):
