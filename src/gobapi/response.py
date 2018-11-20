@@ -48,9 +48,17 @@ def _dict_to_camelcase(d):
     :return:
     """
 
+    def item_to_camelcase(value):
+        if isinstance(value, list):
+            return [item_to_camelcase(v) for v in value]
+        elif isinstance(value, dict):
+            return _dict_to_camelcase(value)
+        else:
+            return value
+
     obj = {}
-    for k, v in d.items():
-        obj[_to_camelcase(k)] = _dict_to_camelcase(v) if isinstance(v, dict) else v
+    for key, value in d.items():
+        obj[_to_camelcase(key)] = item_to_camelcase(value)
     return obj
 
 
@@ -83,11 +91,10 @@ def hal_response(data, links={}):
         self += f'?{urllib.parse.urlencode(request.args)}'
     links['self'] = self
 
-    response = {
-        '_links': {key: {'href': href} for key, href in links.items()}
-    }
-    response.update(data)
-    response = _dict_to_camelcase(response)
+    response = _dict_to_camelcase({
+        '_links': {key: {'href': href} for key, href in links.items()},
+        **data
+    })
 
     return json.dumps(response, cls=GobTypeJSONEncoder), 200, {'Content-Type': 'application/json'}
 

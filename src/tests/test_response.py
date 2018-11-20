@@ -102,3 +102,21 @@ def test_camelcase_converter(monkeypatch):
             'c': {'camelCase4': 'e'},
             }
     } )
+
+    adict = {
+        "camel_case1" : [{
+            "camel_case2" : "camel_case"
+        }]
+    }
+    assert(_dict_to_camelcase(adict) == {
+        'camelCase1': [{'camelCase2': 'camel_case'}]
+    })
+
+    adict = {
+        "camel_case1" : [[{
+            "camel_case2" : "camel_case"
+        }]]
+    }
+    assert(_dict_to_camelcase(adict) == {
+        'camelCase1': [[{'camelCase2': 'camel_case'}]]
+    })
