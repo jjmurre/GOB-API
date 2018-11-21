@@ -40,7 +40,7 @@ def _catalogs():
             ]
         }
     }
-    return hal_response(result), 200, {'Content-Type': 'application/json'}
+    return hal_response(result)
 
 
 def _catalog(catalog_name):
@@ -66,7 +66,7 @@ def _catalog(catalog_name):
                 ]
             }
         }
-        return hal_response(result), 200, {'Content-Type': 'application/json'}
+        return hal_response(result)
     else:
         return not_found(f"Catalog {catalog_name} not found")
 
@@ -131,7 +131,7 @@ def _collection(catalog_name, collection_name):
         view_name = f"{catalog_name}_{collection_name}_{view}" if view else None
 
         result, links = _entities(catalog_name, collection_name, page, page_size, view_name)
-        return hal_response(data=result, links=links), 200, {'Content-Type': 'application/json'}
+        return hal_response(data=result, links=links)
     else:
         return not_found(f'{catalog_name}.{collection_name} not found')
 
@@ -157,7 +157,7 @@ def _entity(catalog_name, collection_name, entity_id, view=None):
         view_name = f"{catalog_name}_{collection_name}_{view}" if view else None
 
         result = get_entity(catalog_name, collection_name, entity_id, view_name)
-        return (hal_response(result), 200, {'Content-Type': 'application/json'}) if result is not None else not_found(
+        return hal_response(result) if result is not None else not_found(
             f'{catalog_name}.{collection_name}:{entity_id} not found')
     else:
         return not_found(f'{catalog_name}.{collection_name} not found')
