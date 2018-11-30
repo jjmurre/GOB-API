@@ -88,6 +88,9 @@ class MockSession:
     def query(self, table):
         return MockEntities()
 
+    def query_property(self):
+        pass
+
     def remove(self):
         self._remove = True
 

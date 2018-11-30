@@ -12,6 +12,7 @@ from sqlalchemy.ext.automap import automap_base
 from sqlalchemy_filters import apply_filters
 
 from gobcore.model import GOBModel
+from gobcore.model.sa.gob import Base
 from gobcore.typesystem import get_gob_type, get_gob_type_from_sql_type
 from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS
 
@@ -20,7 +21,7 @@ from gobapi.config import GOB_DB, API_BASE_PATH
 # Ths session and Base will be initialised by the _init() method
 # The _init() method is called at the end of this module
 session = None
-Base = None
+_Base = None
 metadata = None
 
 
@@ -33,14 +34,17 @@ def connect():
 
     :return:
     """
-    global session, Base, metadata
+    global session, _Base, metadata
 
     engine = create_engine(URL(**GOB_DB))
     session = scoped_session(sessionmaker(autocommit=False,
                                           autoflush=False,
                                           bind=engine))
-    Base = automap_base()
-    Base.prepare(engine, reflect=True)
+    _Base = automap_base()
+    _Base.prepare(engine, reflect=True)
+
+    Base.metadata.bind = engine  # Bind engine to metadata of the base class
+    Base.query = session.query_property()  # Used by graphql to execute queries
 
     metadata = MetaData(engine)
 
@@ -63,7 +67,7 @@ def _get_table_and_model(catalog_name, collection_name, view):
     if view:
         return Table(view, metadata, autoload=True), None
     else:
-        return getattr(Base.classes, GOBModel().get_table_name(catalog_name, collection_name)), \
+        return getattr(_Base.classes, GOBModel().get_table_name(catalog_name, collection_name)), \
                        GOBModel().get_collection(catalog_name, collection_name)
 
 
@@ -162,7 +166,7 @@ def get_entities(catalog, collection, offset, limit, view=None):
     :param limit:
     :return:
     """
-    assert(session and Base)
+    assert(session and _Base)
 
     table, model = _get_table_and_model(catalog, collection, view)
 
@@ -207,7 +211,7 @@ def get_entity(catalog, collection, id, view=None):
     :param view:
     :return:
     """
-    assert(session and Base)
+    assert(session and _Base)
 
     filter = {
         "_id": id,

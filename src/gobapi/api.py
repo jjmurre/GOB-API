@@ -9,6 +9,7 @@ The only public method is get_app() which returns a Flask application object.
 The API can be started by get_app().run()
 
 """
+from flask_graphql import GraphQLView
 from flask import Flask, request
 from flask_cors import CORS
 
@@ -18,6 +19,8 @@ from gobcore.views import GOBViews
 from gobapi.config import API_BASE_PATH
 from gobapi.response import hal_response, not_found, get_page_ref
 from gobapi.storage import connect, get_entities, get_entity, shutdown_session
+
+from gobapi.graphql.schema import schema
 
 
 def _catalogs():
@@ -178,6 +181,12 @@ def get_app():
     """
     connect()
 
+    graphql = GraphQLView.as_view(
+        'graphql',
+        schema=schema,
+        graphiql=True  # for having the GraphiQL interface
+    )
+
     ROUTES = [
         # Health check URL
         ('/status/health/', _health),
@@ -186,6 +195,8 @@ def get_app():
         (f'{API_BASE_PATH}/<catalog_name>/', _catalog),
         (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/', _collection),
         (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/<entity_id>/', _entity),
+
+        (f'{API_BASE_PATH}/graphql/', graphql)
     ]
 
     app = Flask(__name__)
