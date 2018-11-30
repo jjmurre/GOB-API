@@ -8,8 +8,14 @@ import graphene
 from graphene_sqlalchemy import SQLAlchemyObjectType, SQLAlchemyConnectionField
 
 from gobcore.model import GOBModel
+from gobcore.model.metadata import PRIVATE_META_FIELDS, PUBLIC_META_FIELDS, FIXED_FIELDS
 from gobcore.model.sa.gob import models
 
+exclude_fields = tuple(name for name in {
+    **PRIVATE_META_FIELDS,
+    **PUBLIC_META_FIELDS,
+    **FIXED_FIELDS
+}.keys())
 queries = []
 model = GOBModel()
 for catalog_name, catalog in model.get_catalogs().items():
@@ -22,6 +28,7 @@ for catalog_name, catalog in model.get_catalogs().items():
             "__repr__": lambda self: f"{collection_name}",
             "Meta": type(f"{collection_name}_Meta", (), {
                 "model": models[model.get_table_name(catalog_name, collection_name)],
+                "exclude_fields": exclude_fields,
                 "interfaces": (graphene.relay.Node,)
             })
         })
