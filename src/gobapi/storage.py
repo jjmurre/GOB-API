@@ -126,7 +126,7 @@ def _get_convert_for_model(catalog, collection, model, meta={}):
         return hal_entity
 
     # Get the attributes which are not a reference to another entity
-    attributes = {k: v for k, v in model['attributes'].items() if k not in model['references'].keys()}
+    attributes = {k: v for k, v in model['fields'].items() if k not in model['references'].keys()}
     items = list(attributes.items()) + list(meta.items())
 
     return convert

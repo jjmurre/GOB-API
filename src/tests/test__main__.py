@@ -10,7 +10,7 @@ importlib.reload(gobapi.api)
 class MockApp:
     is_running = False
 
-    def run(self):
+    def run(self, port):
         self.is_running = True
 
 
