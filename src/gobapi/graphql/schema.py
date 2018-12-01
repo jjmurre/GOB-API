@@ -5,11 +5,28 @@ The schema is generated from the GOB models and model classes as defined in GOB 
 """
 import graphene
 
-from graphene_sqlalchemy import SQLAlchemyObjectType, SQLAlchemyConnectionField
+from graphene_sqlalchemy import SQLAlchemyObjectType
 
 from gobcore.model import GOBModel
 from gobcore.model.metadata import PRIVATE_META_FIELDS, PUBLIC_META_FIELDS, FIXED_FIELDS
 from gobcore.model.sa.gob import models
+
+from gobapi.graphql.scalars import Date
+from gobapi.graphql.filters import FilterConnectionField
+
+
+def graphene_type(gob_typename, description=""):
+    conversion = {
+        "GOB.String": graphene.String,
+        "GOB.Integer": graphene.Int,
+        "GOB.Decimal": graphene.Float,
+        "GOB.Boolean": graphene.Boolean,
+        "GOB.Date": Date,
+        "GOB.DateTime": graphene.DateTime
+    }
+    if conversion.get(gob_typename):
+        return conversion.get(gob_typename)(description=description)
+
 
 exclude_fields = tuple(name for name in {
     **PRIVATE_META_FIELDS,
@@ -44,13 +61,17 @@ for catalog_name, catalog in model.get_catalogs().items():
 
         queries.append({
             "collection_name": collection_name,
+            "attributes": {attr: graphene_type(value["type"], value["description"]) for attr, value in
+                           collection["attributes"].items() if
+                           not graphene_type(value["type"]) is None},
             "object_type_class": object_type_class,
             "connection_class": connection_class
         })
 
 Query = type("Query", (graphene.ObjectType,),
-             # <collection> = SQLAlchemyConnectionField(<collection>Connection)
-             {query["collection_name"]: SQLAlchemyConnectionField(query["connection_class"]) for query in queries}
+             # <collection> = FilterConnectionField(<collection>Connection, filters...)
+             {query["collection_name"]: FilterConnectionField(query["connection_class"], **query["attributes"]) for
+              query in queries}
              )
 
 schema = graphene.Schema(query=Query)
