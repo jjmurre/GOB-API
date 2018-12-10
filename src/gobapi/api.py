@@ -18,6 +18,7 @@ from gobcore.views import GOBViews
 
 from gobapi.config import API_BASE_PATH
 from gobapi.response import hal_response, not_found, get_page_ref
+from gobapi.states import get_states
 from gobapi.storage import connect, get_entities, get_entity, shutdown_session
 
 from gobapi.graphql.schema import schema
@@ -166,6 +167,37 @@ def _entity(catalog_name, collection_name, entity_id, view=None):
         return not_found(f'{catalog_name}.{collection_name} not found')
 
 
+def _states():
+    """Returns the states for the supplied list of collections
+
+    All states for a collection with the related collections are returned.
+    The list of collections can be passed as an URL parameter:
+
+    ?collections=gebieden:wijken,gebieden:stadsdelen
+
+    :return:
+    """
+    collection_names = request.args.get('collections')
+    if collection_names:
+        collections = []
+        for c in collection_names.split(','):
+            collections.append(c.split(':'))
+            entities, total_count = get_states(collections)
+        result = {
+            'total_count': total_count,
+            'page_size': total_count,
+            'pages': 1,
+            'results': entities
+        }
+        links = {
+            'next': None,
+            'previous': None
+            }
+        return hal_response(result, links)
+    else:
+        return not_found(f'No collections requested')
+
+
 def _health():
     return 'Connectivity OK'
 
@@ -195,6 +227,9 @@ def get_app():
         (f'{API_BASE_PATH}/<catalog_name>/', _catalog),
         (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/', _collection),
         (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/<entity_id>/', _entity),
+
+        # Get states with history for a list of collections
+        (f'{API_BASE_PATH}/toestanden/', _states),
 
         (f'{API_BASE_PATH}/graphql/', graphql)
     ]

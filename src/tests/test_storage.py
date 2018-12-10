@@ -4,10 +4,12 @@ The unit tests for the storage module.
 As it is a unit test all external dependencies are mocked
 
 """
+import datetime
 import importlib
 import sqlalchemy
 import sqlalchemy_filters
 
+from gobapi.storage import _get_convert_for_state
 
 class MockClasses:
     def __init__(self):
@@ -24,21 +26,23 @@ class MockBase:
 
 class MockEntity:
     def __init__(self, *args):
-        self._id = 1
+        self._id = '1'
         self.reference = {
-            'id': 1,
-            'bronwaarde': 1
+            'id': '1',
+            'bronwaarde': '1'
         }
         self.manyreference = [
             {
-                'id': 1,
-                'bronwaarde': 1
+                'id': '1',
+                'bronwaarde': '1'
             },
             {
-                'id': 2,
-                'bronwaarde': 2
+                'id': '2',
+                'bronwaarde': '2'
             }
         ]
+        self.datum_begin_geldigheid = datetime.date.today() - datetime.timedelta(days=365)
+        self.datum_einde_geldigheid = datetime.date.today()
         for key in args:
             setattr(self, key, key)
 
@@ -258,10 +262,10 @@ def test_entities_with_references(monkeypatch):
             'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
-            'reference': {'bronwaarde': 1, 'id': 1, '_links': {'self': {'href': '/gob/catalog/collection/1/'}}},
+            'reference': {'bronwaarde': '1', 'id': '1', '_links': {'self': {'href': '/gob/catalog/collection/1/'}}},
             'manyreference': [
-                {'bronwaarde': 1, 'id': 1, '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
-                {'bronwaarde': 2, 'id': 2, '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
+                {'bronwaarde': '1', 'id': '1', '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
+                {'bronwaarde': '2', 'id': '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
             ]
         }
     }], 1))
@@ -283,10 +287,10 @@ def test_entities_without_reference_id(monkeypatch):
             'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
-            'reference': {'bronwaarde': 1, 'id': None},
+            'reference': {'bronwaarde': '1', 'id': None},
             'manyreference': [
-                {'bronwaarde': 1, 'id': 1, '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
-                {'bronwaarde': 2, 'id': 2, '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
+                {'bronwaarde': '1', 'id': '1', '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
+                {'bronwaarde': '2', 'id': '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
             ]
         }
     }], 1))
@@ -310,6 +314,21 @@ def test_entities_with_view(monkeypatch):
         mockEntity
     ]
     assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'id': 'id'}], 1))
+
+
+def test_collection_states(monkeypatch):
+    before_each_storage_test(monkeypatch)
+
+    from gobapi.storage import get_collection_states
+    MockEntities.all_entities = []
+    assert(get_collection_states('catalog', 'collection1') == {})
+
+    mockEntity = MockEntity('id', 'attribute')
+    MockEntities.all_entities = [
+        mockEntity
+    ]
+
+    assert(get_collection_states('catalog', 'collection1') == {'1': [mockEntity]})
 
 
 def test_entity(monkeypatch):
@@ -342,3 +361,15 @@ def test_teardown_session(monkeypatch):
     assert(session._remove == False)
     shutdown_session()
     assert(session._remove == True)
+
+
+def test_get_convert_for_state(monkeypatch):
+    before_each_storage_test(monkeypatch)
+
+    MockGOBModel = mock_get_gobmodel()
+    model = MockGOBModel.get_collection('catalog', 'collection1')
+    convert = _get_convert_for_state(model)
+    mockEntity = MockEntity('id', 'attribute')
+    result = convert(mockEntity)
+
+    assert(result == {'id': 'id', 'attribute': 'attribute'})

@@ -5,6 +5,8 @@ The API returns GOB data by calling any of the methods in this module.
 By using this module the API does not need to have any knowledge about the underlying storage
 
 """
+from collections import defaultdict
+
 from sqlalchemy import create_engine, Table, MetaData
 from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import scoped_session, sessionmaker
@@ -54,7 +56,7 @@ def shutdown_session(exception=None):
     session.remove()
 
 
-def _get_table_and_model(catalog_name, collection_name, view):
+def _get_table_and_model(catalog_name, collection_name, view=None):
     """Table and Model
 
     Utility method to retrieve the Table and Model for a specific collection.
@@ -100,10 +102,32 @@ def _to_gob_value(entity, field, spec):
     else:
         gob_type = get_gob_type_from_sql_type(spec)
 
-    entity_value = getattr(entity, field)
+    entity_value = getattr(entity, field, None)
     gob_value = gob_type.from_value(entity_value)
 
     return gob_value
+
+
+def _get_convert_for_state(model, fields=[]):
+    """Get the entity to dict convert function for GOBModels with state
+
+    The model is used to extract only the public attributes of the entity,
+    fields can be used to only select certain attributes
+
+    :param model:
+    :param fields:
+    :return:
+    """
+    def convert(entity):
+        hal_entity = {k: _to_gob_value(entity, k, v) for k, v in items}
+        return hal_entity
+
+    # Select all attributes except if it's a reference, unless a specific list was passed
+    if not fields:
+        fields = [field for field in model['fields'].keys() if field not in model['references'].keys()]
+    attributes = {k: v for k, v in model['fields'].items() if k in fields}
+    items = list(attributes.items())
+    return convert
 
 
 def _get_convert_for_model(catalog, collection, model, meta={}):
@@ -198,6 +222,31 @@ def get_entities(catalog, collection, offset, limit, view=None):
     entities = [entity_convert(entity) for entity in page_entities]
 
     return entities, all_count
+
+
+def get_collection_states(catalog, collection):
+    """States
+
+    Returns all entities with state from the specified collection
+
+    :param catalog:
+    :param collection:
+    :return states: A dict containing all entities by _id for easy lookup
+    """
+    assert(session and _Base)
+
+    table, model = _get_table_and_model(catalog, collection)
+
+    all_entities = session.query(table).all()
+
+    states = defaultdict(list)
+
+    if not all_entities:
+        return states
+
+    for entity in all_entities:
+        states[entity._id].append(entity)
+    return states
 
 
 def get_entity(catalog, collection, id, view=None):

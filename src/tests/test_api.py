@@ -114,6 +114,8 @@ def before_each_api_test(monkeypatch):
     monkeypatch.setattr(gobapi.storage, 'get_entities', mock_entities)
     monkeypatch.setattr(gobapi.storage, 'get_entity', lambda catalog, collection, id, view: entity)
 
+    monkeypatch.setattr(gobapi.states, 'get_states', lambda collections: ([{'id': '1', 'attribute': 'attribute'}], 1))
+
     monkeypatch.setattr(gobcore.model, 'GOBModel', MockGOBModel)
 
     import gobapi.api
@@ -121,6 +123,9 @@ def before_each_api_test(monkeypatch):
 
     import gobapi.storage
     importlib.reload(gobapi.storage)
+
+    import gobapi.states
+    importlib.reload(gobapi.states)
 
 
 def test_app(monkeypatch):
@@ -302,6 +307,33 @@ def test_collection_with_view(monkeypatch):
              'previous': None}
         ), 200, {'Content-Type': 'application/json'}))
 
+
+def test_states(monkeypatch):
+    global mockRequest
+    global catalog, collection
+    global entities, entity
+
+    before_each_api_test(monkeypatch)
+
+    from gobapi.api import _states
+    assert(_states() == 'No collections requested')
+
+    catalog = 'catalog'
+    collection = {'references': {}}
+
+    mockRequest.args = {
+        'collections': 'catalog:collection'
+    }
+    assert(_states() == (
+        ({
+             'page_size': 1,
+             'pages': 1,
+             'results': [{'id': '1', 'attribute': 'attribute'}],
+             'total_count': 1
+         },{
+             'next': None,
+            'previous': None}
+        ), 200, {'Content-Type': 'application/json'}))
 
 
 def test_health(monkeypatch):
