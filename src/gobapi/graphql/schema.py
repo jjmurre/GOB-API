@@ -9,137 +9,124 @@ import re
 from graphene_sqlalchemy import SQLAlchemyObjectType
 
 from gobcore.model import GOBModel
-from gobcore.model.metadata import PRIVATE_META_FIELDS, PUBLIC_META_FIELDS, FIXED_FIELDS
 from gobcore.model.sa.gob import models
 
-from gobapi.storage import get_session
-from gobapi.graphql.scalars import Date
-from gobapi.graphql.filters import FilterConnectionField
-
-def graphene_type(gob_typename, description=""):
-    conversion = {
-        "GOB.String": graphene.String,
-        "GOB.Integer": graphene.Int,
-        "GOB.Decimal": graphene.Float,
-        "GOB.Boolean": graphene.Boolean,
-        "GOB.Date": Date,
-        "GOB.DateTime": graphene.DateTime
-    }
-    if conversion.get(gob_typename):
-        return conversion.get(gob_typename)(description=description)
-
-def get_resolve_attribute(mdl, ref_name):
-
-    def resolve_attribute(obj, args, **kwargs):
-        RELAY_ARGS = ['first', 'last', 'before', 'after', 'sort']
-        _id = getattr(obj, ref_name)["id"]
-
-        result = get_session().query(mdl).filter_by(_id=_id)
-        for field, value in kwargs.items():
-            if field not in RELAY_ARGS:
-                if value == "null":
-                    result = result.filter(getattr(mdl, field) == None)
-                else:
-                    result = result.filter(getattr(mdl, field) == value)
-        return result.all()
-
-    return resolve_attribute
+from gobapi.graphql import graphene_type, exclude_fields
+from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute
 
 
-exclude_fields = tuple(name for name in {
-    **PRIVATE_META_FIELDS,
-    **PUBLIC_META_FIELDS,
-    **FIXED_FIELDS
-}.keys())
-queries = []
-model = GOBModel()
+def _get_sorted_references(model):
+    """Get an ordered list of references
+
+    A reference is a "catalogue:collection" string
+
+    Each collection in the given model might refer to another collection.
+
+    For each collection in the model, all references to other collections are collected
+    these references are stored in a dictionary
+
+    Then a list is constructed so that when A refers to B, B will be before A in the list
+
+    :param model: the model that contains all catalogs and collections
+    :return: a sorted list of references ("catalogue:collection")
+    """
+    refs = {}
+    for catalog_name, catalog in model.get_catalogs().items():
+        for collection_name, collection in model.get_collections(catalog_name).items():
+            from_ref = f"{catalog_name}:{collection_name}"
+
+            # Get all references fields for the collection
+            ref_types = ["GOB.Reference"]
+            # Get all references that are contained in these fields
+            refs[from_ref] = [ref["ref"] for ref in collection["attributes"].values() if ref["type"] in ref_types]
+
+    sorted_refs = []
+    for from_ref, to_refs in refs.items():
+        # Get all the references that are already in the list (all B where A => B)
+        to_refs_in_list = [to_ref for to_ref in to_refs if to_ref in sorted_refs]
+        if len(to_refs_in_list) == 0:
+            # from_ref Free to put in the list at any place (no B where A => B)
+            sorted_refs.insert(0, from_ref)
+        else:
+            # A => B implies B before A
+            # put A after the last B
+            # Get the index of the last occurrence of any of the referenced collections
+            max_index = max([sorted_refs.index(to_ref) for to_ref in to_refs_in_list])
+            # Put the collection after any of its referenced collections
+            sorted_refs.insert(max_index + 1, from_ref)
+
+    return sorted_refs
 
 
-refs = {}
-for catalog_name, catalog in model.get_catalogs().items():
-    for collection_name, collection in model.get_collections(catalog_name).items():
-        from_table_name = f"{catalog_name}:{collection_name}"
-        refs[from_table_name] = []
+def get_graphene_query():
+    connection_fields = {}  # FilterConnectionField() per collection
+    base_models = {}  # SQLAlchemy model per collection
+
+    # Use the GOB model to generate the GraphQL query
+    model = GOBModel()
+
+    # Sort references so that if a refers to b, a will be handled before b
+    sorted_refs = _get_sorted_references(model)
+
+    for ref in sorted_refs:
+        # A reference is a "catalogue:collection" string
+        pattern = re.compile('(\w+):(\w+)')
+        catalog_name, collection_name = re.findall(pattern, ref)[0]
+        collection = model.get_collection(catalog_name, collection_name)
 
         # Get all references for the collection
-        ref_types = ["GOB.Reference", "GOB.ManyReference"]
-        ref_attrs = [ref for ref in collection["attributes"].values() if ref["type"] in ref_types]
-        for ref in ref_attrs:
-            refs[from_table_name].append(ref["ref"])
+        ref_types = ["GOB.Reference"]
+        ref_items = {key: value for key, value in collection["attributes"].items() if value["type"] in ref_types}
+        fields = {}  # field name and corresponding FilterConnectionField()
+        for key in ref_items.keys():
+            cat_name, col_name = re.findall(pattern, ref_items[key]["ref"])[0]
+            if not connection_fields.get(col_name) is None:
+                fields[col_name] = {
+                    "connection": connection_fields[col_name],
+                    "field_name": key
+                }
 
-sorted_refs = []
-for key, value in refs.items():
-    values = [val for val in value if val in sorted_refs]
-    min_value = min([sorted_refs.index(val) for val in values]) if len(values) else None
-    sorted_refs.append(key) if min_value is None else sorted_refs.insert(min_value, key)
-sorted_refs.reverse()
-
-connection_fields = {}
-connection_lists = {}
-base_models = {}
-for ref in sorted_refs:
-    pattern = re.compile('(\w+):(\w+)')
-    catalog_name, collection_name = re.findall(pattern, ref)[0]
-    catalog = model.get_catalog(catalog_name)
-    collection = model.get_collection(catalog_name, collection_name)
-
-    # Get all references for the collection
-    ref_types = ["GOB.Reference", "GOB.ManyReference"]
-    ref_items = {key: value for key, value in collection["attributes"].items() if value["type"] in ref_types}
-    fields = {}
-    for key in ref_items.keys():
-        cat_name, col_name = re.findall(pattern, ref_items[key]["ref"])[0]
-        if not connection_fields.get(col_name) is None:
-            fields[col_name] = {
-                "connection": connection_fields[col_name],
-                "list": connection_lists[col_name],
-                "field_name": key
-            }
-
-    # class <Collection>(SQLAlchemyObjectType):
-    #     class Meta:
-    #         model = <SQLAlchemy Model>
-    #         interfaces = (graphene.relay.Node, )
-    base_model = models[model.get_table_name(catalog_name, collection_name)]
-    object_type_class = type(collection_name, (SQLAlchemyObjectType,), {
-        "__repr__": lambda self: f"{collection_name}",
-        **{key: value["connection"] for key, value in fields.items()},
-        **{f"resolve_{key}": get_resolve_attribute(base_models[key], value["field_name"]) for key, value in fields.items()},
-        "Meta": type(f"{collection_name}_Meta", (), {
-            "model": base_model,
-            "exclude_fields": exclude_fields,
-            "interfaces": (graphene.relay.Node,)
+        # class <Collection>(SQLAlchemyObjectType):
+        #     attribute = FilterConnectionField((attributeClass, attributeClass fields)
+        #     resolve_attribute = lambda obj, info, **args
+        #     class Meta:
+        #         model = <SQLAlchemy Model>
+        #         exclude_fields = [fieldname, ...]
+        #         interfaces = (graphene.relay.Node, )
+        base_model = models[model.get_table_name(catalog_name, collection_name)]  # SQLAlchemy model
+        object_type_class = type(collection_name, (SQLAlchemyObjectType,), {
+            "__repr__": lambda self: f"SQLAlchemyObjectType {collection_name}",
+            **{value["field_name"]: value["connection"] for key, value in fields.items()},
+            **{f"resolve_{value['field_name']}": get_resolve_attribute(base_models[key], value["field_name"])
+               for key, value in fields.items()},
+            "Meta": type(f"{collection_name}_Meta", (), {
+                "model": base_model,
+                "exclude_fields": exclude_fields,
+                "interfaces": (graphene.relay.Node,)
+            })
         })
-    })
 
-    # class <Collection>Connection(graphene.relay.Connection):
-    #     class Meta:
-    #         node = <Collection>
-    connection_class = type(f"{collection_name}Connection", (graphene.relay.Connection,), {
-        "Meta": type(f"{collection_name}_Connection_Meta", (), {
-            "node": object_type_class
+        # class <Collection>Connection(graphene.relay.Connection):
+        #     class Meta:
+        #         node = <Collection>
+        connection_class = type(f"{collection_name}Connection", (graphene.relay.Connection,), {
+            "Meta": type(f"{collection_name}_Connection_Meta", (), {
+                "node": object_type_class
+            })
         })
-    })
 
-    attributes = {attr: graphene_type(value["type"], value["description"]) for attr, value in
-                  collection["attributes"].items() if
-                  not graphene_type(value["type"]) is None}
-    connection_fields[collection_name] = FilterConnectionField(connection_class, **attributes)
-    connection_lists[collection_name] = graphene.List(connection_class, **attributes)
+        # Let the FilterConnectionField be filterable on all attributes of the collection
+        attributes = {attr: graphene_type(value["type"], value["description"]) for attr, value in
+                      collection["attributes"].items() if
+                      not graphene_type(value["type"]) is None}
+        connection_fields[collection_name] = FilterConnectionField(connection_class, **attributes)
+        base_models[collection_name] = base_model
 
-    queries.append({
-        "collection_name": collection_name,
-        "attributes": attributes,
-        "object_type_class": object_type_class,
-        "connection_class": connection_class
-    })
-    base_models[collection_name] = base_model
+    Query = type("Query", (graphene.ObjectType,),
+                 # <collection> = FilterConnectionField(<collection>Connection, filters...)
+                 connection_fields
+                 )
+    return Query
 
-Query = type("Query", (graphene.ObjectType,),
-             # <collection> = FilterConnectionField(<collection>Connection, filters...)
-             connection_fields
-             # {query["collection_name"]: FilterConnectionField(query["connection_class"], **query["attributes"]) for
-             #  query in queries}
-             )
 
-schema = graphene.Schema(query=Query)
+schema = graphene.Schema(query=get_graphene_query())

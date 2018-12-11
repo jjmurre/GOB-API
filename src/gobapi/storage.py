@@ -49,10 +49,6 @@ def connect():
     metadata = MetaData(engine)
 
 
-def get_session():
-    return session
-
-
 def shutdown_session(exception=None):
     global session
     session.remove()
