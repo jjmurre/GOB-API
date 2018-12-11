@@ -61,3 +61,6 @@ def test_resolve_attribute(monkeypatch):
 
     m._id = "anotherid"
     assert(r(m, None, field="anyvalue") == "FalseTrue")
+
+    delattr(m, "_id")
+    assert(r(m, None, field="anyvalue") == [])

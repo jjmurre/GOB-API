@@ -70,11 +70,14 @@ def get_resolve_attribute(model, ref_name):
         :param kwargs: any filter arguments, <name of field>: <value of field>
         :return: the list of referenced objects
         """
-        query_args = {
-            "_id": getattr(obj, ref_name)["id"],  # Filter the model on the foreign key
-            **kwargs  # Add other filter arguments (note that _id need not to be unique for collections with states)
-        }
-        query = FilterConnectionField.get_query(model, info, **query_args)
-        return query.all()
+        try:
+            query_args = {
+                "_id": getattr(obj, ref_name)["id"],  # Filter the model on the foreign key
+                **kwargs  # Add other filter arguments (_id need not to be unique for collections with states)
+            }
+            query = FilterConnectionField.get_query(model, info, **query_args)
+            return query.all()
+        except Exception:
+            return []
 
     return resolve_attribute
