@@ -75,9 +75,10 @@ def get_resolve_attribute(model, ref_name):
                 "_id": getattr(obj, ref_name)["id"],  # Filter the model on the foreign key
                 **kwargs  # Add other filter arguments (_id need not to be unique for collections with states)
             }
-            query = FilterConnectionField.get_query(model, info, **query_args)
-            return query.all()
-        except Exception:
+        except KeyError:
             return []
+
+        query = FilterConnectionField.get_query(model, info, **query_args)
+        return query.all()
 
     return resolve_attribute

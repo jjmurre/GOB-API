@@ -20,7 +20,7 @@ class Query():
         return self.expr
 
 class Model():
-    def __init__(self, fieldname, value="anyvalue"):
+    def __init__(self, fieldname, value):
         setattr(self, fieldname, value)
         self._id = "id"
 
@@ -30,15 +30,15 @@ class Model():
 
 def test_build_query(monkeypatch):
     q = Query()
-    q = _build_query(q, Model("field"), field=1)
+    q = _build_query(q, Model("field", "anyvalue"), field=1)
     assert(q.expr == "False")
 
     q = Query()
-    q = _build_query(q, Model("field"), field="anyvalue")
+    q = _build_query(q, Model("field", "anyvalue"), field="anyvalue")
     assert(q.expr == "True")
 
     q = Query()
-    q = _build_query(q, Model("field"), field="null")
+    q = _build_query(q, Model("field", "anyvalue"), field="null")
     assert(q.expr == "False")
 
     q = Query()
@@ -47,13 +47,13 @@ def test_build_query(monkeypatch):
 
 def test_filterconnectionfield(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
-    q = FilterConnectionField.get_query(Model("field"), None, field="anyvalue")
+    q = FilterConnectionField.get_query(Model("field", "anyvalue"), None, field="anyvalue")
     assert(q.expr == "True")
 
 def test_resolve_attribute(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
 
-    m = Model("field")
+    m = Model("field", "anyvalue")
     m.set_ref("ref")
     r = get_resolve_attribute(m, "ref")
     assert(r(m, None, field=1) == "TrueFalse")
@@ -62,5 +62,5 @@ def test_resolve_attribute(monkeypatch):
     m._id = "anotherid"
     assert(r(m, None, field="anyvalue") == "FalseTrue")
 
-    delattr(m, "_id")
+    del m.ref["id"]
     assert(r(m, None, field="anyvalue") == [])

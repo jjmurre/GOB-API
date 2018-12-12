@@ -5,43 +5,44 @@ def test_sorted_references_empty_model(monkeypatch):
     class MockModel():
         def get_catalogs(self):
             return {}
+
     assert(_get_sorted_references(MockModel()) == [])
 
 def test_sorted_references(monkeypatch):
     class MockModel():
         def get_catalogs(self):
             return {"catalog": {}}
+
+        def ref_to(self, other):
+            return {
+                "type": "GOB.Reference",
+                "ref": other
+            }
+
         def get_collections(self, catalog_name):
+            refs_1 = {"attr1" : self.ref_to("catalog:collection3")}
+            refs_2 = {"attr1" : self.ref_to("catalog:collection1")}
+            refs_3 = {}
+            refs_4 = {"attr1" : self.ref_to("catalog:collection2")}
             return {
                 "collection1": {
-                    "attributes": {
-                        "attr1" : {
-                            "type": "GOB.Reference",
-                            "ref": "catalog:collection3"
-                        }
-                    }
+                    "references": refs_1,
+                    "attributes": refs_1
                 },
                 "collection2": {
-                    "attributes": {
-                        "attr1" : {
-                            "type": "GOB.Reference",
-                            "ref": "catalog:collection1"
-                        }
-                    }
+                    "references": refs_2,
+                    "attributes": refs_2
                 },
                 "collection3": {
-                    "attributes": {
-                    }
+                    "references": refs_3,
+                    "attributes": refs_3
                 },
                 "collection4": {
-                    "attributes": {
-                        "attr1" : {
-                            "type": "GOB.Reference",
-                            "ref": "catalog:collection2"
-                        }
-                    }
+                    "references": refs_4,
+                    "attributes": refs_4
                 },
             }
+
     sorted_refs = _get_sorted_references(MockModel())
     # 1 => 3 implies 3 before 1
     assert(sorted_refs.index('catalog:collection3') < sorted_refs.index('catalog:collection1'))

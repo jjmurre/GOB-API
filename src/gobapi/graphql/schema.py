@@ -15,6 +15,14 @@ from gobapi.graphql import graphene_type, exclude_fields
 from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute
 
 
+def get_collection_references(collection):
+    # Currently implemented for single references only
+    REF_TYPES = ["GOB.Reference"]
+
+    refs = collection["references"]
+    return {key: value for key, value in refs.items() if value["type"] in REF_TYPES}
+
+
 def _get_sorted_references(model):
     """Get an ordered list of references
 
@@ -35,10 +43,8 @@ def _get_sorted_references(model):
         for collection_name, collection in model.get_collections(catalog_name).items():
             from_ref = f"{catalog_name}:{collection_name}"
 
-            # Get all references fields for the collection
-            ref_types = ["GOB.Reference"]
-            # Get all references that are contained in these fields
-            refs[from_ref] = [ref["ref"] for ref in collection["attributes"].values() if ref["type"] in ref_types]
+            # Get all references for the collection
+            refs[from_ref] = [ref["ref"] for ref in get_collection_references(collection).values()]
 
     sorted_refs = []
     for from_ref, to_refs in refs.items():
@@ -75,8 +81,7 @@ def get_graphene_query():
         collection = model.get_collection(catalog_name, collection_name)
 
         # Get all references for the collection
-        ref_types = ["GOB.Reference"]
-        ref_items = {key: value for key, value in collection["attributes"].items() if value["type"] in ref_types}
+        ref_items = get_collection_references(collection)
         fields = {}  # field name and corresponding FilterConnectionField()
         for key in ref_items.keys():
             cat_name, col_name = re.findall(pattern, ref_items[key]["ref"])[0]
