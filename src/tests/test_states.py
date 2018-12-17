@@ -21,7 +21,8 @@ class MockGOBModel:
                     },
                     'references': {
                         'reference': {
-                            'ref': 'catalog:collection2'
+                            'ref': 'catalog:collection2',
+                            'type': 'GOB.Reference'
                         }
                     }
                 },
@@ -75,6 +76,15 @@ states_collection = [
         'naam': 'Naam',
         'code': 'B',
         'datum_begin_geldigheid': datetime.date(2011, 1, 1),
+        'datum_einde_geldigheid': datetime.date(2013, 1, 1),
+        'reference': {'id': '1'}
+    }),
+    MockState({
+        'volgnummer': 3,
+        'identificatie': '1',
+        'naam': 'Naam',
+        'code': 'C',
+        'datum_begin_geldigheid': datetime.date(2013, 1, 1),
         'datum_einde_geldigheid': None,
         'reference': {}
     })
@@ -85,18 +95,17 @@ states_collection2 = [
         'volgnummer': 1,
         'identificatie': '1',
         'naam': 'Naam2',
-        'code': 'C',
+        'code': 'AA',
         'datum_begin_geldigheid': datetime.date(2010, 1, 1),
-        'datum_einde_geldigheid': datetime.date(2012, 1, 1),
-        'reference': {'id': '1'}
+        'datum_einde_geldigheid': datetime.date(2012, 1, 1)
     }),
     MockState({
         'volgnummer': 2,
         'identificatie': '1',
         'naam': 'Naam2',
-        'code': 'D',
+        'code': 'AB',
         'datum_begin_geldigheid': datetime.date(2012, 1, 1),
-        'datum_einde_geldigheid': None
+        'datum_einde_geldigheid': datetime.date(2013, 1, 1)
     })
 ]
 
@@ -152,13 +161,13 @@ def test_get_valid_states_in_timeslot(monkeypatch):
     })
 
     # Test timeslot without relation
-    timeslot_start = datetime.date(2011, 1, 1)
-    timeslot_end = datetime.date(2012, 1, 1)
+    timeslot_start = datetime.date(2013, 1, 1)
+    timeslot_end = datetime.date(2014, 1, 1)
     result = _get_valid_states_in_timeslot(timeslot_start, timeslot_end, collection_name,
                                      entity_id, relations, collections_with_state)
 
     assert(result == {
-        'catalog:collection': states_collection[1]
+        'catalog:collection': states_collection[2]
     })
 
 
@@ -173,7 +182,8 @@ def test_calculate_timeslots_for_entity(monkeypatch):
     assert(result == [
         datetime.date(2010,1,1),
         datetime.date(2011,1,1),
-        datetime.date(2012,1,1)
+        datetime.date(2012,1,1),
+        datetime.date(2013,1,1)
     ])
 
 
@@ -196,10 +206,19 @@ def test_get_states(monkeypatch):
     from gobapi.states import get_states
 
     result = get_states(collections)
-    print(result)
-    assert(result == ([
-        {'volgnummer': '1', 'identificatie': '1', 'naam': 'Naam', 'code': 'A', 'begin_tijdvak': datetime.date(2010,1,1), 'einde_tijdvak': datetime.date(2011,1,1), 'catalog:collection2_volgnummer': '1', 'catalog:collection2_identificatie': '1', 'catalog:collection2_naam': 'Naam2', 'catalog:collection2_code': 'C'},
-        {'volgnummer': '2', 'identificatie': '1', 'naam': 'Naam', 'code': 'B', 'begin_tijdvak': datetime.date(2011,1,1), 'einde_tijdvak': datetime.date(2012,1,1), 'catalog:collection2_volgnummer': '1', 'catalog:collection2_identificatie': '1', 'catalog:collection2_naam': 'Naam2', 'catalog:collection2_code': 'C'},
-        {'volgnummer': '2', 'identificatie': '1', 'naam': 'Naam', 'code': 'B', 'begin_tijdvak': datetime.date(2012,1,1), 'einde_tijdvak': None, 'catalog:collection2_volgnummer': '2', 'catalog:collection2_identificatie': '1', 'catalog:collection2_naam': 'Naam2', 'catalog:collection2_code': 'D'}
+
+    # Make sure 3 records are returned
+    assert(result[1] == 4)
+
+    expected_outcome = [
+        {'volgnummer': '1', 'identificatie': '1', 'naam': 'Naam', 'code': 'A', 'begin_tijdvak': datetime.date(2010,1,1), 'einde_tijdvak': datetime.date(2011,1,1), 'catalog:collection2_volgnummer': '1', 'catalog:collection2_identificatie': '1', 'catalog:collection2_naam': 'Naam2', 'catalog:collection2_code': 'AA'},
+        {'volgnummer': '2', 'identificatie': '1', 'naam': 'Naam', 'code': 'B', 'begin_tijdvak': datetime.date(2011,1,1), 'einde_tijdvak': datetime.date(2012,1,1), 'catalog:collection2_volgnummer': '1', 'catalog:collection2_identificatie': '1', 'catalog:collection2_naam': 'Naam2', 'catalog:collection2_code': 'AA'},
+        {'volgnummer': '2', 'identificatie': '1', 'naam': 'Naam', 'code': 'B', 'begin_tijdvak': datetime.date(2012,1,1), 'einde_tijdvak': datetime.date(2013,1,1), 'catalog:collection2_volgnummer': '2', 'catalog:collection2_identificatie': '1', 'catalog:collection2_naam': 'Naam2', 'catalog:collection2_code': 'AB'},
+        {'volgnummer': '3', 'identificatie': '1', 'naam': 'Naam', 'code': 'C', 'begin_tijdvak': datetime.date(2013,1,1), 'einde_tijdvak': None, 'catalog:collection2_volgnummer': None, 'catalog:collection2_identificatie': None, 'catalog:collection2_naam': None, 'catalog:collection2_code': None}
     ]
-    ), 3)
+
+    # See if result matches expected outcome
+    for index, row in enumerate(result[0]):
+        for key, value in row.items():
+            print(index, key, value)
+            assert(str(value) == str(expected_outcome[index][key]))

@@ -6,6 +6,9 @@ from gobcore.typesystem import get_gob_type
 from gobapi.storage import get_collection_states, _get_convert_for_state
 
 
+END_OF_TIME = datetime.date(9999, 12, 31)
+
+
 RELATED_COLLECTION_FIELDS = [
     'identificatie',
     'volgnummer',
@@ -26,7 +29,7 @@ def _get_valid_state_in_timeslot(timeslot_start, timeslot_end, states):
     """
     for state in states:
         state_end = state.datum_einde_geldigheid if state.datum_einde_geldigheid \
-                                                 else datetime.date(9999, 12, 31)
+                                                 else END_OF_TIME
         if state.datum_begin_geldigheid <= timeslot_start and state_end > timeslot_start:
             return state
     return None
@@ -61,12 +64,12 @@ def _get_valid_states_in_timeslot(timeslot_start, timeslot_end, collection_name,
             except KeyError:
                 pass
             else:
-                valid_states.update(_get_valid_states_in_timeslot(timeslot_start,
-                                                                  timeslot_end,
-                                                                  relation,
-                                                                  relation_entity_id,
-                                                                  relations,
-                                                                  collections_with_state))
+                valid_states.update(_get_valid_states_in_timeslot(timeslot_start=timeslot_start,
+                                                                  timeslot_end=timeslot_end,
+                                                                  collection_name=relation,
+                                                                  entity_id=relation_entity_id,
+                                                                  relations=relations,
+                                                                  collections_with_state=collections_with_state))
 
     return valid_states
 
@@ -102,7 +105,7 @@ def _calculate_timeslots_for_entity(states, relations, collection_name,  # noqa:
 
             # Get the states timeslot end
             state_end = state.datum_einde_geldigheid if state.datum_einde_geldigheid \
-                                                     else datetime.date(9999, 12, 31)
+                                                     else END_OF_TIME
 
             for field, relation in relations[collection_name].items():
                 try:
@@ -111,11 +114,11 @@ def _calculate_timeslots_for_entity(states, relations, collection_name,  # noqa:
                     pass
                 else:
                     timeslots.extend(_calculate_timeslots_for_entity(
-                                        collections_with_state[relation][relation_entity_id],
-                                        relations,
-                                        relation,
-                                        collections_with_state,
-                                        state_end))
+                                        states=collections_with_state[relation][relation_entity_id],
+                                        relations=relations,
+                                        collection_name=relation,
+                                        collections_with_state=collections_with_state,
+                                        timeslot_end=state_end))
     # Return unique sorted timeslots
     return sorted(set(timeslots))
 
@@ -134,7 +137,9 @@ def _find_relations(collections):
         relations[collection_name] = {}
         model_references = GOBModel().get_collection(collection[0], collection[1])['references']
         for field_name, reference in model_references.items():
-            relations[collection_name][field_name] = reference['ref']
+            # Only include references for now
+            if reference['type'] == 'GOB.Reference':
+                relations[collection_name][field_name] = reference['ref']
 
     return relations
 
@@ -161,10 +166,10 @@ def get_states(collections):  # noqa: C901
 
     # Get the timeslots for each entity
     for entity_id, states in collections_with_state[primary_collection_name].items():
-        unique_timeslots = _calculate_timeslots_for_entity(states,
-                                                           relations,
-                                                           primary_collection_name,
-                                                           collections_with_state)
+        unique_timeslots = _calculate_timeslots_for_entity(states=states,
+                                                           relations=relations,
+                                                           collection_name=primary_collection_name,
+                                                           collections_with_state=collections_with_state)
         # Save the unique timeslots for each entity
         entities_with_timeslots[entity_id] = unique_timeslots
 
@@ -173,14 +178,14 @@ def get_states(collections):  # noqa: C901
     for entity_id, timeslots in entities_with_timeslots.items():
         for count, timeslot in enumerate(timeslots):
             timeslot_start = timeslot
-            timeslot_end = timeslots[count+1] if count+1 < len(timeslots) else datetime.date(9999, 12, 31)
+            timeslot_end = timeslots[count+1] if count+1 < len(timeslots) else END_OF_TIME
 
-            valid_states = _get_valid_states_in_timeslot(timeslot_start,
-                                                         timeslot_end,
-                                                         primary_collection_name,
-                                                         entity_id,
-                                                         relations,
-                                                         collections_with_state)
+            valid_states = _get_valid_states_in_timeslot(timeslot_start=timeslot_start,
+                                                         timeslot_end=timeslot_end,
+                                                         collection_name=primary_collection_name,
+                                                         entity_id=entity_id,
+                                                         relations=relations,
+                                                         collections_with_state=collections_with_state)
 
             # First fill the primary state
             catalog_name, collection_name = primary_collection_name.split(':')
@@ -195,7 +200,7 @@ def get_states(collections):  # noqa: C901
 
                 row['begin_tijdvak'] = gob_date.from_value(timeslot_start)
                 row['einde_tijdvak'] = gob_date.from_value(
-                    timeslot_end if timeslot_end != datetime.date(9999, 12, 31) else None)
+                    timeslot_end if timeslot_end != END_OF_TIME else None)
                 # Add the related states, so skip the first collection
                 itercollections = iter(collections)
                 next(itercollections)
