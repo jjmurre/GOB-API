@@ -178,20 +178,28 @@ def _states():
     :return:
     """
     collection_names = request.args.get('collections')
+    page = int(request.args.get('page', 1))
+    page_size = int(request.args.get('page_size', 100))
+    offset = (page - 1) * page_size
+
     if collection_names:
         collections = []
         for c in collection_names.split(','):
             collections.append(c.split(':'))
-            entities, total_count = get_states(collections)
+
+        entities, total_count = get_states(collections, offset=offset, limit=page_size)
+
+        num_pages = (total_count + page_size - 1) // page_size
+
         result = {
             'total_count': total_count,
-            'page_size': total_count,
-            'pages': 1,
+            'page_size': page_size,
+            'pages': num_pages,
             'results': entities
         }
         links = {
-            'next': None,
-            'previous': None
+            'next': get_page_ref(page + 1, num_pages),
+            'previous': get_page_ref(page - 1, num_pages)
             }
         return hal_response(result, links)
     else:

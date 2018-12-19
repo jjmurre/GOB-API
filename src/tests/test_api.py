@@ -114,7 +114,7 @@ def before_each_api_test(monkeypatch):
     monkeypatch.setattr(gobapi.storage, 'get_entities', mock_entities)
     monkeypatch.setattr(gobapi.storage, 'get_entity', lambda catalog, collection, id, view: entity)
 
-    monkeypatch.setattr(gobapi.states, 'get_states', lambda collections: ([{'id': '1', 'attribute': 'attribute'}], 1))
+    monkeypatch.setattr(gobapi.states, 'get_states', lambda collections, offset, limit: ([{'id': '1', 'attribute': 'attribute'}], 1))
 
     monkeypatch.setattr(gobcore.model, 'GOBModel', MockGOBModel)
 
@@ -326,7 +326,7 @@ def test_states(monkeypatch):
     }
     assert(_states() == (
         ({
-             'page_size': 1,
+             'page_size': 100,
              'pages': 1,
              'results': [{'id': '1', 'attribute': 'attribute'}],
              'total_count': 1

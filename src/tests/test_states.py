@@ -205,9 +205,12 @@ def test_get_states(monkeypatch):
 
     from gobapi.states import get_states
 
-    result = get_states(collections)
+    offset = 0
+    limit = 100
+    result = get_states(collections, offset, limit)
 
-    # Make sure 3 records are returned
+    # Make sure 4 records are returned
+    assert(len(result[0]) == 4)
     assert(result[1] == 4)
 
     expected_outcome = [
@@ -222,3 +225,12 @@ def test_get_states(monkeypatch):
         for key, value in row.items():
             print(index, key, value)
             assert(str(value) == str(expected_outcome[index][key]))
+
+    # Test offset
+    offset = 0
+    limit = 1
+    result = get_states(collections, offset, limit)
+
+    # Make sure 1 record is returned and total count is 4
+    assert(len(result[0]) == 1)
+    assert(result[1] == 4)

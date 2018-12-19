@@ -62,6 +62,7 @@ def _get_valid_states_in_timeslot(timeslot_start, timeslot_end, collection_name,
             try:
                 relation_entity_id = getattr(valid_states[collection_name], field)['id']
             except KeyError:
+                # If no relation is found, skip checking for other relations
                 pass
             else:
                 valid_states.update(_get_valid_states_in_timeslot(timeslot_start=timeslot_start,
@@ -144,39 +145,15 @@ def _find_relations(collections):
     return relations
 
 
-def get_states(collections):  # noqa: C901
-    """Get states for a list of collections
-
-    Returns all timeslots and the related entities which are valid for each timeslot from the specified collections.
-
-    :param collections: A list of lists containing catalog and collection
-    :return states: A dict containing all valid entities grouped by cycle
-    """
-    # Get all relations for the specified collections
-    relations = _find_relations(collections)
-
-    primary_collection_name = f"{collections[0][0]}:{collections[0][1]}"
-
-    collections_with_state = {
-        f"{collection[0]}:{collection[1]}": get_collection_states(
-            collection[0], collection[1]) for collection in collections
-    }
-
-    entities_with_timeslots = {}
-
-    # Get the timeslots for each entity
-    for entity_id, states in collections_with_state[primary_collection_name].items():
-        unique_timeslots = _calculate_timeslots_for_entity(states=states,
-                                                           relations=relations,
-                                                           collection_name=primary_collection_name,
-                                                           collections_with_state=collections_with_state)
-        # Save the unique timeslots for each entity
-        entities_with_timeslots[entity_id] = unique_timeslots
-
+def _build_timeslot_rows(collections, entities_with_timeslots, primary_collection_name,    # noqa: C901
+                         relations, collections_with_state, offset, limit):
+    row_count = 0
     timeslot_rows = []
+
     # for each timeslot get the valid state and related states
     for entity_id, timeslots in entities_with_timeslots.items():
         for count, timeslot in enumerate(timeslots):
+
             timeslot_start = timeslot
             timeslot_end = timeslots[count+1] if count+1 < len(timeslots) else END_OF_TIME
 
@@ -187,20 +164,24 @@ def get_states(collections):  # noqa: C901
                                                          relations=relations,
                                                          collections_with_state=collections_with_state)
 
-            # First fill the primary state
-            catalog_name, collection_name = primary_collection_name.split(':')
-            model = GOBModel().get_collection(catalog_name, collection_name)
-            entity_convert = _get_convert_for_state(model)
-
             # Only add a row if a valid state has been found for the primary collection
             if(valid_states[primary_collection_name]):
-                row = entity_convert(valid_states.pop(primary_collection_name))
+                row_count += 1
+                if row_count <= offset or (row_count-offset) > limit:
+                    continue
 
+                # First fill the primary state
+                catalog_name, collection_name = primary_collection_name.split(':')
+                model = GOBModel().get_collection(catalog_name, collection_name)
+                entity_convert = _get_convert_for_state(model)
+
+                row = entity_convert(valid_states.pop(primary_collection_name))
                 gob_date = get_gob_type("GOB.Date")
 
                 row['begin_tijdvak'] = gob_date.from_value(timeslot_start)
                 row['einde_tijdvak'] = gob_date.from_value(
                     timeslot_end if timeslot_end != END_OF_TIME else None)
+
                 # Add the related states, so skip the first collection
                 itercollections = iter(collections)
                 next(itercollections)
@@ -221,4 +202,42 @@ def get_states(collections):  # noqa: C901
 
                 timeslot_rows.append(row)
 
-    return timeslot_rows, len(timeslot_rows)
+    return timeslot_rows, row_count
+
+
+def get_states(collections, offset, limit):
+    """Get states for a list of collections
+
+    Returns all timeslots and the related entities which are valid for each timeslot from the specified collections.
+
+    :param collections: A list of lists containing catalog and collection
+    :return states: A dict containing all valid entities grouped by cycle
+    """
+    # Get all relations for the specified collections
+    relations = _find_relations(collections)
+
+    primary_collection_name = f"{collections[0][0]}:{collections[0][1]}"
+    collections_with_state = {
+        f"{collection[0]}:{collection[1]}": get_collection_states(
+            collection[0], collection[1]) for collection in collections
+    }
+
+    entities_with_timeslots = {}
+
+    # Get the timeslots for each entity
+    for entity_id, states in collections_with_state[primary_collection_name].items():
+        unique_timeslots = _calculate_timeslots_for_entity(states=states,
+                                                           relations=relations,
+                                                           collection_name=primary_collection_name,
+                                                           collections_with_state=collections_with_state)
+        # Save the unique timeslots for each entity
+        entities_with_timeslots[entity_id] = unique_timeslots
+
+    timeslot_rows, total_count = _build_timeslot_rows(collections=collections,
+                                                      entities_with_timeslots=entities_with_timeslots,
+                                                      primary_collection_name=primary_collection_name,
+                                                      relations=relations,
+                                                      collections_with_state=collections_with_state,
+                                                      offset=offset,
+                                                      limit=limit)
+    return timeslot_rows, total_count
