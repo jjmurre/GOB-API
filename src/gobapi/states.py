@@ -147,6 +147,18 @@ def _find_relations(collections):
 
 def _build_timeslot_rows(collections, entities_with_timeslots, primary_collection_name,    # noqa: C901
                          relations, collections_with_state, offset, limit):
+    """Builds the output of the timeslot rows within the given offset and limit.
+    A timeslot row is a state for an entity within a certain timeslot.
+
+    Returns a list timeslot rows and the total count of timeslot rows
+
+    :param collections: The collections for which states are returned
+    :param entities_with_timeslots: A dict of timeslots grouped by entity id
+    :param primary_collection_name: The name of the base collection we are exporting
+    :param relations: A dictionary for relations between the given collections
+    :param collections_with_state: A dictionary with all states grouped by collection name
+    :return timeslot_rows, total_count: A list of timeslot rows and the total count of timeslot rows
+    """
     row_count = 0
     timeslot_rows = []
 
@@ -167,6 +179,7 @@ def _build_timeslot_rows(collections, entities_with_timeslots, primary_collectio
             # Only add a row if a valid state has been found for the primary collection
             if(valid_states[primary_collection_name]):
                 row_count += 1
+                # Don't store the row if it doesn't match the requested offset and limit
                 if row_count <= offset or (row_count-offset) > limit:
                     continue
 
