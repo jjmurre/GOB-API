@@ -28,9 +28,9 @@ def _get_valid_state_in_timeslot(timeslot_start, timeslot_end, states):
     :return state: A valid state
     """
     for state in states:
-        state_end = state.datum_einde_geldigheid if state.datum_einde_geldigheid \
+        state_end = state.eind_geldigheid if state.eind_geldigheid \
                                                  else END_OF_TIME
-        if state.datum_begin_geldigheid <= timeslot_start and state_end > timeslot_start:
+        if state.begin_geldigheid <= timeslot_start and state_end > timeslot_start:
             return state
     return None
 
@@ -93,19 +93,19 @@ def _calculate_timeslots_for_entity(states, relations, collection_name,  # noqa:
     timeslots = []
     for state in states:
         # If we are searching within a timeslot with an end, skip this state if it starts on or after the end
-        if timeslot_end and state.datum_begin_geldigheid >= timeslot_end:
+        if timeslot_end and state.begin_geldigheid >= timeslot_end:
             continue
-        timeslots.append(state.datum_begin_geldigheid)
+        timeslots.append(state.begin_geldigheid)
 
         # Add the end date if it's set
-        if state.datum_einde_geldigheid:
-            timeslots.append(state.datum_einde_geldigheid)
+        if state.eind_geldigheid:
+            timeslots.append(state.eind_geldigheid)
 
         # If we have a relation, get all timeslots for that related entity, within the current timeslot
         if collection_name in relations:
 
             # Get the states timeslot end
-            state_end = state.datum_einde_geldigheid if state.datum_einde_geldigheid \
+            state_end = state.eind_geldigheid if state.eind_geldigheid \
                                                      else END_OF_TIME
 
             for field, relation in relations[collection_name].items():
