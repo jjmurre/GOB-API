@@ -66,8 +66,8 @@ states_collection = [
         'identificatie': '1',
         'naam': 'Naam',
         'code': 'A',
-        'datum_begin_geldigheid': datetime.date(2010, 1, 1),
-        'datum_einde_geldigheid': datetime.date(2011, 1, 1),
+        'begin_geldigheid': datetime.date(2010, 1, 1),
+        'eind_geldigheid': datetime.date(2011, 1, 1),
         'reference': {'id': '1'}
     }),
     MockState({
@@ -75,8 +75,8 @@ states_collection = [
         'identificatie': '1',
         'naam': 'Naam',
         'code': 'B',
-        'datum_begin_geldigheid': datetime.date(2011, 1, 1),
-        'datum_einde_geldigheid': datetime.date(2013, 1, 1),
+        'begin_geldigheid': datetime.date(2011, 1, 1),
+        'eind_geldigheid': datetime.date(2013, 1, 1),
         'reference': {'id': '1'}
     }),
     MockState({
@@ -84,8 +84,8 @@ states_collection = [
         'identificatie': '1',
         'naam': 'Naam',
         'code': 'C',
-        'datum_begin_geldigheid': datetime.date(2013, 1, 1),
-        'datum_einde_geldigheid': None,
+        'begin_geldigheid': datetime.date(2013, 1, 1),
+        'eind_geldigheid': None,
         'reference': {}
     })
 ]
@@ -96,16 +96,16 @@ states_collection2 = [
         'identificatie': '1',
         'naam': 'Naam2',
         'code': 'AA',
-        'datum_begin_geldigheid': datetime.date(2010, 1, 1),
-        'datum_einde_geldigheid': datetime.date(2012, 1, 1)
+        'begin_geldigheid': datetime.date(2010, 1, 1),
+        'eind_geldigheid': datetime.date(2012, 1, 1)
     }),
     MockState({
         'volgnummer': 2,
         'identificatie': '1',
         'naam': 'Naam2',
         'code': 'AB',
-        'datum_begin_geldigheid': datetime.date(2012, 1, 1),
-        'datum_einde_geldigheid': datetime.date(2013, 1, 1)
+        'begin_geldigheid': datetime.date(2012, 1, 1),
+        'eind_geldigheid': datetime.date(2013, 1, 1)
     })
 ]
 
@@ -130,7 +130,6 @@ def before_each_state_test(monkeypatch):
 
     import gobapi.states
     importlib.reload(gobapi.states)
-
 
 
 def test_get_valid_states_in_timeslot(monkeypatch):

@@ -74,9 +74,9 @@ def _get_table_and_model(catalog_name, collection_name, view=None):
 
 
 def _create_reference_link(reference, catalog, collection):
-    id = reference.get('id')
-    if id:
-        return {'_links': {'self': {'href': f'{API_BASE_PATH}/{catalog}/{collection}/{id}/'}}}
+    identificatie = reference.get('identificatie')
+    if identificatie:
+        return {'_links': {'self': {'href': f'{API_BASE_PATH}/{catalog}/{collection}/{identificatie}/'}}}
     else:
         return {}
 
@@ -85,7 +85,7 @@ def _create_reference(entity, field, spec):
     # Get the dict or array of dicts from a (Many)Reference field
     embedded = _to_gob_value(entity, field, spec).to_db
 
-    if embedded is not None:
+    if embedded is not None and spec['ref'] is not None:
         catalog, collection = spec['ref'].split(':')
         if spec['type'] == 'GOB.ManyReference':
             for reference in embedded:
@@ -171,12 +171,76 @@ def _get_convert_for_table(table, filter={}):
     """
     def convert(entity):
         # Use the sqltypes to get the correct gobtype and return a dict
-        return {column.name: _to_gob_value(entity, column.name, type(column.type)) for column in columns}
+        hal_entity = {column.name: _to_gob_value(entity, column.name, type(column.type)) for column in columns}
 
-    # Get all metadata fields and filter them from the columns returned by the database view
+        # Add references to other entities
+        if references:
+            hal_entity['_embedded'] = {
+                v['attribute_name']: _create_reference(entity, k, v) for k, v in references.items()
+            }
+        return hal_entity
+
+    # Get all metadata or reference fields and filter them from the columns returned by the database view
     metadata_column_list = [k for k in filter.keys()]
-    columns = [c for c in table.columns if c.name not in metadata_column_list]
+    columns = [c for c in table.columns
+               if c.name not in metadata_column_list
+               and not isReference(c.name)]
+    reference_columns = [c for c in table.columns if isReference(c.name)]
+
+    # Create the list of references
+    references = {}
+    for c in reference_columns:
+        '''
+        Column name is in the form of '_ref_attribute_name_ctg_cln'
+        We need to get the type of reference (ref or mref), the attribute name and
+        the reference based on abbreviation. Abbreviations were used to escape the
+        column name limit in SQL. The original column name is stored to
+        be able to get the data from the row.
+
+        For example: _ref_ligt_in_buurt_gdb_brt will result in:
+        attribute_name: ligt_in_buurt
+        catalog_abbreviation: gdb
+        collection_abbreviation: brt
+        ref: gebieden:buurt
+        gob_type: GOB.Reference
+
+        This will be used to create an embedded reference in the HAL JSON output
+        '''
+        # This will result in an array of e.g ['', 'ref', 'ligt', 'in', 'buurt', 'gbd', 'brt']
+        column_name_array = c.name.split('_')
+
+        # Join elements that make up the attribute name, position 2 until the third last (e.g. ligt_in_buurt)
+        attribute_name = '_'.join(column_name_array[2:-2])
+
+        # Get the abbreviation of the catalog (e.g. gbd) and collection (e.g. brt)
+        catalog_abbreviation = str(column_name_array[-2])
+        collection_abbreviation = str(column_name_array[-1])
+
+        # Get a reference string by abbreviation (e.g. gebieden:buurten)
+        ref = GOBModel().get_reference_by_abbreviations(catalog_abbreviation, collection_abbreviation)
+        gob_type = 'GOB.ManyReference' if c.name.startswith('_mref') else 'GOB.Reference'
+
+        # Create the reference specification
+        references[c.name] = {
+            'attribute_name': attribute_name,
+            'type': gob_type,
+            'ref': ref
+        }
     return convert
+
+
+def isReference(column_name):
+    """ isReference
+
+    Receives a table column_name and checks if it's a reference or many reference based on the
+    column name
+
+    Returns a boolean
+
+    :param column_name:
+    :return: boolean
+    """
+    return column_name.startswith(('_ref', '_mref'))
 
 
 def get_entities(catalog, collection, offset, limit, view=None):
