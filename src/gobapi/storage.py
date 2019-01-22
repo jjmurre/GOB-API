@@ -193,7 +193,8 @@ def _get_convert_for_table(table, filter={}):
         '''
         Column name is in the form of '_ref_attribute_name_ctg_cln'
         We need to get the type of reference (ref or mref), the attribute name and
-        the reference based on abbreviation. The original column name is stored to
+        the reference based on abbreviation. Abbreviations were used to escape the
+        column name limit in SQL. The original column name is stored to
         be able to get the data from the row.
 
         For example: _ref_ligt_in_buurt_gdb_brt will result in:
@@ -205,11 +206,17 @@ def _get_convert_for_table(table, filter={}):
 
         This will be used to create an embedded reference in the HAL JSON output
         '''
+        # This will result in an array of e.g ['', 'ref', 'ligt', 'in', 'buurt', 'gbd', 'brt']
         column_name_array = c.name.split('_')
+
+        # Join elements that make up the attribute name, position 2 until the third last (e.g. ligt_in_buurt)
         attribute_name = '_'.join(column_name_array[2:-2])
 
+        # Get the abbreviation of the catalog (e.g. gbd) and collection (e.g. brt)
         catalog_abbreviation = str(column_name_array[-2])
         collection_abbreviation = str(column_name_array[-1])
+
+        # Get a reference string by abbreviation (e.g. gebieden:buurten)
         ref = GOBModel().get_reference_by_abbreviations(catalog_abbreviation, collection_abbreviation)
         gob_type = 'GOB.ManyReference' if c.name.startswith('_mref') else 'GOB.Reference'
 
