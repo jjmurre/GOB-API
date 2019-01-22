@@ -192,7 +192,7 @@ def _build_timeslot_rows(collections, entities_with_timeslots, primary_collectio
                 gob_date = get_gob_type("GOB.Date")
 
                 row['begin_tijdvak'] = gob_date.from_value(timeslot_start)
-                row['einde_tijdvak'] = gob_date.from_value(
+                row['eind_tijdvak'] = gob_date.from_value(
                     timeslot_end if timeslot_end != END_OF_TIME else None)
 
                 # Add the related states, so skip the first collection

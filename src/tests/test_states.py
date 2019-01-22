@@ -213,10 +213,10 @@ def test_get_states(monkeypatch):
     assert(result[1] == 4)
 
     expected_outcome = [
-        {'volgnummer': '1', 'identificatie': '1', 'naam': 'Naam', 'code': 'A', 'begin_tijdvak': datetime.date(2010,1,1), 'einde_tijdvak': datetime.date(2011,1,1), 'catalog:collection2_volgnummer': '1', 'catalog:collection2_identificatie': '1', 'catalog:collection2_naam': 'Naam2', 'catalog:collection2_code': 'AA'},
-        {'volgnummer': '2', 'identificatie': '1', 'naam': 'Naam', 'code': 'B', 'begin_tijdvak': datetime.date(2011,1,1), 'einde_tijdvak': datetime.date(2012,1,1), 'catalog:collection2_volgnummer': '1', 'catalog:collection2_identificatie': '1', 'catalog:collection2_naam': 'Naam2', 'catalog:collection2_code': 'AA'},
-        {'volgnummer': '2', 'identificatie': '1', 'naam': 'Naam', 'code': 'B', 'begin_tijdvak': datetime.date(2012,1,1), 'einde_tijdvak': datetime.date(2013,1,1), 'catalog:collection2_volgnummer': '2', 'catalog:collection2_identificatie': '1', 'catalog:collection2_naam': 'Naam2', 'catalog:collection2_code': 'AB'},
-        {'volgnummer': '3', 'identificatie': '1', 'naam': 'Naam', 'code': 'C', 'begin_tijdvak': datetime.date(2013,1,1), 'einde_tijdvak': None, 'catalog:collection2_volgnummer': None, 'catalog:collection2_identificatie': None, 'catalog:collection2_naam': None, 'catalog:collection2_code': None}
+        {'volgnummer': '1', 'identificatie': '1', 'naam': 'Naam', 'code': 'A', 'begin_tijdvak': datetime.date(2010,1,1), 'eind_tijdvak': datetime.date(2011,1,1), 'catalog:collection2_volgnummer': '1', 'catalog:collection2_identificatie': '1', 'catalog:collection2_naam': 'Naam2', 'catalog:collection2_code': 'AA'},
+        {'volgnummer': '2', 'identificatie': '1', 'naam': 'Naam', 'code': 'B', 'begin_tijdvak': datetime.date(2011,1,1), 'eind_tijdvak': datetime.date(2012,1,1), 'catalog:collection2_volgnummer': '1', 'catalog:collection2_identificatie': '1', 'catalog:collection2_naam': 'Naam2', 'catalog:collection2_code': 'AA'},
+        {'volgnummer': '2', 'identificatie': '1', 'naam': 'Naam', 'code': 'B', 'begin_tijdvak': datetime.date(2012,1,1), 'eind_tijdvak': datetime.date(2013,1,1), 'catalog:collection2_volgnummer': '2', 'catalog:collection2_identificatie': '1', 'catalog:collection2_naam': 'Naam2', 'catalog:collection2_code': 'AB'},
+        {'volgnummer': '3', 'identificatie': '1', 'naam': 'Naam', 'code': 'C', 'begin_tijdvak': datetime.date(2013,1,1), 'eind_tijdvak': None, 'catalog:collection2_volgnummer': None, 'catalog:collection2_identificatie': None, 'catalog:collection2_naam': None, 'catalog:collection2_code': None}
     ]
 
     # See if result matches expected outcome
