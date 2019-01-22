@@ -184,13 +184,27 @@ def _get_convert_for_table(table, filter={}):
     metadata_column_list = [k for k in filter.keys()]
     columns = [c for c in table.columns
                if c.name not in metadata_column_list
-               and not c.name.startswith(('_ref', '_mref'))]
-    reference_columns = [c for c in table.columns if c.name.startswith(('_ref', '_mref'))]
+               and not isReference(c.name)]
+    reference_columns = [c for c in table.columns if isReference(c.name)]
 
     # Create the list of references
     references = {}
     for c in reference_columns:
-        # Column name is in the form of '_ref_attribute_name_catalog_collection'
+        '''
+        Column name is in the form of '_ref_attribute_name_ctg_cln'
+        We need to get the type of reference (ref or mref), the attribute name and
+        the reference based on abbreviation. The original column name is stored to
+        be able to get the data from the row.
+
+        For example: _ref_ligt_in_buurt_gdb_brt will result in:
+        attribute_name: ligt_in_buurt
+        catalog_abbreviation: gdb
+        collection_abbreviation: brt
+        ref: gebieden:buurt
+        gob_type: GOB.Reference
+
+        This will be used to create an embedded reference in the HAL JSON output
+        '''
         column_name_array = c.name.split('_')
         attribute_name = '_'.join(column_name_array[2:-2])
 
@@ -206,6 +220,20 @@ def _get_convert_for_table(table, filter={}):
             'ref': ref
         }
     return convert
+
+
+def isReference(column_name):
+    """ isReference
+
+    Receives a table column_name and checks if it's a reference or many reference based on the
+    column name
+
+    Returns a boolean
+
+    :param column_name:
+    :return: boolean
+    """
+    return column_name.startswith(('_ref', '_mref'))
 
 
 def get_entities(catalog, collection, offset, limit, view=None):
