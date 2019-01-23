@@ -68,7 +68,7 @@ states_collection = [
         'code': 'A',
         'begin_geldigheid': datetime.date(2010, 1, 1),
         'eind_geldigheid': datetime.date(2011, 1, 1),
-        'reference': {'id': '1'}
+        'reference': {'identificatie': '1'}
     }),
     MockState({
         'volgnummer': 2,
@@ -77,7 +77,7 @@ states_collection = [
         'code': 'B',
         'begin_geldigheid': datetime.date(2011, 1, 1),
         'eind_geldigheid': datetime.date(2013, 1, 1),
-        'reference': {'id': '1'}
+        'reference': {'identificatie': '1'}
     }),
     MockState({
         'volgnummer': 3,
