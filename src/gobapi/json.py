@@ -1,4 +1,5 @@
 import datetime
+import json
 
 from gobcore.typesystem.json import GobTypeJSONEncoder
 from gobcore.typesystem.gob_types import DateTime
@@ -19,6 +20,5 @@ class APIGobTypeJSONEncoder(GobTypeJSONEncoder):
     def default(self, obj):
         if isinstance(obj, DateTime):
             return datetime.datetime.strptime(str(obj), DateTime.internal_format).isoformat() \
-                    if obj._string is not None else obj.json
-
+                    if obj._string is not None else json.loads(obj.json)
         return super().default(obj)

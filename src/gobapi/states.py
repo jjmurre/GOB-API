@@ -60,7 +60,7 @@ def _get_valid_states_in_timeslot(timeslot_start, timeslot_end, collection_name,
     if collection_name in relations and valid_states[collection_name]:
         for field, relation in relations[collection_name].items():
             try:
-                relation_entity_id = getattr(valid_states[collection_name], field)['id']
+                relation_entity_id = getattr(valid_states[collection_name], field)['identificatie']
             except KeyError:
                 # If no relation is found, skip checking for other relations
                 pass
@@ -110,7 +110,7 @@ def _calculate_timeslots_for_entity(states, relations, collection_name,  # noqa:
 
             for field, relation in relations[collection_name].items():
                 try:
-                    relation_entity_id = getattr(state, field)['id']
+                    relation_entity_id = getattr(state, field)['identificatie']
                 except KeyError:
                     pass
                 else:
@@ -192,7 +192,7 @@ def _build_timeslot_rows(collections, entities_with_timeslots, primary_collectio
                 gob_date = get_gob_type("GOB.Date")
 
                 row['begin_tijdvak'] = gob_date.from_value(timeslot_start)
-                row['einde_tijdvak'] = gob_date.from_value(
+                row['eind_tijdvak'] = gob_date.from_value(
                     timeslot_end if timeslot_end != END_OF_TIME else None)
 
                 # Add the related states, so skip the first collection
