@@ -17,7 +17,7 @@ import json
 import urllib
 
 from flask import request
-from gobcore.typesystem.json import GobTypeJSONEncoder
+from gobapi.json import APIGobTypeJSONEncoder
 
 
 def _to_camelcase(s):
@@ -96,7 +96,7 @@ def hal_response(data, links={}):
         **data
     })
 
-    return json.dumps(response, cls=GobTypeJSONEncoder), 200, {'Content-Type': 'application/json'}
+    return json.dumps(response, cls=APIGobTypeJSONEncoder), 200, {'Content-Type': 'application/json'}
 
 
 def not_found(msg):
