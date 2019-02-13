@@ -54,9 +54,11 @@ if (BRANCH == "develop") {
     node {
         stage('Push develop image') {
             tryStep "image tagging", {
-                def image = docker.image("datapunt/gob_api:${env.BUILD_NUMBER}")
-                image.pull()
-                image.push("develop")
+                docker.withRegistry('https://repo.data.amsterdam.nl','docker-registry') {
+                    def image = docker.image("datapunt/gob_api:${env.BUILD_NUMBER}")
+                    image.pull()
+                    image.push("develop")
+                }
             }
         }
     }
