@@ -11,19 +11,6 @@ import sqlalchemy_filters
 
 from gobapi.storage import _get_convert_for_state
 
-class MockClasses:
-    def __init__(self):
-        self.catalog_collection1 = 'catalog_collection1'
-        self.catalog_collection2 = 'catalog_collection2'
-
-
-class MockBase:
-    def prepare(self, engine, reflect):
-        return None
-
-    classes = MockClasses()
-
-
 class MockEntity:
     def __init__(self, *args):
         self._id = '1'
@@ -42,9 +29,25 @@ class MockEntity:
             }
         ]
         self.datum_begin_geldigheid = datetime.date.today() - datetime.timedelta(days=365)
+        self.begin_geldigheid = datetime.date.today()
         self.eind_geldigheid = datetime.date.today()
+        self.volgnummer = 1
+        self.max_volgnummer = 1
         for key in args:
             setattr(self, key, key)
+
+
+class MockClasses:
+    def __init__(self):
+        self.catalog_collection1 = MockEntity()
+        self.catalog_collection2 = MockEntity()
+
+
+class MockBase:
+    def prepare(self, engine, reflect):
+        return None
+
+    classes = MockClasses()
 
 
 class MockEntities:
@@ -69,6 +72,15 @@ class MockEntities:
     def one_or_none(self):
         return self.one_entity
 
+    def group_by(self, *args):
+        return self
+
+    def subquery(self, *args):
+        return self
+
+    def join(self, *args):
+        return self
+
 
 class MockColumn:
 
@@ -87,9 +99,10 @@ class MockTable():
 class MockSession:
     def __init__(self, engine):
         self._remove = False
+        self.c = MockEntity()
         pass
 
-    def query(self, table):
+    def query(self, table, *args):
         return MockEntities()
 
     def query_property(self):

@@ -7,11 +7,12 @@ By using this module the API does not need to have any knowledge about the under
 """
 from collections import defaultdict
 
-from sqlalchemy import create_engine, Table, MetaData
+from sqlalchemy import create_engine, Table, MetaData, func, and_
 from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy_filters import apply_filters
+from sqlalchemy.sql import label
 
 from gobcore.model import GOBModel
 from gobcore.model.sa.gob import Base
@@ -299,9 +300,19 @@ def get_collection_states(catalog, collection):
     """
     assert(session and _Base)
 
-    table, model = _get_table_and_model(catalog, collection)
+    entity, model = _get_table_and_model(catalog, collection)
 
-    all_entities = session.query(table).all()
+    sub = session.query(entity._id,
+                        entity.begin_geldigheid,
+                        label("max_volgnummer", func.max(entity.volgnummer))
+                        )\
+        .group_by("_id", "begin_geldigheid")\
+        .subquery()
+    all_entities = session.query(entity)\
+        .join(sub, and_(sub.c._id == entity._id,
+                        sub.c.begin_geldigheid == entity.begin_geldigheid,
+                        sub.c.max_volgnummer == entity.volgnummer))\
+        .all()
 
     states = defaultdict(list)
 
