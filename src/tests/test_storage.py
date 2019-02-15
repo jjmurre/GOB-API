@@ -9,6 +9,8 @@ import importlib
 import sqlalchemy
 import sqlalchemy_filters
 
+from unittest import mock
+
 from gobapi.storage import _get_convert_for_state
 
 class MockEntity:
@@ -53,6 +55,9 @@ class MockBase:
 class MockEntities:
     all_entities = []
     one_entity = {}
+
+    def __init__(self):
+        self.c = MockEntity()
 
     def count(self):
         return len(self.all_entities)
@@ -344,6 +349,7 @@ def test_entities_with_view(monkeypatch):
     MockTable.columns = [MockColumn('identificatie'), MockColumn('attribute'), MockColumn('meta')]
 
 
+@mock.patch("gobapi.storage.cast", mock.MagicMock())
 def test_collection_states(monkeypatch):
     before_each_storage_test(monkeypatch)
 
