@@ -17,7 +17,7 @@ from sqlalchemy.sql import label
 from gobcore.model import GOBModel
 from gobcore.model.sa.gob import Base
 from gobcore.typesystem import get_gob_type, get_gob_type_from_sql_type
-from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS
+from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS, FIELD
 
 from gobapi.config import GOB_DB, API_BASE_PATH
 
@@ -302,16 +302,19 @@ def get_collection_states(catalog, collection):
 
     entity, model = _get_table_and_model(catalog, collection)
 
-    sub = session.query(entity._id,
-                        entity.begin_geldigheid,
-                        label("max_volgnummer", func.max(cast(entity.volgnummer, Integer)))
+    # Get the max sequence number for every id + start validity combination
+    sub = session.query(getattr(entity, FIELD.ID),
+                        getattr(entity, FIELD.START_VALIDITY),
+                        label("max_seqnr", func.max(cast(getattr(entity, FIELD.SEQNR), Integer)))
                         )\
-        .group_by("_id", "begin_geldigheid")\
+        .group_by(FIELD.ID, FIELD.START_VALIDITY)\
         .subquery()
+
+    # Filter the entities to only the highest volgnummer per id + start validity combination
     all_entities = session.query(entity)\
-        .join(sub, and_(sub.c._id == entity._id,
-                        sub.c.begin_geldigheid == entity.begin_geldigheid,
-                        sub.c.max_volgnummer == cast(entity.volgnummer, Integer)))\
+        .join(sub, and_(getattr(sub.c, FIELD.ID) == getattr(entity, FIELD.ID),
+                        getattr(sub.c, FIELD.START_VALIDITY) == getattr(entity, FIELD.START_VALIDITY),
+                        sub.c.max_seqnr == cast(getattr(entity, FIELD.SEQNR), Integer)))\
         .all()
 
     states = defaultdict(list)

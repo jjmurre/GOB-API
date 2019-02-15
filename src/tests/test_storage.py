@@ -34,7 +34,7 @@ class MockEntity:
         self.begin_geldigheid = datetime.date.today()
         self.eind_geldigheid = datetime.date.today()
         self.volgnummer = 1
-        self.max_volgnummer = 1
+        self.max_seqnr = 1
         for key in args:
             setattr(self, key, key)
 
