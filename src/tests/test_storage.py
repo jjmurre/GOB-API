@@ -9,20 +9,9 @@ import importlib
 import sqlalchemy
 import sqlalchemy_filters
 
+from unittest import mock
+
 from gobapi.storage import _get_convert_for_state
-
-class MockClasses:
-    def __init__(self):
-        self.catalog_collection1 = 'catalog_collection1'
-        self.catalog_collection2 = 'catalog_collection2'
-
-
-class MockBase:
-    def prepare(self, engine, reflect):
-        return None
-
-    classes = MockClasses()
-
 
 class MockEntity:
     def __init__(self, *args):
@@ -42,14 +31,33 @@ class MockEntity:
             }
         ]
         self.datum_begin_geldigheid = datetime.date.today() - datetime.timedelta(days=365)
+        self.begin_geldigheid = datetime.date.today()
         self.eind_geldigheid = datetime.date.today()
+        self.volgnummer = 1
+        self.max_seqnr = 1
         for key in args:
             setattr(self, key, key)
+
+
+class MockClasses:
+    def __init__(self):
+        self.catalog_collection1 = MockEntity()
+        self.catalog_collection2 = MockEntity()
+
+
+class MockBase:
+    def prepare(self, engine, reflect):
+        return None
+
+    classes = MockClasses()
 
 
 class MockEntities:
     all_entities = []
     one_entity = {}
+
+    def __init__(self):
+        self.c = MockEntity()
 
     def count(self):
         return len(self.all_entities)
@@ -69,6 +77,15 @@ class MockEntities:
     def one_or_none(self):
         return self.one_entity
 
+    def group_by(self, *args):
+        return self
+
+    def subquery(self, *args):
+        return self
+
+    def join(self, *args):
+        return self
+
 
 class MockColumn:
 
@@ -87,9 +104,10 @@ class MockTable():
 class MockSession:
     def __init__(self, engine):
         self._remove = False
+        self.c = MockEntity()
         pass
 
-    def query(self, table):
+    def query(self, table, *args):
         return MockEntities()
 
     def query_property(self):
@@ -331,6 +349,7 @@ def test_entities_with_view(monkeypatch):
     MockTable.columns = [MockColumn('identificatie'), MockColumn('attribute'), MockColumn('meta')]
 
 
+@mock.patch("gobapi.storage.cast", mock.MagicMock())
 def test_collection_states(monkeypatch):
     before_each_storage_test(monkeypatch)
 
