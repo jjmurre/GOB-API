@@ -54,6 +54,47 @@ class Date(Scalar):
             return datetime.datetime.strptime(value, DATE_FORMAT).date()
 
 
+class DateTime(Scalar):
+
+    @staticmethod
+    def serialize(dt):
+        """Serialize a DateTime
+
+        :param dt: DateTime
+        :return: dt as a string in iso format
+        """
+        # Transform to internal string format and work around issue: https://bugs.python.org/issue13305
+        return f"{dt.year:04d}-" + dt.strftime("%m-%dT%H:%M:%S.%f")
+
+    @staticmethod
+    def parse_literal(node):
+        """Parse literal
+
+        :param node: literal node
+        :return: datetime.date if node is a string value
+        """
+        if isinstance(node, ast.StringValue):
+            return DateTime.parse_value(node.value)
+
+    @staticmethod
+    def parse_value(value):
+        """Parse a value into a DateTime
+
+        The value is expected to be a string value
+
+        "null" is treated as a special value and denotes a date value of null (or None)
+
+        :param value: string value to parse
+        :return: value as a datetime.datetime
+        """
+        DATE_FORMAT = "%Y-%m-%dT%H:%M:%S.%f"
+
+        if value == FILTER_ON_NULL_VALUE:
+            return FILTER_ON_NULL_VALUE
+        else:
+            return datetime.datetime.strptime(value, DATE_FORMAT)
+
+
 class GeoJSON(Scalar):
 
     @staticmethod

@@ -11,6 +11,7 @@ import geoalchemy2
 from graphene.types.generic import GenericScalar
 from graphene_sqlalchemy import SQLAlchemyObjectType
 from graphene_sqlalchemy.converter import convert_sqlalchemy_type, get_column_doc, is_column_nullable
+import sqlalchemy
 from sqlalchemy.dialects import postgresql
 
 from gobcore.model import GOBModel
@@ -18,7 +19,7 @@ from gobcore.model.sa.gob import models
 
 from gobapi.graphql import graphene_type, exclude_fields
 from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute
-from gobapi.graphql.scalars import GeoJSON
+from gobapi.graphql.scalars import DateTime, GeoJSON
 
 
 def get_collection_references(collection):
@@ -140,6 +141,11 @@ def get_graphene_query():
                  connection_fields
                  )
     return Query
+
+
+@convert_sqlalchemy_type.register(sqlalchemy.types.DateTime)
+def _convert_datetime(thetype, column, registry=None):
+    return DateTime(description=get_column_doc(column), required=not(is_column_nullable(column)))
 
 
 @convert_sqlalchemy_type.register(geoalchemy2.Geometry)
