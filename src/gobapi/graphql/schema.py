@@ -6,13 +6,20 @@ The schema is generated from the GOB models and model classes as defined in GOB 
 import graphene
 import re
 
+import geoalchemy2
+
+from graphene.types.generic import GenericScalar
 from graphene_sqlalchemy import SQLAlchemyObjectType
+from graphene_sqlalchemy.converter import convert_sqlalchemy_type, get_column_doc, is_column_nullable
+import sqlalchemy
+from sqlalchemy.dialects import postgresql
 
 from gobcore.model import GOBModel
 from gobcore.model.sa.gob import models
 
 from gobapi.graphql import graphene_type, exclude_fields
 from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute
+from gobapi.graphql.scalars import DateTime, GeoJSON
 
 
 def get_collection_references(collection):
@@ -120,6 +127,8 @@ def get_graphene_query():
             })
         })
 
+        # 'type' is not allowed as an attribute name, so skip it as a filterable attribute
+        collection["attributes"].pop('type', None)
         # Let the FilterConnectionField be filterable on all attributes of the collection
         attributes = {attr: graphene_type(value["type"], value["description"]) for attr, value in
                       collection["attributes"].items() if
@@ -132,6 +141,23 @@ def get_graphene_query():
                  connection_fields
                  )
     return Query
+
+
+@convert_sqlalchemy_type.register(sqlalchemy.types.DateTime)
+def _convert_datetime(thetype, column, registry=None):
+    return DateTime(description=get_column_doc(column), required=not(is_column_nullable(column)))
+
+
+@convert_sqlalchemy_type.register(geoalchemy2.Geometry)
+def _convert_geometry(thetype, column, registry=None):
+    return GeoJSON(description=get_column_doc(column), required=not(is_column_nullable(column)))
+
+
+@convert_sqlalchemy_type.register(postgresql.HSTORE)
+@convert_sqlalchemy_type.register(postgresql.JSON)
+@convert_sqlalchemy_type.register(postgresql.JSONB)
+def _convert_json(thetype, column, registry=None):
+    return GenericScalar(description=get_column_doc(column), required=not(is_column_nullable(column)))
 
 
 schema = graphene.Schema(query=get_graphene_query())

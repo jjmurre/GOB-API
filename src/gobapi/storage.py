@@ -28,6 +28,15 @@ _Base = None
 metadata = None
 
 
+def get_session():
+    """Get the current global session
+
+    :return: session
+    """
+    global session
+    return session
+
+
 def connect():
     """Module initialisation
 

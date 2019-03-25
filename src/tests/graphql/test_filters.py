@@ -25,7 +25,7 @@ class Model():
         self._id = "id"
 
     def set_ref(self, ref_name):
-        setattr(self, ref_name, {"id": "id"})
+        setattr(self, ref_name, {"_id": "id"})
 
 
 def test_build_query(monkeypatch):
@@ -62,5 +62,5 @@ def test_resolve_attribute(monkeypatch):
     m._id = "anotherid"
     assert(r(m, None, field="anyvalue") == "FalseTrue")
 
-    del m.ref["id"]
+    del m.ref["_id"]
     assert(r(m, None, field="anyvalue") == [])
