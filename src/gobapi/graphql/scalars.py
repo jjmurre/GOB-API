@@ -4,11 +4,14 @@ Mainly used for handling null values
 
 """
 import datetime
+import json
 
+import geoalchemy2
 from graphene.types import Scalar
 from graphql.language import ast
 
 from gobapi.graphql.filters import FILTER_ON_NULL_VALUE
+from gobapi.storage import get_session
 
 
 class Date(Scalar):
@@ -49,3 +52,42 @@ class Date(Scalar):
             return FILTER_ON_NULL_VALUE
         else:
             return datetime.datetime.strptime(value, DATE_FORMAT).date()
+
+
+class GeoJSON(Scalar):
+
+    @staticmethod
+    def serialize(geom):
+        """Serialize a GeoJSON string to a dict
+
+        The geojson string is serialized to a dict to prevent graphql to output
+        the geojson as an escaped string
+
+        :param geom: geom
+        :return: geometry as dict
+        """
+        session = get_session()
+        return json.loads(session.scalar(geom.ST_AsGeoJSON()))
+
+    @staticmethod
+    def parse_literal(node):
+        """Parse literal
+
+        :param node: literal node
+        :return: datetime.date if node is a string value
+        """
+        if isinstance(node, ast.StringValue):
+            return GeoJSON.parse_value(node.value)
+
+    @staticmethod
+    def parse_value(value):
+        """Parse a value into a Geometry object
+
+        :param value: string value to parse
+        :return: value as a Geometry object
+        """
+        session = get_session()
+        if value == FILTER_ON_NULL_VALUE:
+            return FILTER_ON_NULL_VALUE
+        else:
+            return session.scalar(geoalchemy2.func.ST_GeomFromText(value))

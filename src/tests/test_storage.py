@@ -247,6 +247,13 @@ def before_each_storage_test(monkeypatch):
     connect()
 
 
+def test_get_session(monkeypatch):
+    before_each_storage_test(monkeypatch)
+
+    from gobapi.storage import get_session, session
+    # assert the global session is returned
+    assert(get_session() == session)
+
 def test_entities(monkeypatch):
     before_each_storage_test(monkeypatch)
 

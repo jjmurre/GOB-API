@@ -4,7 +4,7 @@
 import graphene
 
 from gobcore.model.metadata import PRIVATE_META_FIELDS, PUBLIC_META_FIELDS, FIXED_FIELDS
-from gobapi.graphql.scalars import Date
+from gobapi.graphql.scalars import Date, GeoJSON
 
 
 def graphene_type(gob_typename, description=""):
@@ -20,7 +20,9 @@ def graphene_type(gob_typename, description=""):
         "GOB.Decimal": graphene.Float,
         "GOB.Boolean": graphene.Boolean,
         "GOB.Date": Date,
-        "GOB.DateTime": graphene.DateTime
+        "GOB.DateTime": graphene.DateTime,
+        "GOB.Geo.Geometry": GeoJSON,
+        "GOB.JSON": graphene.JSONString,
     }
     if conversion.get(gob_typename):
         return conversion.get(gob_typename)(description=description)

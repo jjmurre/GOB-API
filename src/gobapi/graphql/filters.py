@@ -72,7 +72,7 @@ def get_resolve_attribute(model, ref_name):
         """
         try:
             query_args = {
-                "_id": getattr(obj, ref_name)["id"],  # Filter the model on the foreign key
+                "_id": getattr(obj, ref_name)["_id"],  # Filter the model on the foreign key
                 **kwargs  # Add other filter arguments (_id need not to be unique for collections with states)
             }
         except KeyError:
