@@ -44,11 +44,18 @@ def test_datetime(monkeypatch):
     serialized = DateTime.serialize(datetime.datetime(2000, 1, 20, 12, 0, 0))
     assert(serialized == "2000-01-20T12:00:00.000000")
 
+    # Test patched date for years < 1000
+    serialized = DateTime.serialize(datetime.datetime(20, 1, 20, 12, 0, 0))
+    assert(serialized == "0020-01-20T12:00:00.000000")
+
     class Literal(ast.StringValue):
         def __init__(self, value):
             self.value = value
     parsed_literal = DateTime.parse_literal(Literal("2000-01-20T12:00:00.000000"))
     assert(str(parsed_literal) == str(datetime.datetime(2000, 1, 20, 12, 0, 0)))
+
+    parsed_literal = DateTime.parse_literal(Literal("0020-01-20T12:00:00.000000"))
+    assert(str(parsed_literal) == str(datetime.datetime(20, 1, 20, 12, 0, 0)))
 
     parsed_literal = DateTime.parse_literal(Literal("null"))
     assert(parsed_literal == "null")
