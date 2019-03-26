@@ -15,7 +15,6 @@ from sqlalchemy_filters import apply_filters
 from sqlalchemy.sql import label
 
 from gobcore.model import GOBModel
-from gobcore.model.metadata import FIELD
 from gobcore.model.sa.gob import Base
 from gobcore.typesystem import get_gob_type, get_gob_type_from_sql_type
 from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS, FIELD

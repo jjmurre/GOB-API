@@ -12,21 +12,23 @@ import sqlalchemy_filters
 from unittest import mock
 
 from gobapi.storage import _get_convert_for_state
+from gobcore.model.metadata import FIELD
 
 class MockEntity:
     def __init__(self, *args):
         self._id = '1'
+        self.identificatie = '1'
         self.reference = {
-            'identificatie': '1',
+            FIELD.ID: '1',
             'bronwaarde': '1'
         }
         self.manyreference = [
             {
-                'identificatie': '1',
+                FIELD.ID: '1',
                 'bronwaarde': '1'
             },
             {
-                'identificatie': '2',
+                FIELD.ID: '2',
                 'bronwaarde': '2'
             }
         ]
@@ -290,10 +292,10 @@ def test_entities_with_references(monkeypatch):
             'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
-            'reference': {'bronwaarde': '1', 'identificatie': '1', '_links': {'self': {'href': '/gob/catalog/collection/1/'}}},
+            'reference': {'bronwaarde': '1', FIELD.ID: '1', '_links': {'self': {'href': '/gob/catalog/collection/1/'}}},
             'manyreference': [
-                {'bronwaarde': '1', 'identificatie': '1', '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
-                {'bronwaarde': '2', 'identificatie': '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
+                {'bronwaarde': '1', FIELD.ID: '1', '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
+                {'bronwaarde': '2', FIELD.ID: '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
             ]
         }
     }], 1))
@@ -304,10 +306,11 @@ def test_entities_without_reference_id(monkeypatch):
     from gobapi.storage import get_entities
 
     mockEntity = MockEntity('identificatie', 'attribute')
-    mockEntity.reference['identificatie'] = None
+    mockEntity.reference[FIELD.ID] = None
     MockEntities.all_entities = [
         mockEntity
     ]
+
     assert(get_entities('catalog', 'collection2', 0, 1) == ([{
         'attribute': 'attribute',
         'identificatie': 'identificatie',
@@ -315,10 +318,10 @@ def test_entities_without_reference_id(monkeypatch):
             'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
-            'reference': {'bronwaarde': '1', 'identificatie': None},
+            'reference': {FIELD.ID: None, 'bronwaarde': '1'},
             'manyreference': [
-                {'bronwaarde': '1', 'identificatie': '1', '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
-                {'bronwaarde': '2', 'identificatie': '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
+                {FIELD.ID: '1', 'bronwaarde': '1' , '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
+                {FIELD.ID: '2', 'bronwaarde': '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
             ]
         }
     }], 1))
@@ -346,11 +349,11 @@ def test_entities_with_view(monkeypatch):
     # Add a reference to the table columns
     MockTable.columns = [MockColumn('identificatie'), MockColumn('attribute'), MockColumn('_ref_is_test_tse_tst')]
     mockEntity = MockEntity('identificatie', 'attribute', '_ref_is_test_tse_tst')
-    mockEntity._ref_is_test_tse_tst = {'identificatie': '1234'}
+    mockEntity._ref_is_test_tse_tst = {FIELD.ID: '1234'}
     MockEntities.all_entities = [
         mockEntity
     ]
-    assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'identificatie': 'identificatie', '_embedded': {'is_test': {'identificatie': '1234', '_links': {'self': {'href': '/gob/catalog/collection/1234/'}}}}}], 1))
+    assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'identificatie': 'identificatie', '_embedded': {'is_test': {FIELD.ID: '1234', '_links': {'self': {'href': '/gob/catalog/collection/1234/'}}}}}], 1))
 
     # Reset the table columns
     MockTable.columns = [MockColumn('identificatie'), MockColumn('attribute'), MockColumn('meta')]
