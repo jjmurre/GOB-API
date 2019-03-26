@@ -15,6 +15,7 @@ from sqlalchemy_filters import apply_filters
 from sqlalchemy.sql import label
 
 from gobcore.model import GOBModel
+from gobcore.model.metadata import FIELD
 from gobcore.model.sa.gob import Base
 from gobcore.typesystem import get_gob_type, get_gob_type_from_sql_type
 from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS, FIELD
@@ -84,7 +85,7 @@ def _get_table_and_model(catalog_name, collection_name, view=None):
 
 
 def _create_reference_link(reference, catalog, collection):
-    identificatie = reference.get('identificatie')
+    identificatie = reference.get(FIELD.ID)
     if identificatie:
         return {'_links': {'self': {'href': f'{API_BASE_PATH}/{catalog}/{collection}/{identificatie}/'}}}
     else:

@@ -1,6 +1,7 @@
 import datetime
 
 from gobcore.model import GOBModel
+from gobcore.model.metadata import FIELD
 from gobcore.typesystem import get_gob_type
 
 from gobapi.storage import get_collection_states, _get_convert_for_state
@@ -60,7 +61,7 @@ def _get_valid_states_in_timeslot(timeslot_start, timeslot_end, collection_name,
     if collection_name in relations and valid_states[collection_name]:
         for field, relation in relations[collection_name].items():
             try:
-                relation_entity_id = getattr(valid_states[collection_name], field)['identificatie']
+                relation_entity_id = getattr(valid_states[collection_name], field)[FIELD.ID]
             except KeyError:
                 # If no relation is found, skip checking for other relations
                 pass
@@ -110,7 +111,7 @@ def _calculate_timeslots_for_entity(states, relations, collection_name,  # noqa:
 
             for field, relation in relations[collection_name].items():
                 try:
-                    relation_entity_id = getattr(state, field)['identificatie']
+                    relation_entity_id = getattr(state, field)[FIELD.ID]
                 except KeyError:
                     pass
                 else:
