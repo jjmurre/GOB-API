@@ -196,6 +196,16 @@ def mock_get_gobmodel():
                         'attribute': {
                             'type': 'GOB.String',
                             'description': 'Some attribute'
+                        },
+                        'reference': {
+                            'type': 'GOB.Reference',
+                            'description': 'Reference to another entity',
+                            'ref': 'catalog:collection'
+                        },
+                        'manyreference': {
+                            'type': 'GOB.ManyReference',
+                            'description': 'Reference array to another entity',
+                            'ref': 'catalog:collection2'
                         }
                     },
                     'references': {

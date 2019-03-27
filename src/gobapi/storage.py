@@ -158,15 +158,16 @@ def _get_convert_for_model(catalog, collection, model, meta={}):
             'self': {'href': f'{API_BASE_PATH}/{catalog}/{collection}/{id}/'}
         }
 
-        # Add references to other entities
+        # Add references to other entities, exclude private_attributes unless they're included in meta
         if model['references']:
-            hal_entity['_embedded'] = {k: _create_reference(entity, k, v) for k, v in model['references'].items()}
+            hal_entity['_embedded'] = {k: _create_reference(entity, k, v)
+                                       for k, v in model['references'].items()
+                                       if k in [*model['fields'].keys(), *meta.keys()]}
         return hal_entity
 
     # Get the attributes which are not a reference to another entity
-    attributes = {k: v for k, v in model['fields'].items() if k not in model['references'].keys()}
-    items = list(attributes.items()) + list(meta.items())
-
+    attributes = {k: v for k, v in {**model['fields'], **meta}.items() if k not in model['references'].keys()}
+    items = list(attributes.items())
     return convert
 
 
@@ -374,6 +375,7 @@ def get_entity(catalog, collection, id, view=None):
         entity_convert = _get_convert_for_table(table,
                                                 {**PRIVATE_META_FIELDS, **FIXED_COLUMNS})
     else:
-        entity_convert = _get_convert_for_model(catalog, collection, model, PUBLIC_META_FIELDS)
+        entity_convert = _get_convert_for_model(catalog, collection, model,
+                                                {**PUBLIC_META_FIELDS, **model.get('private_attributes', {})})
 
     return entity_convert(entity) if entity else None
