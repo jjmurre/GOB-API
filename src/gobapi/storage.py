@@ -118,7 +118,7 @@ def _to_gob_value(entity, field, spec):
     return gob_value
 
 
-def _get_convert_for_state(model, fields=[]):
+def _get_convert_for_state(model, fields=[], private_attributes=False):
     """Get the entity to dict convert function for GOBModels with state
 
     The model is used to extract only the public attributes of the entity,
@@ -134,13 +134,15 @@ def _get_convert_for_state(model, fields=[]):
 
     # Select all attributes except if it's a reference, unless a specific list was passed
     if not fields:
-        fields = [field for field in model['fields'].keys() if field not in model['references'].keys()]
+        fields = [field for field in model['fields'].keys()
+                  if field not in model['references'].keys()
+                  and (not field.startswith('_') or private_attributes)]
     attributes = {k: v for k, v in model['fields'].items() if k in fields}
     items = list(attributes.items())
     return convert
 
 
-def _get_convert_for_model(catalog, collection, model, meta={}):
+def _get_convert_for_model(catalog, collection, model, meta={}, private_attributes=False):
     """Get the entity to dict convert function for GOBModels
 
     The model is used to extract only the public attributes of the entity.
@@ -157,17 +159,18 @@ def _get_convert_for_model(catalog, collection, model, meta={}):
         hal_entity['_links'] = {
             'self': {'href': f'{API_BASE_PATH}/{catalog}/{collection}/{id}/'}
         }
-
-        # Add references to other entities, exclude private_attributes unless they're included in meta
+        # Add references to other entities, exclude private_attributes unless specifically requested
         if model['references']:
             hal_entity['_embedded'] = {k: _create_reference(entity, k, v)
                                        for k, v in model['references'].items()
-                                       if k in [*model['fields'].keys(), *meta.keys()]}
+                                       if not k.startswith('_') or private_attributes}
         return hal_entity
+    # Get the attributes which are not a reference, exclude private_attributes unless specifically requested
+    attributes = {k: v for k, v in model['fields'].items()
+                  if k not in model['references'].keys()
+                  and (not k.startswith('_') or private_attributes)}
 
-    # Get the attributes which are not a reference to another entity
-    attributes = {k: v for k, v in {**model['fields'], **meta}.items() if k not in model['references'].keys()}
-    items = list(attributes.items())
+    items = list(attributes.items()) + list(meta.items())
     return convert
 
 
@@ -370,12 +373,11 @@ def get_entity(catalog, collection, id, view=None):
         entity = apply_filters(entity, filters)
 
     entity = entity.one_or_none()
-
     if view:
         entity_convert = _get_convert_for_table(table,
                                                 {**PRIVATE_META_FIELDS, **FIXED_COLUMNS})
     else:
         entity_convert = _get_convert_for_model(catalog, collection, model,
-                                                {**PUBLIC_META_FIELDS, **model.get('private_attributes', {})})
+                                                PUBLIC_META_FIELDS, private_attributes=True)
 
     return entity_convert(entity) if entity else None
