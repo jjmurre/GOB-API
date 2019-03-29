@@ -7,6 +7,8 @@ As it is a unit test all external dependencies are mocked
 import datetime
 import importlib
 
+from gobcore.model.metadata import FIELD
+
 
 class MockGOBModel:
     def __init__(self):
@@ -68,7 +70,7 @@ states_collection = [
         'code': 'A',
         'begin_geldigheid': datetime.date(2010, 1, 1),
         'eind_geldigheid': datetime.date(2011, 1, 1),
-        'reference': {'identificatie': '1'}
+        'reference': {FIELD.ID: '1'}
     }),
     MockState({
         'volgnummer': 2,
@@ -77,7 +79,7 @@ states_collection = [
         'code': 'B',
         'begin_geldigheid': datetime.date(2011, 1, 1),
         'eind_geldigheid': datetime.date(2013, 1, 1),
-        'reference': {'identificatie': '1'}
+        'reference': {FIELD.ID: '1'}
     }),
     MockState({
         'volgnummer': 3,

@@ -12,24 +12,30 @@ import sqlalchemy_filters
 from unittest import mock
 
 from gobapi.storage import _get_convert_for_state
+from gobcore.model.metadata import FIELD
 
 class MockEntity:
     def __init__(self, *args):
         self._id = '1'
+        self.identificatie = '1'
         self.reference = {
-            'identificatie': '1',
+            FIELD.ID: '1',
             'bronwaarde': '1'
         }
         self.manyreference = [
             {
-                'identificatie': '1',
+                FIELD.ID: '1',
                 'bronwaarde': '1'
             },
             {
-                'identificatie': '2',
+                FIELD.ID: '2',
                 'bronwaarde': '2'
             }
         ]
+        self._private_reference = {
+            FIELD.ID: '1',
+            'bronwaarde': '1'
+        }
         self.datum_begin_geldigheid = datetime.date.today() - datetime.timedelta(days=365)
         self.begin_geldigheid = datetime.date.today()
         self.eind_geldigheid = datetime.date.today()
@@ -151,6 +157,10 @@ def mock_get_gobmodel():
                         'attribute': {
                             'type': 'GOB.String',
                             'description': 'Some attribute'
+                        },
+                        '_private_attribute': {
+                            'type': 'GOB.String',
+                            'description': 'Some private attribute'
                         }
                     },
                     'api': {
@@ -170,6 +180,10 @@ def mock_get_gobmodel():
                         'attribute': {
                             'type': 'GOB.String',
                             'description': 'Some attribute'
+                        },
+                        '_private_attribute': {
+                            'type': 'GOB.String',
+                            'description': 'Some private attribute'
                         }
                     },
                     'references': {}
@@ -194,7 +208,22 @@ def mock_get_gobmodel():
                         'attribute': {
                             'type': 'GOB.String',
                             'description': 'Some attribute'
-                        }
+                        },
+                        'reference': {
+                            'type': 'GOB.Reference',
+                            'description': 'Reference to another entity',
+                            'ref': 'catalog:collection'
+                        },
+                        'manyreference': {
+                            'type': 'GOB.ManyReference',
+                            'description': 'Reference array to another entity',
+                            'ref': 'catalog:collection2'
+                        },
+                        '_private_reference': {
+                            'type': 'GOB.Reference',
+                            'description': 'Private reference to another entity',
+                            'ref': 'catalog:collection'
+                        },
                     },
                     'references': {
                         'reference': {
@@ -206,7 +235,12 @@ def mock_get_gobmodel():
                             'type': 'GOB.ManyReference',
                             'description': 'Reference array to another entity',
                             'ref': 'catalog:collection2'
-                        }
+                        },
+                        '_private_reference': {
+                            'type': 'GOB.Reference',
+                            'description': 'Private reference to another entity',
+                            'ref': 'catalog:collection'
+                        },
                     }
                 }
             }[collection_name]
@@ -283,6 +317,7 @@ def test_entities_with_references(monkeypatch):
     MockEntities.all_entities = [
         mockEntity
     ]
+    # The private reference should't be visible on the entities list
     assert(get_entities('catalog', 'collection2', 0, 1) == ([{
         'attribute': 'attribute',
         'identificatie': 'identificatie',
@@ -290,10 +325,10 @@ def test_entities_with_references(monkeypatch):
             'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
-            'reference': {'bronwaarde': '1', 'identificatie': '1', '_links': {'self': {'href': '/gob/catalog/collection/1/'}}},
+            'reference': {'bronwaarde': '1', FIELD.ID: '1', '_links': {'self': {'href': '/gob/catalog/collection/1/'}}},
             'manyreference': [
-                {'bronwaarde': '1', 'identificatie': '1', '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
-                {'bronwaarde': '2', 'identificatie': '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
+                {'bronwaarde': '1', FIELD.ID: '1', '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
+                {'bronwaarde': '2', FIELD.ID: '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
             ]
         }
     }], 1))
@@ -304,10 +339,11 @@ def test_entities_without_reference_id(monkeypatch):
     from gobapi.storage import get_entities
 
     mockEntity = MockEntity('identificatie', 'attribute')
-    mockEntity.reference['identificatie'] = None
+    mockEntity.reference[FIELD.ID] = None
     MockEntities.all_entities = [
         mockEntity
     ]
+
     assert(get_entities('catalog', 'collection2', 0, 1) == ([{
         'attribute': 'attribute',
         'identificatie': 'identificatie',
@@ -315,10 +351,10 @@ def test_entities_without_reference_id(monkeypatch):
             'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
-            'reference': {'bronwaarde': '1', 'identificatie': None},
+            'reference': {FIELD.ID: None, 'bronwaarde': '1'},
             'manyreference': [
-                {'bronwaarde': '1', 'identificatie': '1', '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
-                {'bronwaarde': '2', 'identificatie': '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
+                {FIELD.ID: '1', 'bronwaarde': '1' , '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
+                {FIELD.ID: '2', 'bronwaarde': '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
             ]
         }
     }], 1))
@@ -331,7 +367,7 @@ def test_entities_with_view(monkeypatch):
     MockEntities.all_entities = []
     assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([], 0))
 
-    mockEntity = MockEntity('identificatie', 'attribute')
+    mockEntity = MockEntity('identificatie', 'attribute', '_private_attribute')
     MockEntities.all_entities = [
         mockEntity
     ]
@@ -346,11 +382,11 @@ def test_entities_with_view(monkeypatch):
     # Add a reference to the table columns
     MockTable.columns = [MockColumn('identificatie'), MockColumn('attribute'), MockColumn('_ref_is_test_tse_tst')]
     mockEntity = MockEntity('identificatie', 'attribute', '_ref_is_test_tse_tst')
-    mockEntity._ref_is_test_tse_tst = {'identificatie': '1234'}
+    mockEntity._ref_is_test_tse_tst = {FIELD.ID: '1234'}
     MockEntities.all_entities = [
         mockEntity
     ]
-    assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'identificatie': 'identificatie', '_embedded': {'is_test': {'identificatie': '1234', '_links': {'self': {'href': '/gob/catalog/collection/1234/'}}}}}], 1))
+    assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'identificatie': 'identificatie', '_embedded': {'is_test': {FIELD.ID: '1234', '_links': {'self': {'href': '/gob/catalog/collection/1234/'}}}}}], 1))
 
     # Reset the table columns
     MockTable.columns = [MockColumn('identificatie'), MockColumn('attribute'), MockColumn('meta')]
@@ -378,9 +414,19 @@ def test_entity(monkeypatch):
     from gobapi.storage import get_entity
     assert(get_entity('catalog', 'collection1', 'identificatie') == None)
 
-    mockEntity = MockEntity('identificatie', 'attribute', 'meta')
+    mockEntity = MockEntity('identificatie', 'attribute', '_private_attribute', 'meta')
     MockEntities.one_entity = mockEntity
-    assert(get_entity('catalog', 'catalog', 'collection1', 'identificatie') == {'attribute': 'attribute', 'identificatie': 'identificatie', 'meta': 'meta'})
+
+    # Expect the private attribute to be visible
+    expected = {
+        'identificatie': 'identificatie',
+        'attribute': 'attribute',
+        'meta': 'meta',
+        '_private_attribute': '_private_attribute',
+        '_links': {'self': {'href': '/gob/catalog/collection1/1/'}}
+    }
+
+    assert(get_entity('catalog', 'collection1', 'identificatie') == expected)
 
 
 def test_entity_with_view(monkeypatch):
@@ -393,6 +439,7 @@ def test_entity_with_view(monkeypatch):
     mockEntity = MockEntity('identificatie', 'attribute', 'meta')
     MockEntities.one_entity = mockEntity
     assert(get_entity('catalog', 'collection1', 'identificatie', 'enhanced') == {'attribute': 'attribute', 'identificatie': 'identificatie', 'meta': 'meta'})
+
 
 def test_teardown_session(monkeypatch):
     before_each_storage_test(monkeypatch)
