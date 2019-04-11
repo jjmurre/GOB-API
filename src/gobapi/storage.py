@@ -163,12 +163,14 @@ def _get_convert_for_model(catalog, collection, model, meta={}, private_attribut
         if model['references']:
             hal_entity['_embedded'] = {k: _create_reference(entity, k, v)
                                        for k, v in model['references'].items()
-                                       if not k.startswith('_') or private_attributes}
+                                       if (not k.startswith('_') and not v.get('hidden')) or private_attributes}
+
         return hal_entity
     # Get the attributes which are not a reference, exclude private_attributes unless specifically requested
     attributes = {k: v for k, v in model['fields'].items()
                   if k not in model['references'].keys()
-                  and (not k.startswith('_') or private_attributes)}
+                  and (not k.startswith('_') or private_attributes)
+                  and not v.get('hidden')}
 
     items = list(attributes.items()) + list(meta.items())
     return convert

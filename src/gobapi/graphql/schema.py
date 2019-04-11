@@ -15,19 +15,23 @@ import sqlalchemy
 from sqlalchemy.dialects import postgresql
 
 from gobcore.model import GOBModel
+from gobcore.model.relations import get_relation_name
 from gobcore.model.sa.gob import models
 
 from gobapi.graphql import graphene_type, exclude_fields
 from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute
 from gobapi.graphql.scalars import DateTime, GeoJSON
 
+# Use the GOB model to generate the GraphQL query
+model = GOBModel()
+
 
 def get_collection_references(collection):
     # Currently implemented for single references only
-    REF_TYPES = ["GOB.Reference"]
+    REF_TYPES = ["GOB.Reference", "GOB.ManyReference"]
 
     refs = collection["references"]
-    return {key: value for key, value in refs.items() if value["type"] in REF_TYPES}
+    return {key: value for key, value in refs.items() if value["type"] in REF_TYPES and not value.get("hidden")}
 
 
 def _get_sorted_references(model):
@@ -75,9 +79,6 @@ def get_graphene_query():
     connection_fields = {}  # FilterConnectionField() per collection
     base_models = {}  # SQLAlchemy model per collection
 
-    # Use the GOB model to generate the GraphQL query
-    model = GOBModel()
-
     # Sort references so that if a refers to b, a will be handled before b
     sorted_refs = _get_sorted_references(model)
 
@@ -93,7 +94,7 @@ def get_graphene_query():
         for key in ref_items.keys():
             cat_name, col_name = re.findall(pattern, ref_items[key]["ref"])[0]
             if not connection_fields.get(col_name) is None:
-                fields[col_name] = {
+                fields[model.get_table_name(cat_name, col_name)] = {
                     "connection": connection_fields[col_name],
                     "field_name": key
                 }
@@ -109,8 +110,7 @@ def get_graphene_query():
         object_type_class = type(collection_name, (SQLAlchemyObjectType,), {
             "__repr__": lambda self: f"SQLAlchemyObjectType {collection_name}",
             **{value["field_name"]: value["connection"] for key, value in fields.items()},
-            **{f"resolve_{value['field_name']}": get_resolve_attribute(base_models[key], value["field_name"])
-               for key, value in fields.items()},
+            **get_relation_resolvers(catalog_name, collection_name, fields),
             "Meta": type(f"{collection_name}_Meta", (), {
                 "model": base_model,
                 "exclude_fields": exclude_fields,
@@ -141,6 +141,22 @@ def get_graphene_query():
                  connection_fields
                  )
     return Query
+
+
+def get_relation_resolvers(src_catalog_name, src_collection_name, fields):
+    resolvers = {}
+    for key, value in fields.items():
+        # Get the relations table name for the relation
+        relation_table = get_relation_name(
+            model,
+            src_catalog_name,
+            src_collection_name,
+            value['field_name'])
+
+        resolvers[f"resolve_{value['field_name']}"] = get_resolve_attribute(
+            models[f'rel_{relation_table}'],
+            models[key])
+    return resolvers
 
 
 @convert_sqlalchemy_type.register(sqlalchemy.types.DateTime)

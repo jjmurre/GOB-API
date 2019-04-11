@@ -1,12 +1,27 @@
 from graphene_sqlalchemy import SQLAlchemyConnectionField
 from gobapi.graphql.filters import _build_query, FilterConnectionField, get_resolve_attribute
+from gobapi import storage
 
+
+class Session():
+    def __init__(self):
+        pass
+
+    def query(self, _):
+        return Query()
+
+
+class Columns():
+    def __init__(self):
+        self.dst_id = "1"
+        self.dst_volgnummer = "1"
 
 class Query():
     def __init__(self):
         self.expr = ""
+        self.c = Columns()
 
-    def filter(self, expr):
+    def filter(self, expr, *args):
         self.expr = self.expr + str(expr)
         return self
 
@@ -14,6 +29,13 @@ class Query():
         return self
 
     def query(self, _):
+        return self
+
+    def subquery(self):
+        return self
+
+    def join(self, table, on):
+        self.expr = self.expr + "Joined"
         return self
 
     def all(self):
@@ -30,20 +52,28 @@ class Model():
 
 def test_build_query(monkeypatch):
     q = Query()
-    q = _build_query(q, Model("field", "anyvalue"), field=1)
+    q = _build_query(q, Model("field", "anyvalue"), None, field=1)
     assert(q.expr == "False")
 
     q = Query()
-    q = _build_query(q, Model("field", "anyvalue"), field="anyvalue")
+    q = _build_query(q, Model("field", "anyvalue"), None, field="anyvalue")
     assert(q.expr == "True")
 
     q = Query()
-    q = _build_query(q, Model("field", "anyvalue"), field="null")
+    q = _build_query(q, Model("field", "anyvalue"), None, field="null")
     assert(q.expr == "False")
 
     q = Query()
-    q = _build_query(q, Model("field", None), field="null")
+    q = _build_query(q, Model("field", None), None, field="null")
     assert(q.expr == "True")
+
+    # Test with a relation model
+    rel = Model("src_id", "1")
+    setattr(rel, "c", Columns())
+
+    q = Query()
+    q = _build_query(q, Model("field", None), rel, field="null")
+    assert(q.expr == "TrueJoined")
 
 def test_filterconnectionfield(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
@@ -52,15 +82,22 @@ def test_filterconnectionfield(monkeypatch):
 
 def test_resolve_attribute(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
+    monkeypatch.setattr(storage, "session", Session())
+
+    # Setup the relation model
+    rel = Model("src_id", "1")
+    setattr(rel, "src_volgnummer", "1")
 
     m = Model("field", "anyvalue")
+    setattr(m, 'volgnummer', '1')
     m.set_ref("ref")
-    r = get_resolve_attribute(m, "ref")
-    assert(r(m, None, field=1) == "TrueFalse")
-    assert(r(m, None, field="anyvalue") == "TrueTrue")
+
+    r = get_resolve_attribute(rel, m)
+    assert(r(m, None, field=1) == "FalseJoined")
+    assert(r(m, None, field="anyvalue") == "TrueJoined")
 
     m._id = "anotherid"
-    assert(r(m, None, field="anyvalue") == "FalseTrue")
+    assert(r(m, None, field="anyvalue") == "TrueJoined")
 
     del m.ref["_id"]
-    assert(r(m, None, field="anyvalue") == [])
+    assert(r(m, None, field="anyvalue") == 'TrueJoined')

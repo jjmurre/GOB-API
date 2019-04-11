@@ -4,11 +4,17 @@ Filters provide for a way to dynamically filter collections on field values
 
 """
 from graphene_sqlalchemy import SQLAlchemyConnectionField
+from sqlalchemy import and_
+
+from gobcore.model.metadata import FIELD
+
+from gobapi.storage import get_session
+
 
 FILTER_ON_NULL_VALUE = "null"
 
 
-def _build_query(query, model, **kwargs):
+def _build_query(query, model, relation, **kwargs):
     """Build a query to filter a model on the contents of kwargs
 
     :param query: the query to start with
@@ -26,25 +32,30 @@ def _build_query(query, model, **kwargs):
                 query = query.filter(getattr(model, field) == None)  # noqa: E711
             else:
                 query = query.filter(getattr(model, field) == value)
+    if relation is not None:
+        query = query.join(relation, and_(
+            relation.c.dst_id == getattr(model, FIELD.ID),
+            relation.c.dst_volgnummer == getattr(model, FIELD.SEQNR, None)))
     return query
 
 
 class FilterConnectionField(SQLAlchemyConnectionField):
 
     @classmethod
-    def get_query(cls, model, info, **kwargs):
+    def get_query(cls, model, info, relation=None, **kwargs):
         """Gets a query that returns the model filtered on the contents of kwargs
 
         :param model: the model class of the referenced collection
         :param info:
+        :param relation:
         :param kwargs: the filter arguments, <name of field>: <value of field>
         :return: the query to filter model on the filter arguments
         """
         query = super(FilterConnectionField, cls).get_query(model, info, **kwargs)
-        return _build_query(query, model, **kwargs)
+        return _build_query(query, model, relation, **kwargs)
 
 
-def get_resolve_attribute(model, ref_name):
+def get_resolve_attribute(relation_table, model):
     """Gets an attribute resolver
 
     An attribute resolver takes a get_session function, a model class and the name of a reference
@@ -70,15 +81,13 @@ def get_resolve_attribute(model, ref_name):
         :param kwargs: any filter arguments, <name of field>: <value of field>
         :return: the list of referenced objects
         """
-        try:
-            query_args = {
-                "_id": getattr(obj, ref_name)["_id"],  # Filter the model on the foreign key
-                **kwargs  # Add other filter arguments (_id need not to be unique for collections with states)
-            }
-        except KeyError:
-            return []
+        session = get_session()
+        # First get the relations for the specific object
+        relation = session.query(relation_table).filter(
+            relation_table.src_id == getattr(obj, FIELD.ID),
+            relation_table.src_volgnummer == getattr(obj, FIELD.SEQNR))
 
-        query = FilterConnectionField.get_query(model, info, **query_args)
+        query = FilterConnectionField.get_query(model, info, relation.subquery(), **kwargs)
         return query.all()
 
     return resolve_attribute
