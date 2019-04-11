@@ -90,14 +90,15 @@ def get_graphene_query():
 
         # Get all references for the collection
         ref_items = get_collection_references(collection)
-        fields = {}  # field name and corresponding FilterConnectionField()
+        connections = []  # field name and corresponding FilterConnectionField()
         for key in ref_items.keys():
             cat_name, col_name = re.findall(pattern, ref_items[key]["ref"])[0]
 
-            fields[model.get_table_name(cat_name, col_name)] = {
-                "connection": graphene.Dynamic(get_connection_field(col_name)),
+            connections.append({
+                "dst_name": model.get_table_name(cat_name, col_name),
+                "connection_field": graphene.Dynamic(get_connection_field(col_name)),
                 "field_name": key
-            }
+            })
         # class <Collection>(SQLAlchemyObjectType):
         #     attribute = FilterConnectionField((attributeClass, attributeClass fields)
         #     resolve_attribute = lambda obj, info, **args
@@ -108,8 +109,8 @@ def get_graphene_query():
         base_model = models[model.get_table_name(catalog_name, collection_name)]  # SQLAlchemy model
         object_type_class = type(collection_name, (SQLAlchemyObjectType,), {
             "__repr__": lambda self: f"SQLAlchemyObjectType {collection_name}",
-            **{value["field_name"]: value["connection"] for key, value in fields.items()},
-            **get_relation_resolvers(catalog_name, collection_name, fields),
+            **{connection["field_name"]: connection["connection_field"] for connection in connections},
+            **get_relation_resolvers(catalog_name, collection_name, connections),
             "Meta": type(f"{collection_name}_Meta", (), {
                 "model": base_model,
                 "exclude_fields": exclude_fields,
@@ -162,19 +163,19 @@ def get_connection_field(key):
     return connection_field
 
 
-def get_relation_resolvers(src_catalog_name, src_collection_name, fields):
+def get_relation_resolvers(src_catalog_name, src_collection_name, connections):
     resolvers = {}
-    for key, value in fields.items():
+    for connection in connections:
         # Get the relations table name for the relation
         relation_table = get_relation_name(
             model,
             src_catalog_name,
             src_collection_name,
-            value['field_name'])
+            connection['field_name'])
         try:
-            resolvers[f"resolve_{value['field_name']}"] = get_resolve_attribute(
+            resolvers[f"resolve_{connection['field_name']}"] = get_resolve_attribute(
                 models[f'rel_{relation_table}'],
-                models[key])
+                models[connection['dst_name']])
         except KeyError:
             pass
     return resolvers
