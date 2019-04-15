@@ -24,6 +24,7 @@ from gobapi.graphql.scalars import DateTime, GeoJSON
 
 # Use the GOB model to generate the GraphQL query
 model = GOBModel()
+connection_fields = {}  # FilterConnectionField() per collection
 
 
 def get_collection_references(collection):
@@ -31,7 +32,7 @@ def get_collection_references(collection):
     REF_TYPES = ["GOB.Reference", "GOB.ManyReference"]
 
     refs = collection["references"]
-    return {key: value for key, value in refs.items() if value["type"] in REF_TYPES and not value.get("hidden")}
+    return {key: value for key, value in refs.items() if value["type"] in REF_TYPES}
 
 
 def _get_sorted_references(model):
@@ -76,7 +77,6 @@ def _get_sorted_references(model):
 
 
 def get_graphene_query():
-    connection_fields = {}  # FilterConnectionField() per collection
     base_models = {}  # SQLAlchemy model per collection
 
     # Sort references so that if a refers to b, a will be handled before b
@@ -90,15 +90,15 @@ def get_graphene_query():
 
         # Get all references for the collection
         ref_items = get_collection_references(collection)
-        fields = {}  # field name and corresponding FilterConnectionField()
+        connections = []  # field name and corresponding FilterConnectionField()
         for key in ref_items.keys():
             cat_name, col_name = re.findall(pattern, ref_items[key]["ref"])[0]
-            if not connection_fields.get(col_name) is None:
-                fields[model.get_table_name(cat_name, col_name)] = {
-                    "connection": connection_fields[col_name],
-                    "field_name": key
-                }
 
+            connections.append({
+                "dst_name": model.get_table_name(cat_name, col_name),
+                "connection_field": graphene.Dynamic(get_connection_field(col_name)),
+                "field_name": key
+            })
         # class <Collection>(SQLAlchemyObjectType):
         #     attribute = FilterConnectionField((attributeClass, attributeClass fields)
         #     resolve_attribute = lambda obj, info, **args
@@ -109,8 +109,8 @@ def get_graphene_query():
         base_model = models[model.get_table_name(catalog_name, collection_name)]  # SQLAlchemy model
         object_type_class = type(collection_name, (SQLAlchemyObjectType,), {
             "__repr__": lambda self: f"SQLAlchemyObjectType {collection_name}",
-            **{value["field_name"]: value["connection"] for key, value in fields.items()},
-            **get_relation_resolvers(catalog_name, collection_name, fields),
+            **{connection["field_name"]: connection["connection_field"] for connection in connections},
+            **get_relation_resolvers(catalog_name, collection_name, connections),
             "Meta": type(f"{collection_name}_Meta", (), {
                 "model": base_model,
                 "exclude_fields": exclude_fields,
@@ -143,19 +143,41 @@ def get_graphene_query():
     return Query
 
 
-def get_relation_resolvers(src_catalog_name, src_collection_name, fields):
+def get_connection_field(key):
+    """Gets a connection field resolver. Returns the correct type or a GenericScalar
+    if the connection can not be found (Happens when relations are defined for collections
+    which aren't in the model yet.)
+
+    Used to be able to lazy load the schema to allow for circular references
+
+    :param key: the key to lookup the correct connection field
+    :return: the connection field or GenericScalar
+    """
+
+    def connection_field():
+        try:
+            return connection_fields[key]
+        except KeyError:
+            return GenericScalar
+
+    return connection_field
+
+
+def get_relation_resolvers(src_catalog_name, src_collection_name, connections):
     resolvers = {}
-    for key, value in fields.items():
+    for connection in connections:
         # Get the relations table name for the relation
         relation_table = get_relation_name(
             model,
             src_catalog_name,
             src_collection_name,
-            value['field_name'])
-
-        resolvers[f"resolve_{value['field_name']}"] = get_resolve_attribute(
-            models[f'rel_{relation_table}'],
-            models[key])
+            connection['field_name'])
+        try:
+            resolvers[f"resolve_{connection['field_name']}"] = get_resolve_attribute(
+                models[f'rel_{relation_table}'],
+                models[connection['dst_name']])
+        except KeyError:
+            pass
     return resolvers
 
 
