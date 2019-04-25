@@ -5,9 +5,10 @@ The API returns GOB data by calling any of the methods in this module.
 By using this module the API does not need to have any knowledge about the underlying storage
 
 """
+import datetime
 from collections import defaultdict
 
-from sqlalchemy import create_engine, Table, MetaData, func, and_, Integer, cast
+from sqlalchemy import create_engine, Table, MetaData, func, and_, or_, Integer, cast
 from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.ext.automap import automap_base
@@ -277,8 +278,10 @@ def get_entities(catalog, collection, offset, limit, view=None):
     all_entities = session.query(table)
 
     if view is None:
-        # The default result is without deleted items
-        all_entities = all_entities.filter_by(_date_deleted=None)
+        # The default result is where expiration date is in the future or empty
+        all_entities = all_entities.filter(or_(
+            getattr(table, FIELD.EXPIRATION_DATE) > datetime.datetime.now(),
+            getattr(table, FIELD.EXPIRATION_DATE) == None))  # noqa: E711
 
     # Apply filters if defined in model
     try:
@@ -358,13 +361,16 @@ def get_entity(catalog, collection, id, view=None):
     filter = {
         "_id": id,
     }
-    if view is None:
-        # The default result is without deleted items
-        filter["_date_deleted"] = None
 
     table, model = _get_table_and_model(catalog, collection, view)
 
     entity = session.query(table).filter_by(**filter)
+
+    if view is None:
+        # The default result is without deleted items
+        entity = entity.filter(or_(
+            getattr(table, FIELD.EXPIRATION_DATE) > datetime.datetime.now(),
+            getattr(table, FIELD.EXPIRATION_DATE) == None))  # noqa: E711
 
     # Apply filters if defined in model
     try:

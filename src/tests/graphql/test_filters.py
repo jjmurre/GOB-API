@@ -1,3 +1,5 @@
+import datetime
+
 from graphene_sqlalchemy import SQLAlchemyConnectionField
 from gobapi.graphql.filters import _build_query, FilterConnectionField, get_resolve_attribute
 from gobapi import storage
@@ -45,6 +47,7 @@ class Model():
     def __init__(self, fieldname, value):
         setattr(self, fieldname, value)
         self._id = "id"
+        self._expiration_date = datetime.datetime.now() + datetime.timedelta(days=1)
 
     def set_ref(self, ref_name):
         setattr(self, ref_name, {"_id": "id"})
@@ -79,6 +82,9 @@ def test_filterconnectionfield(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
     q = FilterConnectionField.get_query(Model("field", "anyvalue"), None, field="anyvalue")
     assert(q.expr == "True")
+
+    q = FilterConnectionField.get_query(Model("field", "anyvalue"), None, field="anyvalue", active=True)
+    assert(q.expr == "trueTrue")
 
 def test_resolve_attribute(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())

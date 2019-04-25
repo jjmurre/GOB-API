@@ -3,8 +3,11 @@
 Filters provide for a way to dynamically filter collections on field values
 
 """
+import datetime
+
+from graphene import Boolean
 from graphene_sqlalchemy import SQLAlchemyConnectionField
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 
 from gobcore.model.metadata import FIELD
 
@@ -23,7 +26,7 @@ def _build_query(query, model, relation, **kwargs):
     :return: the query to filter model on the filter arguments
     """
     # Skip the default GraphQL filters
-    RELAY_ARGS = ['first', 'last', 'before', 'after', 'sort']
+    RELAY_ARGS = ['first', 'last', 'before', 'after', 'sort', 'active']
 
     for field, value in kwargs.items():
         if field not in RELAY_ARGS:
@@ -41,6 +44,10 @@ def _build_query(query, model, relation, **kwargs):
 
 class FilterConnectionField(SQLAlchemyConnectionField):
 
+    def __init__(self, type, *args, **kwargs):
+        kwargs.setdefault("active", Boolean(default_value=False))
+        super(FilterConnectionField, self).__init__(type, *args, **kwargs)
+
     @classmethod
     def get_query(cls, model, info, relation=None, **kwargs):
         """Gets a query that returns the model filtered on the contents of kwargs
@@ -52,6 +59,10 @@ class FilterConnectionField(SQLAlchemyConnectionField):
         :return: the query to filter model on the filter arguments
         """
         query = super(FilterConnectionField, cls).get_query(model, info, **kwargs)
+        if kwargs.get('active'):
+            query = query.filter(or_(
+                getattr(model, FIELD.EXPIRATION_DATE) > datetime.datetime.now(),
+                getattr(model, FIELD.EXPIRATION_DATE) == None))  # noqa: E711
         return _build_query(query, model, relation, **kwargs)
 
 
