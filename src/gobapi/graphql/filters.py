@@ -3,15 +3,13 @@
 Filters provide for a way to dynamically filter collections on field values
 
 """
-import datetime
-
 from graphene import Boolean
 from graphene_sqlalchemy import SQLAlchemyConnectionField
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 
 from gobcore.model.metadata import FIELD
 
-from gobapi.storage import get_session
+from gobapi.storage import get_session, filter_active
 
 
 FILTER_ON_NULL_VALUE = "null"
@@ -60,9 +58,7 @@ class FilterConnectionField(SQLAlchemyConnectionField):
         """
         query = super(FilterConnectionField, cls).get_query(model, info, **kwargs)
         if kwargs.get('active'):
-            query = query.filter(or_(
-                getattr(model, FIELD.EXPIRATION_DATE) > datetime.datetime.now(),
-                getattr(model, FIELD.EXPIRATION_DATE) == None))  # noqa: E711
+            query = filter_active(query, model)
         return _build_query(query, model, relation, **kwargs)
 
 

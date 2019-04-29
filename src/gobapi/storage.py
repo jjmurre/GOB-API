@@ -279,9 +279,7 @@ def get_entities(catalog, collection, offset, limit, view=None):
 
     if view is None:
         # The default result is where expiration date is in the future or empty
-        all_entities = all_entities.filter(or_(
-            getattr(table, FIELD.EXPIRATION_DATE) > datetime.datetime.now(),
-            getattr(table, FIELD.EXPIRATION_DATE) == None))  # noqa: E711
+        all_entities = filter_active(all_entities, table)
 
     # Apply filters if defined in model
     try:
@@ -368,9 +366,7 @@ def get_entity(catalog, collection, id, view=None):
 
     if view is None:
         # The default result is without deleted items
-        entity = entity.filter(or_(
-            getattr(table, FIELD.EXPIRATION_DATE) > datetime.datetime.now(),
-            getattr(table, FIELD.EXPIRATION_DATE) == None))  # noqa: E711
+        entity = filter_active(entity, table)
 
     # Apply filters if defined in model
     try:
@@ -389,3 +385,15 @@ def get_entity(catalog, collection, id, view=None):
                                                 PUBLIC_META_FIELDS, private_attributes=True)
 
     return entity_convert(entity) if entity else None
+
+
+def filter_active(query, model):
+    """Filter a query to return only the active records
+
+    :param query:
+    :param model: The SQLAlchemy model
+    :return: query
+    """
+    return query.filter(or_(
+        getattr(model, FIELD.EXPIRATION_DATE) > datetime.datetime.now(),
+        getattr(model, FIELD.EXPIRATION_DATE) == None))  # noqa: E711)
