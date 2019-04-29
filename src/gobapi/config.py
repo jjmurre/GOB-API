@@ -15,3 +15,8 @@ GOB_DB = {
     'host': os.getenv("DATABASE_HOST_OVERRIDE", "localhost"),
     'port': os.getenv("DATABASE_PORT_OVERRIDE", 5406),
 }
+
+# see gobapi.services.registry
+API_INFRA_SERVICES = os.getenv(
+    "API_INFRA_SERVICES", ""
+).upper().split(",")

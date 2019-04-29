@@ -1,10 +1,13 @@
 import importlib
+from unittest.mock import patch
 
 import gobapi
 importlib.reload(gobapi)
 
 import gobapi.api
 importlib.reload(gobapi.api)
+
+import gobapi.config
 
 
 class MockApp:
@@ -14,8 +17,10 @@ class MockApp:
         self.is_running = True
 
 
-def test_main(monkeypatch):
+@patch("gobapi.services.registry")
+def test_main(MockReg, monkeypatch):
     mockApp = MockApp()
+    reg = MockReg()
     monkeypatch.setattr(gobapi.api, 'get_app', lambda: mockApp)
 
     from gobapi import __main__

@@ -10,10 +10,14 @@ services:
     environment:
       DATABASE_PORT_OVERRIDE: 5432
       DATABASE_HOST_OVERRIDE: database
+      MESSAGE_BROKER_ADDRESS: rabbitmq
+      API_INFRA_SERVICES: MESSAGE_SERVICE
       UWSGI_HTTP: ":8000"
       UWSGI_MODULE: "gobapi.wsgi"
       UWSGI_CALLABLE: "application"
       UWSGI_MASTER: 1
+      UWSGI_ENABLE_THREADS: 1
+
 
 networks:
   default:

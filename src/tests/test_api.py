@@ -5,12 +5,16 @@ As it is a unit test all external dependencies are mocked
 
 """
 import importlib
+import os
+from unittest.mock import patch
 
 def noop(*args):
     pass
 
 
 class MockFlask:
+    running = False
+
     def __init__(self, name):
         pass
 
@@ -19,6 +23,9 @@ class MockFlask:
 
     def teardown_appcontext(self, func):
         return None
+
+    def run(self):
+        self.running = True
 
 
 class MockCORS:
@@ -128,12 +135,14 @@ def before_each_api_test(monkeypatch):
     importlib.reload(gobapi.states)
 
 
-def test_app(monkeypatch):
+@patch("gobapi.services.threaded_service")
+def test_app(Mock, monkeypatch):
     before_each_api_test(monkeypatch)
-
-
     from gobapi.api import get_app
-    assert(not get_app() == None)
+    app = get_app()
+    assert(not app == None)
+    app.run()
+    assert len(app._infra_threads) == 0
 
 
 def test_catalogs(monkeypatch):
