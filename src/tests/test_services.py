@@ -31,6 +31,13 @@ class MockedService:
         self.running = False
 
 
+def test_create_teardown_adapter():
+    adapter = services._create_teardown_adapter(
+        lambda f, x, y: f(x+y), 4, 5
+    )
+    assert adapter(lambda x: x*2) == 18  # (4 + 5) * 2
+
+
 def test_signal_adapter():
     mock_signal = SignalMock()
     mock_func = mock.MagicMock()

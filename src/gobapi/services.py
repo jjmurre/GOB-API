@@ -1,4 +1,13 @@
-""" Interface code to external services we run next to the API """
+""" Interface code to external services we run next to the API
+
+Concepts:
+
+ * Service: an implementation to start and stop a certain service
+ * threaded service: runs a service in a separate thread
+ * teardown function: callable that stops a service and joins the thread
+ * teardown adapter: registers a given teardown function in the adapted backend (eg. signal or atexit)
+
+"""
 
 import abc
 import atexit
@@ -11,9 +20,21 @@ from gobcore.message_broker import messagedriven_service
 
 logger = Logger("gopapi.services")
 
+TeardownFunc = typing.Callable[[], None]
+TeardownAdapter = typing.Callable[[TeardownFunc], None]
+AdapterList = typing.List[TeardownAdapter]
+
+
+def _create_teardown_adapter(adapter_func, *args, **kwargs) -> TeardownAdapter:
+    """ Factory function for teardown adapters.
+        Restricts how adapters can be used.
+    """
+    return lambda teardown_func: adapter_func(teardown_func, *args, **kwargs)
+
 
 def _signal_adapter(
-            func, backend=signallib, term_signal=signallib.SIGINT):
+            func: TeardownFunc,
+            backend=signallib, term_signal=signallib.SIGINT):
     prev_handler = backend.getsignal(term_signal)
     """ Adapter for registering a teardown func in signal """
 
@@ -27,12 +48,19 @@ def _signal_adapter(
         pass
 
 
-def _atexit_adapter(func, backend=atexit):
+def _atexit_adapter(func: TeardownFunc, backend=atexit):
     """ Adapter for registering a teardown func in atexit """
     backend.register(func)
 
 
-class Service:
+# Registry of publicly availabe teardown adapters
+SignalAdapter = _create_teardown_adapter(_signal_adapter)
+AtexitAdapter = _create_teardown_adapter(_atexit_adapter)
+
+DEFAULT_TEARDOWN_ADAPTERS = [SignalAdapter, AtexitAdapter]
+
+
+class Service(abc.ABC):
     name = "Service"
     backend = None
 
@@ -65,10 +93,6 @@ registry = {
     'MESSAGE_SERVICE': MessageDrivenService
 }
 
-AdapterList = typing.List[typing.Any]
-
-DEFAULT_TEARDOWN_ADAPTERS = [_signal_adapter, _atexit_adapter]
-
 
 def threaded_service(
             service: Service,
@@ -80,13 +104,13 @@ def threaded_service(
         target=service.start, name=service.name
     )
 
-    def _exit():
+    def _teardown_func():
         logger.info(f"Stopping service {service.name}")
         service.stop()
         service_thread.join(4)
 
     for adapter in teardown_adapters:
-        adapter(_exit)
+        adapter(_teardown_func)
 
     service_thread.start()
     return service_thread
