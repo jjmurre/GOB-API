@@ -39,6 +39,7 @@ class MockEntity:
         self.datum_begin_geldigheid = datetime.date.today() - datetime.timedelta(days=365)
         self.begin_geldigheid = datetime.date.today()
         self.eind_geldigheid = datetime.date.today()
+        self._expiration_date = datetime.datetime.now()
         self.volgnummer = 1
         self.max_seqnr = 1
         for key in args:
@@ -76,6 +77,9 @@ class MockEntities:
 
     def all(self):
         return self.all_entities
+
+    def filter(self, _, **kwargs):
+        return self
 
     def filter_by(self, **kwargs):
         return self
