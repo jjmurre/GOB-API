@@ -15,10 +15,11 @@ import threading
 import typing
 import signal as signallib
 
-from gobcore.logging.logger import Logger
 from gobcore.message_broker import messagedriven_service
 
-logger = Logger("gopapi.services")
+from gobapi.logger import get_logger
+
+logger = get_logger("gopapi.services")
 
 TeardownFunc = typing.Callable[[], None]
 TeardownAdapter = typing.Callable[[TeardownFunc], None]

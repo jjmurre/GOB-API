@@ -67,6 +67,8 @@ def test_threaded_service():
     # and has the name of the service
     assert thread.name == mock_service.name
     mock_adapter.assert_called()
+    # call_args[0][0] points to the teardown func passed to the adapter
+    # so run this, and the gthread should terminate.
     mock_adapter.call_args[0][0]()
     # and is terminated after emitting term_signal
     assert not thread.is_alive()
