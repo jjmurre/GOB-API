@@ -12,6 +12,7 @@ from graphql.language import ast
 
 from gobapi.graphql.filters import FILTER_ON_NULL_VALUE
 from gobapi.storage import get_session
+from gobapi import serialize
 
 
 class Date(Scalar):
@@ -23,7 +24,7 @@ class Date(Scalar):
         :param dt: Date
         :return: dt as a string in iso format
         """
-        return dt.isoformat()
+        return serialize.date_value(dt)
 
     @staticmethod
     def parse_literal(node):
@@ -63,8 +64,7 @@ class DateTime(Scalar):
         :param dt: DateTime
         :return: dt as a string in iso format
         """
-        # Transform to internal string format and work around issue: https://bugs.python.org/issue13305
-        return f"{dt.year:04d}-" + dt.strftime("%m-%dT%H:%M:%S.%f").replace('.000000', '')
+        return serialize.datetime_value(dt)
 
     @staticmethod
     def parse_literal(node):

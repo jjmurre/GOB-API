@@ -13,7 +13,7 @@ class TestJsonEncoding(unittest.TestCase):
 
         gob_type = DateTime.from_value("2019-01-01T10:00:00.000000")
         to_json = json.dumps({'datetime': gob_type}, cls=APIGobTypeJSONEncoder)
-        self.assertEqual('{"datetime": "2019-01-01T10:00:00"}', to_json)
+        self.assertEqual('{"datetime": "2019-01-01T10:00:00.000000"}', to_json)
 
         # Test is other types use the regular JSONEncoder
         gob_type = String.from_value(123)

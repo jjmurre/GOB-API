@@ -10,6 +10,7 @@ from sqlalchemy import and_
 from gobcore.model.metadata import FIELD
 
 from gobapi.storage import get_session, filter_active
+from gobapi import serialize
 
 
 FILTER_ON_NULL_VALUE = "null"
@@ -60,6 +61,23 @@ class FilterConnectionField(SQLAlchemyConnectionField):
         if kwargs.get('active'):
             query = filter_active(query, model)
         return _build_query(query, model, relation, **kwargs)
+
+
+def get_resolve_secure_attribute(name, GOBType):
+    """
+    Gets a resolver for a secure attribute
+
+    Secure attributes are serialized by a special secure serializer
+
+    :param name: name of the secure attribute
+    :param GOBType: the Secure GOBType class
+    :return: a resolver function for secure attributes
+    """
+    def resolve_attribute(obj, info,  **kwargs):
+        value = getattr(obj, name)
+        return serialize.secure_value(GOBType(value))
+
+    return resolve_attribute
 
 
 def get_resolve_attribute(relation_table, model):
