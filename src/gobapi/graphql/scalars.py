@@ -64,7 +64,7 @@ class DateTime(Scalar):
         :return: dt as a string in iso format
         """
         # Transform to internal string format and work around issue: https://bugs.python.org/issue13305
-        return f"{dt.year:04d}-" + dt.strftime("%m-%dT%H:%M:%S.%f")
+        return f"{dt.year:04d}-" + dt.strftime("%m-%dT%H:%M:%S.%f").replace('.000000', '')
 
     @staticmethod
     def parse_literal(node):
