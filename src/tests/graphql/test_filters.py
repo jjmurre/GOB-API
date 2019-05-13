@@ -1,7 +1,8 @@
 import datetime
 
 from graphene_sqlalchemy import SQLAlchemyConnectionField
-from gobapi.graphql.filters import _build_query, FilterConnectionField, get_resolve_attribute
+from gobcore.typesystem.gob_secure_types import SecureString
+from gobapi.graphql.filters import _build_query, FilterConnectionField, get_resolve_attribute, get_resolve_secure_attribute
 from gobapi import storage
 
 
@@ -107,3 +108,20 @@ def test_resolve_attribute(monkeypatch):
 
     del m.ref["_id"]
     assert(r(m, None, field="anyvalue") == 'TrueJoined')
+
+def test_resolve_secure_attribute(monkeypatch):
+    monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
+    monkeypatch.setattr(storage, "session", Session())
+
+    # Setup the relation model
+    rel = Model("src_id", "1")
+    setattr(rel, "src_volgnummer", "1")
+
+    m = Model("field", {
+        "i": 0,
+        "l": 0,
+        "v": "some value"
+    })
+
+    r = get_resolve_secure_attribute("field", SecureString)
+    assert(r(m, None, field=1) == "**********")

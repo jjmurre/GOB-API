@@ -34,7 +34,6 @@ def secure_value(sec_value):
     user = User(request)
     value = sec_value.get_value(user)
 
-    print("Secure return", value, type(value))
     if value is None:
         return None
     elif isinstance(value, datetime.datetime):
