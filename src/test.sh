@@ -6,6 +6,8 @@ set -e # stop on any error
 echo "Running style checks"
 flake8
 
+export GOB_RUN_MODE=TEST
+
 echo "Running unit tests"
 pytest
 

@@ -11,7 +11,7 @@ def graphene_type(gob_typename, description=""):
     """Get the corresponding Graphene type for any GOB type
 
     :param gob_typename: The typename within GOB
-    :param description: The description to add to the Graphine type
+    :param description: The description to add to the Graphene type
     :return: The Graphene type if a corresponding type can be found, else None
     """
     conversion = {
@@ -23,6 +23,10 @@ def graphene_type(gob_typename, description=""):
         "GOB.DateTime": DateTime,
         "GOB.Geo.Geometry": GeoJSON,
         "GOB.JSON": graphene.JSONString,
+        # Secure types match their 'base type', datetimes are converted to strings
+        "GOB.SecureString": graphene.String,
+        "GOB.SecureDecimal": graphene.Float,
+        "GOB.SecureDateTime": graphene.String
     }
     if conversion.get(gob_typename):
         return conversion.get(gob_typename)(description=description)

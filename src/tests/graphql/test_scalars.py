@@ -31,7 +31,10 @@ def test_date(monkeypatch):
         def __init__(self, value):
             self.value = value
     parsed_literal = Date.parse_literal(Literal("2000-01-20"))
-    assert(str(parsed_literal) == str(datetime.date(2000, 1, 20)))
+    assert(parsed_literal == datetime.date(2000, 1, 20))
+
+    parsed_literal = Date.parse_literal(Literal("0020-01-20"))
+    assert(parsed_literal == datetime.date(20, 1, 20))
 
     parsed_literal = Date.parse_literal(Literal("null"))
     assert(parsed_literal == "null")
@@ -42,20 +45,27 @@ def test_date(monkeypatch):
 
 def test_datetime(monkeypatch):
     serialized = DateTime.serialize(datetime.datetime(2000, 1, 20, 12, 0, 0))
-    assert(serialized == "2000-01-20T12:00:00.000000")
+    assert(serialized == "2000-01-20T12:00:00")
 
     # Test patched date for years < 1000
     serialized = DateTime.serialize(datetime.datetime(20, 1, 20, 12, 0, 0))
-    assert(serialized == "0020-01-20T12:00:00.000000")
+    assert(serialized == "0020-01-20T12:00:00")
+
+    # Test date with microseconds
+    serialized = DateTime.serialize(datetime.datetime(20, 1, 20, 12, 0, 0, 123456))
+    assert(serialized == "0020-01-20T12:00:00.123456")
 
     class Literal(ast.StringValue):
         def __init__(self, value):
             self.value = value
     parsed_literal = DateTime.parse_literal(Literal("2000-01-20T12:00:00.000000"))
-    assert(str(parsed_literal) == str(datetime.datetime(2000, 1, 20, 12, 0, 0)))
+    assert(parsed_literal == datetime.datetime(2000, 1, 20, 12, 0, 0))
 
     parsed_literal = DateTime.parse_literal(Literal("0020-01-20T12:00:00.000000"))
-    assert(str(parsed_literal) == str(datetime.datetime(20, 1, 20, 12, 0, 0)))
+    assert(parsed_literal == datetime.datetime(20, 1, 20, 12, 0, 0))
+
+    parsed_literal = DateTime.parse_literal(Literal("2000-01-20T12:00:00.123456"))
+    assert(parsed_literal == datetime.datetime(2000, 1, 20, 12, 0, 0, 123456))
 
     parsed_literal = DateTime.parse_literal(Literal("null"))
     assert(parsed_literal == "null")

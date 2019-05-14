@@ -2,6 +2,8 @@ import json
 import unittest
 
 from gobcore.typesystem.gob_types import DateTime, String
+from gobcore.typesystem.gob_secure_types import SecureString
+from gobcore.secure.crypto import read_protect
 from gobapi.json import APIGobTypeJSONEncoder
 
 class TestJsonEncoding(unittest.TestCase):
@@ -19,3 +21,7 @@ class TestJsonEncoding(unittest.TestCase):
         gob_type = String.from_value(123)
         to_json = json.dumps({'string': gob_type}, cls=APIGobTypeJSONEncoder)
         self.assertEqual('{"string": "123"}', to_json)
+
+        gob_type = SecureString.from_value(read_protect("any string"), level=10)
+        to_json = json.dumps({'string': gob_type}, cls=APIGobTypeJSONEncoder)
+        self.assertEqual('{"string": "**********"}', to_json)

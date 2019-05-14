@@ -17,9 +17,10 @@ from sqlalchemy.dialects import postgresql
 from gobcore.model import GOBModel
 from gobcore.model.relations import get_relation_name
 from gobcore.model.sa.gob import models
+from gobcore.typesystem import GOB_SECURE_TYPES, get_gob_type
 
 from gobapi.graphql import graphene_type, exclude_fields
-from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute
+from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute, get_resolve_secure_attribute
 from gobapi.graphql.scalars import DateTime, GeoJSON
 
 # Use the GOB model to generate the GraphQL query
@@ -28,11 +29,17 @@ connection_fields = {}  # FilterConnectionField() per collection
 
 
 def get_collection_references(collection):
-    # Currently implemented for single references only
     REF_TYPES = ["GOB.Reference", "GOB.ManyReference"]
 
     refs = collection["references"]
     return {key: value for key, value in refs.items() if value["type"] in REF_TYPES}
+
+
+def get_collecction_secure_attributes(collection):
+    SEC_TYPES = [f"GOB.{type.name}" for type in GOB_SECURE_TYPES]
+
+    attrs = collection["attributes"]
+    return {key: value for key, value in attrs.items() if value["type"] in SEC_TYPES}
 
 
 def _get_sorted_references(model):
@@ -88,6 +95,8 @@ def get_graphene_query():
         catalog_name, collection_name = re.findall(pattern, ref)[0]
         collection = model.get_collection(catalog_name, collection_name)
 
+        sec_attributes = get_collecction_secure_attributes(collection)
+
         # Get all references for the collection
         ref_items = get_collection_references(collection)
         connections = []  # field name and corresponding FilterConnectionField()
@@ -110,6 +119,7 @@ def get_graphene_query():
         object_type_class = type(collection_name, (SQLAlchemyObjectType,), {
             "__repr__": lambda self: f"SQLAlchemyObjectType {collection_name}",
             **{connection["field_name"]: connection["connection_field"] for connection in connections},
+            **get_secure_resolvers(catalog_name, collection_name, sec_attributes),
             **get_relation_resolvers(catalog_name, collection_name, connections),
             "Meta": type(f"{collection_name}_Meta", (), {
                 "model": base_model,
@@ -161,6 +171,14 @@ def get_connection_field(key):
             return GenericScalar
 
     return connection_field
+
+
+def get_secure_resolvers(src_catalog_name, src_collection_name, attributes):
+    resolvers = {}
+    for name, type_info in attributes.items():
+        GOBType = get_gob_type(type_info["type"])
+        resolvers[f"resolve_{name}"] = get_resolve_secure_attribute(name, GOBType)
+    return resolvers
 
 
 def get_relation_resolvers(src_catalog_name, src_collection_name, connections):
