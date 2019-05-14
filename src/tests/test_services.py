@@ -76,7 +76,8 @@ def test_threaded_service():
 
 def test_message_driven_service():
     backend = mock.MagicMock()
-    service = services.MessageDrivenService(backend=backend)
+    services.MessageDrivenService.backend = backend  # inject dep
+    service = services.MessageDrivenService()
     service.start()
     assert backend.messagedriven_service.called
     service.stop()

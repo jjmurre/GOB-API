@@ -63,11 +63,7 @@ DEFAULT_TEARDOWN_ADAPTERS = [SignalAdapter, AtexitAdapter]
 
 class Service(abc.ABC):
     name = "Service"
-    backend = None
-
-    def __init__(self, backend=None):
-        if backend:
-            self.backend = backend
+    backend: typing.ClassVar[typing.Callable]
 
     @abc.abstractmethod
     def start(self):
