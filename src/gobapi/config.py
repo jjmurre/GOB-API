@@ -18,5 +18,5 @@ GOB_DB = {
 
 # see gobapi.services.registry
 API_INFRA_SERVICES = os.getenv(
-    "API_INFRA_SERVICES", ""
+    "API_INFRA_SERVICES", "MESSAGE_SERVICE"
 ).upper().split(",")
