@@ -11,11 +11,8 @@ def start_all_services(
             registry: dict = services.registry,
             factory: ThreadFactory = services.threaded_service
         ) -> typing.List[threading.Thread]:
-    threads = []
-    for service_ident in service_idents:
-        if service_ident not in registry:
-            continue
-        threads.append(
-            factory(registry[service_ident]())
-        )
-    return threads
+    return [
+        factory(registry[service_ident]())
+        for service_ident in service_idents
+        if service_ident in registry
+    ]
