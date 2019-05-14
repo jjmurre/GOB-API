@@ -101,10 +101,11 @@ def threaded_service(
         target=service.start, name=service.name
     )
 
-    def _teardown_func():
+    def _teardown_func(terminate_timeout=5):
+        # default timeout is 5 since polling period in services is 5
         logger.info(f"Stopping service {service.name}")
         service.stop()
-        service_thread.join(4)
+        service_thread.join(terminate_timeout)
 
     for adapter in teardown_adapters:
         adapter(_teardown_func)
