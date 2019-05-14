@@ -394,6 +394,11 @@ def filter_active(query, model):
     :param model: The SQLAlchemy model
     :return: query
     """
-    return query.filter(or_(
-        getattr(model, FIELD.EXPIRATION_DATE) > datetime.datetime.now(),
-        getattr(model, FIELD.EXPIRATION_DATE) == None))  # noqa: E711)
+    return query.filter(and_(
+        getattr(model, FIELD.DATE_DELETED) == None,
+        (or_(
+            getattr(model, FIELD.EXPIRATION_DATE) > datetime.datetime.now(),
+            getattr(model, FIELD.EXPIRATION_DATE) == None
+            )
+        )
+    ))  # noqa: E711 (== None)
