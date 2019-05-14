@@ -44,7 +44,7 @@ def _build_query(query, model, relation, **kwargs):
 class FilterConnectionField(SQLAlchemyConnectionField):
 
     def __init__(self, type, *args, **kwargs):
-        kwargs.setdefault("active", Boolean(default_value=False))
+        kwargs.setdefault("active", Boolean(default_value=True))
         super(FilterConnectionField, self).__init__(type, *args, **kwargs)
 
     @classmethod

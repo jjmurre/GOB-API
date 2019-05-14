@@ -45,10 +45,11 @@ class Query():
         return self.expr
 
 class Model():
-    def __init__(self, fieldname, value):
+    def __init__(self, fieldname, value, date_deleted=None):
         setattr(self, fieldname, value)
         self._id = "id"
         self._expiration_date = datetime.datetime.now() + datetime.timedelta(days=1)
+        self._date_deleted = date_deleted
 
     def set_ref(self, ref_name):
         setattr(self, ref_name, {"_id": "id"})
@@ -82,6 +83,9 @@ def test_build_query(monkeypatch):
 def test_filterconnectionfield(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
     q = FilterConnectionField.get_query(Model("field", "anyvalue"), None, field="anyvalue")
+    assert(q.expr == "True")
+
+    q = FilterConnectionField.get_query(Model("field", "anyvalue", datetime.datetime.now()), None, field="anyvalue")
     assert(q.expr == "True")
 
     q = FilterConnectionField.get_query(Model("field", "anyvalue"), None, field="anyvalue", active=True)
