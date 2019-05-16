@@ -9,7 +9,7 @@ from sqlalchemy import and_
 
 from gobcore.model.metadata import FIELD
 
-from gobapi.storage import get_session, filter_active
+from gobapi.storage import get_session, filter_active, filter_deleted
 from gobapi import serialize
 
 
@@ -58,6 +58,8 @@ class FilterConnectionField(SQLAlchemyConnectionField):
         :return: the query to filter model on the filter arguments
         """
         query = super(FilterConnectionField, cls).get_query(model, info, **kwargs)
+        # Exclude all records with date_deleted
+        query = filter_deleted(query, model)
         if kwargs.get('active'):
             query = filter_active(query, model)
         return _build_query(query, model, relation, **kwargs)

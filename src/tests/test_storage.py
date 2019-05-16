@@ -106,6 +106,8 @@ class MockColumn:
 
 class MockTable():
 
+    _date_deleted = None
+
     def __init__(self, *args, **kwargs):
         pass
 
