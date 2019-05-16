@@ -11,7 +11,7 @@ import sqlalchemy_filters
 
 from unittest import mock
 
-from gobapi.storage import _get_convert_for_state
+from gobapi.storage import _get_convert_for_state, filter_deleted
 from gobcore.model.metadata import FIELD
 
 class MockEntity:
@@ -468,3 +468,8 @@ def test_get_convert_for_state(monkeypatch):
     result = convert(mockEntity)
 
     assert(result == {'identificatie': 'identificatie', 'attribute': 'attribute'})
+
+def test_filter_deleted(monkeypatch):
+    # Assert query is returned unchanged, when date_deleted is absent
+    table = {}
+    assert('query' == filter_deleted('query', table))
