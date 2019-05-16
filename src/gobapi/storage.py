@@ -398,7 +398,12 @@ def filter_deleted(query, model):
     :param model: The SQLAlchemy model
     :return: query
     """
-    return query.filter(getattr(model, FIELD.DATE_DELETED) == None)  # noqa: E711 (== None)
+    # The table can also be a view on a table and doesn't always have _date_deleted
+    try:
+        query = query.filter(getattr(model, FIELD.DATE_DELETED) == None)  # noqa: E711 (== None)
+    except AttributeError:
+        pass
+    return query
 
 
 def filter_active(query, model):
