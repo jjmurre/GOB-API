@@ -275,7 +275,9 @@ def get_entities(catalog, collection, offset, limit, view=None):
 
     table, model = _get_table_and_model(catalog, collection, view)
 
-    all_entities = session.query(table)
+    query = session.query(table)
+    # Exclude all records with date_deleted
+    all_entities = filter_deleted(query, table)
 
     if view is None:
         # The default result is where expiration date is in the future or empty
@@ -362,7 +364,9 @@ def get_entity(catalog, collection, id, view=None):
 
     table, model = _get_table_and_model(catalog, collection, view)
 
-    entity = session.query(table).filter_by(**filter)
+    query = session.query(table).filter_by(**filter)
+    # Exclude all records with date_deleted
+    entity = filter_deleted(query, table)
 
     if view is None:
         # The default result is without deleted items
@@ -387,6 +391,21 @@ def get_entity(catalog, collection, id, view=None):
     return entity_convert(entity) if entity else None
 
 
+def filter_deleted(query, model):
+    """Filter a query to exclude records with date deleted
+
+    :param query:
+    :param model: The SQLAlchemy model
+    :return: query
+    """
+    # The table can also be a view on a table and doesn't always have _date_deleted
+    try:
+        query = query.filter(getattr(model, FIELD.DATE_DELETED) == None)  # noqa: E711 (== None)
+    except AttributeError:
+        pass
+    return query
+
+
 def filter_active(query, model):
     """Filter a query to return only the active records
 
@@ -394,11 +413,7 @@ def filter_active(query, model):
     :param model: The SQLAlchemy model
     :return: query
     """
-    return query.filter(and_(
-        getattr(model, FIELD.DATE_DELETED) == None,
-        (or_(
-            getattr(model, FIELD.EXPIRATION_DATE) > datetime.datetime.now(),
-            getattr(model, FIELD.EXPIRATION_DATE) == None
-            )
-        )
+    return query.filter(or_(
+        getattr(model, FIELD.EXPIRATION_DATE) > datetime.datetime.now(),
+        getattr(model, FIELD.EXPIRATION_DATE) == None
     ))  # noqa: E711 (== None)

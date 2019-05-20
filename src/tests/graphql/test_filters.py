@@ -83,13 +83,13 @@ def test_build_query(monkeypatch):
 def test_filterconnectionfield(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
     q = FilterConnectionField.get_query(Model("field", "anyvalue"), None, field="anyvalue")
-    assert(q.expr == "True")
+    assert(q.expr == "TrueTrue")
 
     q = FilterConnectionField.get_query(Model("field", "anyvalue", datetime.datetime.now()), None, field="anyvalue")
-    assert(q.expr == "True")
+    assert(q.expr == "FalseTrue")
 
     q = FilterConnectionField.get_query(Model("field", "anyvalue"), None, field="anyvalue", active=True)
-    assert(q.expr == "trueTrue")
+    assert(q.expr == "TruetrueTrue")
 
 def test_resolve_attribute(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
@@ -104,14 +104,14 @@ def test_resolve_attribute(monkeypatch):
     m.set_ref("ref")
 
     r = get_resolve_attribute(rel, m)
-    assert(r(m, None, field=1) == "FalseJoined")
-    assert(r(m, None, field="anyvalue") == "TrueJoined")
+    assert(r(m, None, field=1) == "TrueFalseJoined")
+    assert(r(m, None, field="anyvalue") == "TrueTrueJoined")
 
     m._id = "anotherid"
-    assert(r(m, None, field="anyvalue") == "TrueJoined")
+    assert(r(m, None, field="anyvalue") == "TrueTrueJoined")
 
     del m.ref["_id"]
-    assert(r(m, None, field="anyvalue") == 'TrueJoined')
+    assert(r(m, None, field="anyvalue") == 'TrueTrueJoined')
 
 def test_resolve_secure_attribute(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
