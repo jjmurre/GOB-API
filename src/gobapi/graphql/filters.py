@@ -110,9 +110,9 @@ def get_resolve_attribute(relation_table, model):
         """
         session = get_session()
         # First get the relations for the specific object
-        relation = session.query(relation_table).filter(
-            relation_table.src_id == getattr(obj, FIELD.ID),
-            relation_table.src_volgnummer == getattr(obj, FIELD.SEQNR))
+        relation = session.query(relation_table).filter(relation_table.src_id == getattr(obj, FIELD.ID))
+        if obj.__has_states__:
+            relation = relation.filter(relation_table.src_volgnummer == getattr(obj, FIELD.SEQNR))
 
         query = FilterConnectionField.get_query(model, info, relation.subquery(), **kwargs)
         return query.all()

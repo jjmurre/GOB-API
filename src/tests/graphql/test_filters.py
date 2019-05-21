@@ -8,10 +8,10 @@ from gobapi import storage
 
 class Session():
     def __init__(self):
-        pass
+        self.query = Query()
 
     def query(self, _):
-        return Query()
+        return self.query
 
 
 class Columns():
@@ -23,6 +23,9 @@ class Query():
     def __init__(self):
         self.expr = ""
         self.c = Columns()
+
+    def __call__(self, *args, **kwargs):
+        return self
 
     def filter(self, expr, *args):
         self.expr = self.expr + str(expr)
@@ -50,6 +53,7 @@ class Model():
         self._id = "id"
         self._expiration_date = datetime.datetime.now() + datetime.timedelta(days=1)
         self._date_deleted = date_deleted
+        self.__has_states__ = False
 
     def set_ref(self, ref_name):
         setattr(self, ref_name, {"_id": "id"})
@@ -112,6 +116,28 @@ def test_resolve_attribute(monkeypatch):
 
     del m.ref["_id"]
     assert(r(m, None, field="anyvalue") == 'TrueTrueJoined')
+
+def test_resolve_attribute_resolve_query(monkeypatch):
+    session = Session()
+
+    monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: session.query)
+    monkeypatch.setattr(storage, "session", session)
+
+    # Setup the relation model
+    rel = Model("src_id", "1")
+    setattr(rel, "src_volgnummer", "1")
+
+    m = Model("field", "anyvalue")
+    setattr(m, 'volgnummer', '1')
+    m.set_ref("ref")
+
+    setattr(rel, '_id', '2')
+    setattr(m, '__has_states__', True)
+
+    r = get_resolve_attribute(rel, m)
+
+    assert(r(m, None, field="anyvalue") == 'FalseTrueTrueJoined')
+
 
 def test_resolve_secure_attribute(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
