@@ -136,7 +136,7 @@ def test_resolve_attribute_resolve_query(monkeypatch):
 
     r = get_resolve_attribute(rel, m)
 
-    assert(r(m, None, field="anyvalue") == 'FalseTrueTrueJoined')
+    assert(r(m, None, field="anyvalue") == 'FalseTrueTrueTrueJoined')
 
 
 def test_resolve_secure_attribute(monkeypatch):
