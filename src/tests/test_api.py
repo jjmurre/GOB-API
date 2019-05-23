@@ -95,6 +95,10 @@ def before_each_api_test(monkeypatch):
     import gobapi.response
     importlib.reload(gobapi.response)
 
+    import gobapi.api
+    importlib.reload(gobapi.config)
+    # override config so we isolate .run()
+
     global catalogs, catalog
     global collections, collection
     global entities, entity
@@ -106,6 +110,8 @@ def before_each_api_test(monkeypatch):
     entities = []
     entity = None
     view = None
+
+    monkeypatch.setattr(gobapi.config, 'API_INFRA_SERVICES', "")
 
     monkeypatch.setattr(flask, 'Flask', MockFlask)
     monkeypatch.setattr(flask_cors, 'CORS', MockCORS)
@@ -138,9 +144,6 @@ def before_each_api_test(monkeypatch):
 @patch("gobapi.services.threaded_service")
 def test_app(Mock, monkeypatch):
     before_each_api_test(monkeypatch)
-    import gobapi.api
-    # override config so we isolate .run()
-    gobapi.api.API_INFRA_SERVICES = []
     from gobapi.api import get_app
     app = get_app()
     assert(not app == None)

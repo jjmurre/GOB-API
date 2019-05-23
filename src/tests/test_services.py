@@ -79,6 +79,6 @@ def test_message_driven_service():
     services.MessageDrivenService.backend = backend  # inject dep
     service = services.MessageDrivenService()
     service.start()
-    assert backend.messagedriven_service.called
+    backend.messagedriven_service.assert_called()
     service.stop()
     assert backend.keep_running == False
