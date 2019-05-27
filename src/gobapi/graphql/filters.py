@@ -16,14 +16,7 @@ from gobapi import serialize
 FILTER_ON_NULL_VALUE = "null"
 
 
-def _build_query(query, model, relation, **kwargs):
-    """Build a query to filter a model on the contents of kwargs
-
-    :param query: the query to start with
-    :param model: the model to filter
-    :param kwargs: the filter arguments
-    :return: the query to filter model on the filter arguments
-    """
+def _add_query_filter_kwargs(query, model, **kwargs):
     # Skip the default GraphQL filters
     RELAY_ARGS = ['first', 'last', 'before', 'after', 'sort', 'active']
 
@@ -34,6 +27,19 @@ def _build_query(query, model, relation, **kwargs):
                 query = query.filter(getattr(model, field) == None)  # noqa: E711
             else:
                 query = query.filter(getattr(model, field) == value)
+    return query
+
+
+def _build_query(query, model, relation, **kwargs):
+    """Build a query to filter a model on the contents of kwargs
+
+    :param query: the query to start with
+    :param model: the model to filter
+    :param kwargs: the filter arguments
+    :return: the query to filter model on the filter arguments
+    """
+    query = _add_query_filter_kwargs(query, model, **kwargs)
+
     if relation is not None:
         query = query.join(relation, and_(
             relation.c.dst_id == getattr(model, FIELD.ID),
@@ -41,11 +47,34 @@ def _build_query(query, model, relation, **kwargs):
     return query
 
 
-class FilterConnectionField(SQLAlchemyConnectionField):
+def _build_query_inverse(query, model, relation, **kwargs):
+    """Build a query to filter a model on the contents of kwargs
+
+    :param query: the query to start with
+    :param model: the model to filter
+    :param kwargs: the filter arguments
+    :return: the query to filter model on the filter arguments
+    """
+    query = _add_query_filter_kwargs(query, model, **kwargs)
+
+    if relation is not None:
+        join_condition = relation.c.src_id == getattr(model, FIELD.ID)
+
+        if model.__has_states__:
+            join_condition = and_(
+                join_condition,
+                relation.c.src_volgnummer == getattr(model, FIELD.SEQNR, None)
+            )
+        query = query.join(relation, join_condition)
+    return query
+
+
+class BaseFilterConnectionField(SQLAlchemyConnectionField):
+    build_query_fn = None
 
     def __init__(self, type, *args, **kwargs):
         kwargs.setdefault("active", Boolean(default_value=True))
-        super(FilterConnectionField, self).__init__(type, *args, **kwargs)
+        super(BaseFilterConnectionField, self).__init__(type, *args, **kwargs)
 
     @classmethod
     def get_query(cls, model, info, relation=None, **kwargs):
@@ -57,12 +86,20 @@ class FilterConnectionField(SQLAlchemyConnectionField):
         :param kwargs: the filter arguments, <name of field>: <value of field>
         :return: the query to filter model on the filter arguments
         """
-        query = super(FilterConnectionField, cls).get_query(model, info, **kwargs)
+        query = super(BaseFilterConnectionField, cls).get_query(model, info, **kwargs)
         # Exclude all records with date_deleted
         query = filter_deleted(query, model)
         if kwargs.get('active'):
             query = filter_active(query, model)
-        return _build_query(query, model, relation, **kwargs)
+        return cls.build_query_fn(query, model, relation, **kwargs)
+
+
+class FilterConnectionField(BaseFilterConnectionField):
+    build_query_fn = _build_query
+
+
+class FilterInverseConnectionField(BaseFilterConnectionField):
+    build_query_fn = _build_query_inverse
 
 
 def get_resolve_secure_attribute(name, GOBType):
@@ -117,4 +154,18 @@ def get_resolve_attribute(relation_table, model):
         query = FilterConnectionField.get_query(model, info, relation.subquery(), **kwargs)
         return query.all()
 
+    return resolve_attribute
+
+
+def get_resolve_inverse_attribute(relation_table, model):
+
+    def resolve_attribute(obj, info, **kwargs):
+        session = get_session()
+        relation = session.query(relation_table).filter(relation_table.dst_id == getattr(obj, FIELD.ID))
+
+        if obj.__has_states__:
+            relation = relation.filter(relation_table.dst_volgnummer == getattr(obj, FIELD.SEQNR))
+
+        query = FilterInverseConnectionField.get_query(model, info, relation.subquery(), **kwargs)
+        return query.all()
     return resolve_attribute

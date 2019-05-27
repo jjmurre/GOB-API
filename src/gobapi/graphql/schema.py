@@ -20,12 +20,14 @@ from gobcore.model.sa.gob import models
 from gobcore.typesystem import GOB_SECURE_TYPES, get_gob_type
 
 from gobapi.graphql import graphene_type, exclude_fields
-from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute, get_resolve_secure_attribute
+from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute, get_resolve_secure_attribute, \
+    get_resolve_inverse_attribute, FilterInverseConnectionField
 from gobapi.graphql.scalars import DateTime, GeoJSON
 
 # Use the GOB model to generate the GraphQL query
 model = GOBModel()
 connection_fields = {}  # FilterConnectionField() per collection
+inverse_connection_fields = {}  # FilterInverseConnectionField()
 
 
 def get_collection_references(collection):
@@ -33,6 +35,13 @@ def get_collection_references(collection):
 
     refs = collection["references"]
     return {key: value for key, value in refs.items() if value["type"] in REF_TYPES}
+
+
+def get_inverse_references(catalogue, collection):
+    try:
+        return model.get_inverse_relations()[catalogue][collection]
+    except KeyError:
+        return {}
 
 
 def get_collecction_secure_attributes(collection):
@@ -83,6 +92,21 @@ def _get_sorted_references(model):
     return sorted_refs
 
 
+def _get_inverse_connections_for_references(inverse_references: dict) -> list:
+    inverse_connections = []
+    for cat_name, collections in inverse_references.items():
+        for col_name, relation_names in collections.items():
+            for relation_name in relation_names:
+                inverse_connections.append({
+                    "src_catalog": cat_name,
+                    "src_collection": col_name,
+                    "src_relation_name": relation_name,
+                    "field_name": f"inv_{cat_name}_{col_name}_{relation_name}",
+                    "connection_field": graphene.Dynamic(get_inverse_connection_field(col_name)),
+                })
+    return inverse_connections
+
+
 def get_graphene_query():
     base_models = {}  # SQLAlchemy model per collection
 
@@ -108,6 +132,10 @@ def get_graphene_query():
                 "connection_field": graphene.Dynamic(get_connection_field(col_name)),
                 "field_name": key
             })
+
+        inverse_references = get_inverse_references(catalog_name, collection_name)
+        inverse_connections = _get_inverse_connections_for_references(inverse_references)
+
         # class <Collection>(SQLAlchemyObjectType):
         #     attribute = FilterConnectionField((attributeClass, attributeClass fields)
         #     resolve_attribute = lambda obj, info, **args
@@ -119,8 +147,10 @@ def get_graphene_query():
         object_type_class = type(collection_name, (SQLAlchemyObjectType,), {
             "__repr__": lambda self: f"SQLAlchemyObjectType {collection_name}",
             **{connection["field_name"]: connection["connection_field"] for connection in connections},
+            **{connection["field_name"]: connection["connection_field"] for connection in inverse_connections},
             **get_secure_resolvers(catalog_name, collection_name, sec_attributes),
             **get_relation_resolvers(catalog_name, collection_name, connections),
+            **get_inverse_relation_resolvers(inverse_connections),
             "Meta": type(f"{collection_name}_Meta", (), {
                 "model": base_model,
                 "exclude_fields": exclude_fields,
@@ -144,6 +174,7 @@ def get_graphene_query():
                       collection["attributes"].items() if
                       not graphene_type(value["type"]) is None}
         connection_fields[collection_name] = FilterConnectionField(connection_class, **attributes)
+        inverse_connection_fields[collection_name] = FilterInverseConnectionField(connection_class, **attributes)
         base_models[collection_name] = base_model
 
     Query = type("Query", (graphene.ObjectType,),
@@ -173,11 +204,44 @@ def get_connection_field(key):
     return connection_field
 
 
+def get_inverse_connection_field(key):
+    """Gets a connection field resolver for an inverse relation. See get_connection_field
+
+    :param key: the key to lookup the correct connection field
+    :return: the connection field or GenericScalar
+    """
+    def connection_field():
+        try:
+            return inverse_connection_fields[key]
+        except KeyError:
+            return GenericScalar
+
+    return connection_field
+
+
 def get_secure_resolvers(src_catalog_name, src_collection_name, attributes):
     resolvers = {}
     for name, type_info in attributes.items():
         GOBType = get_gob_type(type_info["type"])
         resolvers[f"resolve_{name}"] = get_resolve_secure_attribute(name, GOBType)
+    return resolvers
+
+
+def get_inverse_relation_resolvers(inverse_connections):
+    resolvers = {}
+
+    for connection in inverse_connections:
+        relation_table = get_relation_name(
+            model,
+            connection['src_catalog'],
+            connection['src_collection'],
+            connection['src_relation_name'],
+        )
+
+        resolvers[f"resolve_{connection['field_name']}"] = get_resolve_inverse_attribute(
+            models[f'rel_{relation_table}'],
+            models[model.get_table_name(connection['src_catalog'], connection['src_collection'])],
+        )
     return resolvers
 
 

@@ -1,8 +1,9 @@
 import datetime
 
+from sqlalchemy.sql.elements import AsBoolean
 from graphene_sqlalchemy import SQLAlchemyConnectionField
 from gobcore.typesystem.gob_secure_types import SecureString
-from gobapi.graphql.filters import _build_query, FilterConnectionField, get_resolve_attribute, get_resolve_secure_attribute
+from gobapi.graphql.filters import _build_query, _build_query_inverse, FilterConnectionField, get_resolve_attribute, get_resolve_secure_attribute, _add_query_filter_kwargs, get_resolve_inverse_attribute
 from gobapi import storage
 
 
@@ -15,14 +16,18 @@ class Session():
 
 
 class Columns():
-    def __init__(self):
-        self.dst_id = "1"
-        self.dst_volgnummer = "1"
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
 class Query():
-    def __init__(self):
+    def __init__(self, c=None):
         self.expr = ""
-        self.c = Columns()
+
+        if not c:
+            self.c = Columns(dst_id="1", dst_volgnummer="1")
+        else:
+            self.c = c
 
     def __call__(self, *args, **kwargs):
         return self
@@ -41,6 +46,8 @@ class Query():
         return self
 
     def join(self, table, on):
+        if isinstance(on, AsBoolean):
+            self.expr = self.expr + "And"
         self.expr = self.expr + "Joined"
         return self
 
@@ -58,31 +65,48 @@ class Model():
     def set_ref(self, ref_name):
         setattr(self, ref_name, {"_id": "id"})
 
+def test_add_query_filter_kwargs():
+    q = Query()
+    q = _add_query_filter_kwargs(q, Model("field", "anyvalue"), field=1)
+    assert(q.expr == "False")
+
+    q = Query()
+    q = _add_query_filter_kwargs(q, Model("field", "anyvalue"), field="anyvalue")
+    assert(q.expr == "True")
+
+    q = Query()
+    q = _add_query_filter_kwargs(q, Model("field", "anyvalue"), field="null")
+    assert(q.expr == "False")
+
+    q = Query()
+    q = _add_query_filter_kwargs(q, Model("field", None), field="null")
+    assert(q.expr == "True")
 
 def test_build_query(monkeypatch):
-    q = Query()
-    q = _build_query(q, Model("field", "anyvalue"), None, field=1)
-    assert(q.expr == "False")
-
-    q = Query()
-    q = _build_query(q, Model("field", "anyvalue"), None, field="anyvalue")
-    assert(q.expr == "True")
-
-    q = Query()
-    q = _build_query(q, Model("field", "anyvalue"), None, field="null")
-    assert(q.expr == "False")
-
-    q = Query()
-    q = _build_query(q, Model("field", None), None, field="null")
-    assert(q.expr == "True")
-
     # Test with a relation model
     rel = Model("src_id", "1")
-    setattr(rel, "c", Columns())
+    setattr(rel, "c", Columns(dst_id="1", dst_volgnummer="1"))
 
     q = Query()
     q = _build_query(q, Model("field", None), rel, field="null")
+    assert(q.expr == "TrueAndJoined")
+
+def test_build_query_inverse(monkeypatch):
+    # Test with a relation model
+    rel = Model("dst_id", "1")
+    setattr(rel, "c", Columns(src_id="1", src_volgnummer="1"))
+
+    q = Query()
+    q = _build_query_inverse(q, Model("field", None), rel, field="null")
+    # Should not have "AND" joined
     assert(q.expr == "TrueJoined")
+
+    # Should "AND" join with volgnummer
+    model = Model("field", None)
+    setattr(model, '__has_states__', True)
+    q = Query()
+    q = _build_query_inverse(q, model, rel, field="null")
+    assert(q.expr == "TrueAndJoined")
 
 def test_filterconnectionfield(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
@@ -108,14 +132,14 @@ def test_resolve_attribute(monkeypatch):
     m.set_ref("ref")
 
     r = get_resolve_attribute(rel, m)
-    assert(r(m, None, field=1) == "TrueFalseJoined")
-    assert(r(m, None, field="anyvalue") == "TrueTrueJoined")
+    assert(r(m, None, field=1) == "TrueFalseAndJoined")
+    assert(r(m, None, field="anyvalue") == "TrueTrueAndJoined")
 
     m._id = "anotherid"
-    assert(r(m, None, field="anyvalue") == "TrueTrueJoined")
+    assert(r(m, None, field="anyvalue") == "TrueTrueAndJoined")
 
     del m.ref["_id"]
-    assert(r(m, None, field="anyvalue") == 'TrueTrueJoined')
+    assert(r(m, None, field="anyvalue") == 'TrueTrueAndJoined')
 
 def test_resolve_attribute_resolve_query(monkeypatch):
     session = Session()
@@ -136,8 +160,29 @@ def test_resolve_attribute_resolve_query(monkeypatch):
 
     r = get_resolve_attribute(rel, m)
 
-    assert(r(m, None, field="anyvalue") == 'FalseTrueTrueTrueJoined')
+    assert(r(m, None, field="anyvalue") == 'FalseTrueTrueTrueAndJoined')
 
+def test_resolve_inverse_attribute(monkeypatch):
+    session = Session()
+    q = Query(Columns(src_id="1", src_volgnummer="1"))
+    setattr(session, 'query', q)
+    monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: q)
+    monkeypatch.setattr(storage, "session", session)
+
+    # Setup the relation model
+    rel = Model("dst_id", "1")
+    setattr(rel, "dst_volgnummer", "1")
+
+    m = Model("field", "anyvalue")
+    setattr(m, 'volgnummer', '1')
+    m.set_ref("ref")
+
+    setattr(rel, '_id', '2')
+    setattr(m, '__has_states__', True)
+
+    r = get_resolve_inverse_attribute(rel, m)
+
+    assert(r(m, None, field="anyvalue") == 'FalseTrueTrueTrueAndJoined')
 
 def test_resolve_secure_attribute(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
