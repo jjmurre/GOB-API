@@ -101,7 +101,7 @@ def _get_inverse_connections_for_references(inverse_references: dict) -> list:
                     "src_catalog": cat_name,
                     "src_collection": col_name,
                     "src_relation_name": relation_name,
-                    "field_name": f"inv_{cat_name}_{col_name}_{relation_name}",
+                    "field_name": f"inv_{relation_name}_{cat_name}_{col_name}",
                     "connection_field": graphene.Dynamic(get_inverse_connection_field(col_name)),
                 })
     return inverse_connections
