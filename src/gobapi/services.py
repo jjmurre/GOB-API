@@ -19,7 +19,7 @@ from gobcore.message_broker import messagedriven_service
 
 from gobapi.logger import get_logger
 
-logger = get_logger("gopapi.services")
+logger = get_logger("API")
 
 TeardownFunc = typing.Callable[[], None]
 TeardownAdapter = typing.Callable[[TeardownFunc], None]
@@ -110,5 +110,6 @@ def threaded_service(
     for adapter in teardown_adapters:
         adapter(_teardown_func)
 
+    logger.info(f"Starting service {service.name}")
     service_thread.start()
     return service_thread
