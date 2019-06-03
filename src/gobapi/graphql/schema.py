@@ -15,13 +15,13 @@ import sqlalchemy
 from sqlalchemy.dialects import postgresql
 
 from gobcore.model import GOBModel
-from gobcore.model.relations import get_relation_name
+from gobcore.model.relations import get_relation_name, get_fieldnames_for_missing_relations
 from gobcore.model.sa.gob import models
 from gobcore.typesystem import GOB_SECURE_TYPES, get_gob_type
 
 from gobapi.graphql import graphene_type, exclude_fields
 from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute, get_resolve_secure_attribute, \
-    get_resolve_inverse_attribute, FilterInverseConnectionField
+    get_resolve_inverse_attribute, FilterInverseConnectionField, get_resolve_attribute_missing_relation
 from gobapi.graphql.scalars import DateTime, GeoJSON
 
 # Use the GOB model to generate the GraphQL query
@@ -112,6 +112,7 @@ def get_graphene_query():
 
     # Sort references so that if a refers to b, a will be handled before b
     sorted_refs = _get_sorted_references(model)
+    missing_relations = get_fieldnames_for_missing_relations(model)
 
     for ref in sorted_refs:
         # A reference is a "catalogue:collection" string
@@ -136,6 +137,8 @@ def get_graphene_query():
         inverse_references = get_inverse_references(catalog_name, collection_name)
         inverse_connections = _get_inverse_connections_for_references(inverse_references)
 
+        missing_rels = missing_relations.get(catalog_name, {}).get(collection_name, [])
+
         # class <Collection>(SQLAlchemyObjectType):
         #     attribute = FilterConnectionField((attributeClass, attributeClass fields)
         #     resolve_attribute = lambda obj, info, **args
@@ -151,6 +154,9 @@ def get_graphene_query():
             **get_secure_resolvers(catalog_name, collection_name, sec_attributes),
             **get_relation_resolvers(catalog_name, collection_name, connections),
             **get_inverse_relation_resolvers(inverse_connections),
+            **get_missing_relation_resolvers(missing_rels),
+            **{rel: graphene.JSONString for rel in missing_rels},
+            "bronwaarde": graphene.String(),
             "Meta": type(f"{collection_name}_Meta", (), {
                 "model": base_model,
                 "exclude_fields": exclude_fields,
@@ -242,6 +248,15 @@ def get_inverse_relation_resolvers(inverse_connections):
             models[f'rel_{relation_table}'],
             models[model.get_table_name(connection['src_catalog'], connection['src_collection'])],
         )
+    return resolvers
+
+
+def get_missing_relation_resolvers(missing_relations):
+    resolvers = {}
+
+    for field_name in missing_relations:
+        resolvers[f"resolve_{field_name}"] = get_resolve_attribute_missing_relation(field_name)
+
     return resolvers
 
 

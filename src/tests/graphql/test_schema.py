@@ -1,4 +1,5 @@
-from gobapi.graphql.schema import _get_sorted_references, get_inverse_references, get_inverse_connection_field, get_inverse_relation_resolvers
+from gobapi.graphql.schema import _get_sorted_references, get_inverse_references, get_inverse_connection_field, \
+    get_inverse_relation_resolvers, get_connection_field
 
 from unittest import TestCase
 from unittest.mock import patch, call
@@ -109,3 +110,7 @@ class TestGraphqlSchema(TestCase):
         self.assertEqual("catcol1", get_inverse_references("cat1", "col1"))
         self.assertEqual({}, get_inverse_references("cat1", "nonexistent_col"))
 
+    @patch("gobapi.graphql.schema.connection_fields", {'key': 'value'})
+    def test_get_connection_field(self):
+        self.assertEqual('value', get_connection_field('key')())
+        self.assertEqual(GenericScalar, get_connection_field('non_existing_key')())
