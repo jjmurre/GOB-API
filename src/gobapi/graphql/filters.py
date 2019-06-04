@@ -162,7 +162,7 @@ def add_bronwaardes_to_results(relation_table, model, obj, results: list):
 
     if isinstance(source_values, dict):
         source_values = [source_values]
-    source_values = [item['bronwaarde'] for item in source_values]
+    source_values = [item['bronwaarde'] for item in source_values] if source_values else []
 
     # Filtering should always return exactly one source (otherwise this resolver would not have been generated)
     source = [item for item in gobsources._relations[catalog][collection] if item['field_name'] == reference_name]
