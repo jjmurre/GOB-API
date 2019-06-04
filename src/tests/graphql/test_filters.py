@@ -3,8 +3,12 @@ import datetime
 from sqlalchemy.sql.elements import AsBoolean
 from graphene_sqlalchemy import SQLAlchemyConnectionField
 from gobcore.typesystem.gob_secure_types import SecureString
-from gobapi.graphql.filters import _build_query, _build_query_inverse, FilterConnectionField, get_resolve_attribute, get_resolve_secure_attribute, _add_query_filter_kwargs, get_resolve_inverse_attribute
+from gobapi.graphql.filters import _build_query, _build_query_inverse, FilterConnectionField, get_resolve_attribute, \
+    get_resolve_secure_attribute, _add_query_filter_kwargs, get_resolve_inverse_attribute, \
+    get_resolve_attribute_missing_relation, add_bronwaardes_to_results, gobmodel, gobsources
 from gobapi import storage
+
+import gobapi.graphql.filters
 
 
 class Session():
@@ -55,6 +59,8 @@ class Query():
         return self.expr
 
 class Model():
+    __tablename__ = "some_tablename"
+
     def __init__(self, fieldname, value, date_deleted=None):
         setattr(self, fieldname, value)
         self._id = "id"
@@ -119,9 +125,11 @@ def test_filterconnectionfield(monkeypatch):
     q = FilterConnectionField.get_query(Model("field", "anyvalue"), None, field="anyvalue", active=True)
     assert(q.expr == "TruetrueTrue")
 
+
 def test_resolve_attribute(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
     monkeypatch.setattr(storage, "session", Session())
+    monkeypatch.setattr(gobapi.graphql.filters, "add_bronwaardes_to_results", lambda r, m, o, res: res)
 
     # Setup the relation model
     rel = Model("src_id", "1")
@@ -141,11 +149,82 @@ def test_resolve_attribute(monkeypatch):
     del m.ref["_id"]
     assert(r(m, None, field="anyvalue") == 'TrueTrueAndJoined')
 
+
+def test_resolve_attribute_missing_relation():
+    class Obj:
+        someattr = 'somevalue'
+
+    a = Obj()
+
+    f = get_resolve_attribute_missing_relation('someattr')
+    assert(f(a, None) == 'somevalue')
+
+
+def test_add_bronwaardes_to_results(monkeypatch):
+    class Obj:
+        __tablename__ = "src_table"
+        ref = [{'bronwaarde': 'sourceval'}, {'bronwaarde': 'sourceval_missing_relation'}]
+
+    class Model:
+        __tablename__ = 'model_table_name'
+
+    class RelationTable:
+        __tablename__ = 'relation_table'
+
+    monkeypatch.setattr(gobmodel, 'get_catalog_from_table_name', lambda _: 'cat')
+    monkeypatch.setattr(gobmodel, 'get_collection_from_table_name', lambda _: 'collection')
+    monkeypatch.setattr(gobapi.graphql.filters, 'get_reference_name_from_relation_table_name', lambda _: 'ref')
+    monkeypatch.setattr(gobsources, '_relations', {
+        'cat': {
+            'collection': [{
+                'field_name': 'ref',
+                'destination_attribute': 'dst_attr',
+            }]
+        }
+    })
+    model_table_type = type('model_table_name', (), {
+        "__tablename__": "model_table_name",
+    })
+
+    monkeypatch.setattr(gobapi.graphql.filters, 'models', {'model_table_name': model_table_type})
+
+    # Case 1. Two bronwaardes, but only one bronwaarde can be matched with a result. Add bronwaarde-only result row.
+    result = model_table_type()
+    result.__setattr__('dst_attr', 'sourceval')
+    results = [result]
+    res = add_bronwaardes_to_results(RelationTable(), Model(), Obj(), results)
+    assert len(res) == 2
+    assert getattr(res[0], 'bronwaarde', 'sourceval')
+    assert getattr(res[1], 'bronwaarde', 'sourceval_missing_relation')
+
+    # Case 2. Single reference, provides bronwaarde as dictionary
+    result = model_table_type()
+    result.__setattr__('dst_attr', 'sourceval')
+    results = [result]
+    obj = Obj()
+    obj.__setattr__('ref', {'bronwaarde': 'sourceval'})
+    res = add_bronwaardes_to_results(RelationTable(), Model(), obj, results)
+    assert len(res) == 1
+    assert getattr(res[0], 'bronwaarde') == 'sourceval'
+
+    # Case 3. Have object in results that does not have a corresponding bronwaarde anymore. Ignore result object.
+    result = model_table_type()
+    result.__setattr__('dst_attr', 'not_in_source')
+    results = [result]
+    obj = Obj()
+    obj.__setattr__('ref', {'bronwaarde': 'someval'})
+    res = add_bronwaardes_to_results(RelationTable(), Model(), obj, results)
+    assert len(res) == 1
+    # 'not_in_source' should have been ignored
+    assert getattr(res[0], 'bronwaarde') == 'someval'
+
+
 def test_resolve_attribute_resolve_query(monkeypatch):
     session = Session()
 
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: session.query)
     monkeypatch.setattr(storage, "session", session)
+    monkeypatch.setattr(gobapi.graphql.filters, "add_bronwaardes_to_results", lambda r, m, o, res: res)
 
     # Setup the relation model
     rel = Model("src_id", "1")
@@ -168,6 +247,7 @@ def test_resolve_inverse_attribute(monkeypatch):
     setattr(session, 'query', q)
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: q)
     monkeypatch.setattr(storage, "session", session)
+    monkeypatch.setattr(gobapi.graphql.filters, "add_bronwaardes_to_results", lambda r, m, o, res: res)
 
     # Setup the relation model
     rel = Model("dst_id", "1")
@@ -187,6 +267,7 @@ def test_resolve_inverse_attribute(monkeypatch):
 def test_resolve_secure_attribute(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
     monkeypatch.setattr(storage, "session", Session())
+    monkeypatch.setattr(gobapi.graphql.filters, "add_bronwaardes_to_results", lambda r, m, o, res: res)
 
     # Setup the relation model
     rel = Model("src_id", "1")

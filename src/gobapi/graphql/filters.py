@@ -8,10 +8,16 @@ from graphene_sqlalchemy import SQLAlchemyConnectionField
 from sqlalchemy import and_
 
 from gobcore.model.metadata import FIELD
+from gobcore.model.relations import get_reference_name_from_relation_table_name
+from gobcore.sources import GOBSources
+from gobcore.model import GOBModel
+from gobcore.model.sa.gob import models
 
 from gobapi.storage import get_session, filter_active, filter_deleted
 from gobapi import serialize
 
+gobsources = GOBSources()
+gobmodel = GOBModel()
 
 FILTER_ON_NULL_VALUE = "null"
 
@@ -119,6 +125,74 @@ def get_resolve_secure_attribute(name, GOBType):
     return resolve_attribute
 
 
+def get_resolve_attribute_missing_relation(field_name):
+    """Gets a resolver for a reference that references a non-existing collection
+
+    :param field_name:
+    :return:
+    """
+    def resolve_attribute(obj, info, **kwargs):
+        source_values = getattr(obj, field_name)
+
+        return source_values
+
+    return resolve_attribute
+
+
+def add_bronwaardes_to_results(relation_table, model, obj, results: list):
+    """Adds bronwaardes to results from get_resolve_attribute.
+
+    Fetches all bronwaardes from the original object and gets the destination_attribute from gobsources.
+    Crossreferences bronwaardes from object with the values on destination_attribute in the results.
+
+    The bronwaardes that are not matched with the results are added as new empty objects of the expected type with the
+    bronwaarde attribute set.
+
+    :param relation_table:
+    :param model:
+    :param obj:
+    :param results:
+    :return:
+    """
+    catalog = gobmodel.get_catalog_from_table_name(obj.__tablename__)
+    collection = gobmodel.get_collection_from_table_name(obj.__tablename__)
+    reference_name = get_reference_name_from_relation_table_name(relation_table.__tablename__)
+
+    source_values = getattr(obj, reference_name)
+
+    if isinstance(source_values, dict):
+        source_values = [source_values]
+    source_values = [item['bronwaarde'] for item in source_values]
+
+    # Filtering should always return exactly one source (otherwise this resolver would not have been generated)
+    source = [item for item in gobsources._relations[catalog][collection] if item['field_name'] == reference_name]
+    destination_attribute = source[0]['destination_attribute']
+
+    # Add bronwaarde to results
+    return_results = []
+    for result in results:
+        source_value = getattr(result, destination_attribute)
+
+        try:
+            source_values.remove(source_value)
+            setattr(result, 'bronwaarde', source_value)
+            return_results.append(result)
+        except ValueError:
+            # It could happen that this object is requested from the API after an import has taken place, but before
+            # the relations have been updated. In that case a bronwaarde could have been removed from the object,
+            # while the relation still exists. Remove the relation from the result altogether.
+            pass
+
+    # Create empty result objects of model type with only bronwaarde set
+    expected_type = models[model.__tablename__]
+    for source_value in source_values:
+        bronwaarde = expected_type()
+        setattr(bronwaarde, 'bronwaarde', source_value)
+        return_results.append(bronwaarde)
+
+    return return_results
+
+
 def get_resolve_attribute(relation_table, model):
     """Gets an attribute resolver
 
@@ -152,7 +226,7 @@ def get_resolve_attribute(relation_table, model):
             relation = relation.filter(relation_table.src_volgnummer == getattr(obj, FIELD.SEQNR))
 
         query = FilterConnectionField.get_query(model, info, relation.subquery(), **kwargs)
-        return query.all()
+        return add_bronwaardes_to_results(relation_table, model, obj, query.all())
 
     return resolve_attribute
 
