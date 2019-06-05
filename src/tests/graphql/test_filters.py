@@ -95,6 +95,13 @@ def test_build_query(monkeypatch):
 
     q = Query()
     q = _build_query(q, Model("field", None), rel, field="null")
+    assert(q.expr == "TrueJoined")
+
+    # Test with seq nr
+    q = Query()
+    m = Model("field", None)
+    setattr(m, "__has_states__", True)
+    q = _build_query(q, m, rel, field="null")
     assert(q.expr == "TrueAndJoined")
 
 def test_build_query_inverse(monkeypatch):
@@ -140,14 +147,14 @@ def test_resolve_attribute(monkeypatch):
     m.set_ref("ref")
 
     r = get_resolve_attribute(rel, m)
-    assert(r(m, None, field=1) == "TrueFalseAndJoined")
-    assert(r(m, None, field="anyvalue") == "TrueTrueAndJoined")
+    assert(r(m, None, field=1) == "TrueFalseJoined")
+    assert(r(m, None, field="anyvalue") == "TrueTrueJoined")
 
     m._id = "anotherid"
-    assert(r(m, None, field="anyvalue") == "TrueTrueAndJoined")
+    assert(r(m, None, field="anyvalue") == "TrueTrueJoined")
 
     del m.ref["_id"]
-    assert(r(m, None, field="anyvalue") == 'TrueTrueAndJoined')
+    assert(r(m, None, field="anyvalue") == 'TrueTrueJoined')
 
 
 def test_resolve_attribute_missing_relation():

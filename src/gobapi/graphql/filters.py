@@ -47,9 +47,14 @@ def _build_query(query, model, relation, **kwargs):
     query = _add_query_filter_kwargs(query, model, **kwargs)
 
     if relation is not None:
-        query = query.join(relation, and_(
-            relation.c.dst_id == getattr(model, FIELD.ID),
-            relation.c.dst_volgnummer == getattr(model, FIELD.SEQNR, None)))
+        join_condition = relation.c.dst_id == getattr(model, FIELD.ID)
+
+        if model.__has_states__:
+            join_condition = and_(
+                join_condition,
+                relation.c.dst_volgnummer == getattr(model, FIELD.SEQNR, None)
+            )
+        query = query.join(relation, join_condition)
     return query
 
 
