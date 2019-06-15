@@ -253,7 +253,8 @@ def get_app():
         (f'{API_BASE_PATH}/graphql/', graphql)
     ]
 
-    app = GOBFlask(__name__)
+    # app = GOBFlask(__name__)
+    app = Flask(__name__)
     CORS(app)
 
     app.teardown_appcontext(shutdown_session)
