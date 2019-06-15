@@ -17,10 +17,6 @@ services:
       UWSGI_CALLABLE: "application"
       UWSGI_MASTER: 1
       UWSGI_ENABLE_THREADS: 1
-      UWSGI_THREADS: 6
-      UWSGI_PROCESSES: 4
-      UWSGI_MAX_WORKER_LIFETIME: 120
-
 
 networks:
   default:
