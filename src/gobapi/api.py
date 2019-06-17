@@ -257,7 +257,7 @@ def get_app():
     app = Flask(__name__)
     CORS(app)
 
-    app.teardown_appcontext(shutdown_session)
+    # app.teardown_appcontext(shutdown_session)
 
     for route, view_func in ROUTES:
         app.route(rule=route)(view_func)
