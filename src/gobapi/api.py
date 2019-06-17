@@ -19,7 +19,7 @@ from gobcore.views import GOBViews
 from gobapi.config import API_BASE_PATH, API_INFRA_SERVICES
 from gobapi.response import hal_response, not_found, get_page_ref
 from gobapi.states import get_states
-from gobapi.storage import connect, get_entities, get_entity, shutdown_session
+from gobapi.storage import connect, get_entities, get_entity  # , shutdown_session
 
 from gobapi.graphql.schema import schema
 from gobapi import infra
@@ -257,7 +257,7 @@ def get_app():
     app = Flask(__name__)
     CORS(app)
 
-    app.teardown_appcontext(shutdown_session)
+    # app.teardown_appcontext(shutdown_session)
 
     for route, view_func in ROUTES:
         app.route(rule=route)(view_func)
