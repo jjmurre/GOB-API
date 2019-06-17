@@ -186,6 +186,7 @@ def test_add_bronwaardes_to_results(monkeypatch):
             'collection': [{
                 'field_name': 'ref',
                 'destination_attribute': 'dst_attr',
+                'method': 'equals'
             }]
         }
     })
@@ -225,6 +226,25 @@ def test_add_bronwaardes_to_results(monkeypatch):
     # 'not_in_source' should have been ignored
     assert getattr(res[0], 'bronwaarde') == 'someval'
 
+    # Case 4. Objects have been matched on geometry. Bronwaarde should be geometrie
+    monkeypatch.setattr(gobsources, '_relations', {
+        'cat': {
+            'collection': [{
+                'field_name': 'ref',
+                'destination_attribute': 'dst_attr',
+                'method': 'lies_in'
+            }]
+        }
+    })
+
+    result = model_table_type()
+    result.__setattr__('dst_attr', 'sourceval')
+    results = [result]
+    obj = Obj()
+    obj.__setattr__('ref', {'bronwaarde': 'geometrie'})
+    res = add_bronwaardes_to_results(RelationTable(), Model(), obj, results)
+    assert len(res) == 1
+    assert getattr(res[0], 'bronwaarde') == 'geometrie'
 
 def test_resolve_attribute_resolve_query(monkeypatch):
     session = Session()
