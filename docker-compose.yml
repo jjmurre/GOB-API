@@ -16,8 +16,9 @@ services:
       UWSGI_MODULE: "gobapi.wsgi"
       UWSGI_CALLABLE: "application"
       UWSGI_MASTER: 1
-      UWSGI_HARAKIRI: 30
+      UWSGI_HARAKIRI: 125
       UWSGI_PROCESSES: 2
+      UWSGI_HTTP_TIMEOUT: 120
 
 
 networks:
