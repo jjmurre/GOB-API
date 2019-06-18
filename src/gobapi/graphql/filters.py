@@ -11,7 +11,6 @@ from gobcore.model.metadata import FIELD
 from gobcore.model.relations import get_reference_name_from_relation_table_name
 from gobcore.sources import GOBSources
 from gobcore.model import GOBModel
-from gobcore.model.sa.gob import models
 
 from gobapi.storage import get_session, filter_active, filter_deleted
 from gobapi import serialize
@@ -158,60 +157,18 @@ def add_bronwaardes_to_results(relation_table, model, obj, results: list):
     :param results:
     :return:
     """
-    catalog = gobmodel.get_catalog_from_table_name(obj.__tablename__)
-    collection = gobmodel.get_collection_from_table_name(obj.__tablename__)
     reference_name = get_reference_name_from_relation_table_name(relation_table.__tablename__)
 
-    source_values = _get_source_values(obj, reference_name)
-
-    # Filtering should always return exactly one source (otherwise this resolver would not have been generated)
-    source = [item for item in gobsources._relations[catalog][collection] if item['field_name'] == reference_name]
-    destination_attribute = source[0]['destination_attribute']
-    method = source[0]['method']
-
     # Add bronwaarde to results
-    return_results = []
     for result in results:
-        if method == 'equals':
-            source_value = getattr(result, destination_attribute)
-
-            try:
-                source_values.remove(source_value)
-                setattr(result, 'bronwaarde', source_value)
-                return_results.append(result)
-            except ValueError:
-                # It could happen that this object is requested from the API after an import has taken place,
-                # but before the relations have been updated. In that case a bronwaarde could have been
-                # removed from the object, while the relation still exists. Remove the relation from
-                # the result altogether.
-                pass
+        # For now set an empty bronwaarde on many references
+        if isinstance(getattr(obj, reference_name), list):
+            setattr(result, 'bronwaarde', '')
         else:
-            setattr(result, 'bronwaarde', 'geometrie')
-            return_results.append(result)
+            # Set the bronwaarde for single references
+            setattr(result, 'bronwaarde', getattr(obj, reference_name)['bronwaarde'])
 
-    # Create empty result objects of model type with only bronwaarde set
-    expected_type = models[model.__tablename__]
-    for source_value in source_values:
-        bronwaarde = expected_type()
-        setattr(bronwaarde, 'bronwaarde', source_value)
-        return_results.append(bronwaarde)
-
-    return return_results
-
-
-def _get_source_values(obj, reference_name):
-    """Fetches all bronwaardes from the original object
-
-    :param obj:
-    :param reference_name:
-    :return:
-    """
-    source_values = getattr(obj, reference_name)
-    if isinstance(source_values, dict):
-        source_values = [source_values]
-    source_values = [item['bronwaarde'] for item in source_values] if source_values else []
-    # Remove geometrie from source values to prevent extra results
-    return list(filter(lambda x: x != 'geometrie', source_values))
+    return results
 
 
 def get_resolve_attribute(relation_table, model):
