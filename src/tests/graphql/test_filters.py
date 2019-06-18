@@ -178,8 +178,6 @@ def test_add_bronwaardes_to_results(monkeypatch):
     class RelationTable:
         __tablename__ = 'relation_table'
 
-    monkeypatch.setattr(gobmodel, 'get_catalog_from_table_name', lambda _: 'cat')
-    monkeypatch.setattr(gobmodel, 'get_collection_from_table_name', lambda _: 'collection')
     monkeypatch.setattr(gobapi.graphql.filters, 'get_reference_name_from_relation_table_name', lambda _: 'ref')
     monkeypatch.setattr(gobsources, '_relations', {
         'cat': {
@@ -194,20 +192,15 @@ def test_add_bronwaardes_to_results(monkeypatch):
         "__tablename__": "model_table_name",
     })
 
-    monkeypatch.setattr(gobapi.graphql.filters, 'models', {'model_table_name': model_table_type})
-
-    # Case 1. Two bronwaardes, but only one bronwaarde can be matched with a result. Add bronwaarde-only result row.
+    # Case 1. Two bronwaardes, for now we leave bronwaarde empty.
     result = model_table_type()
-    result.__setattr__('dst_attr', 'sourceval')
     results = [result]
     res = add_bronwaardes_to_results(RelationTable(), Model(), Obj(), results)
-    assert len(res) == 2
-    assert getattr(res[0], 'bronwaarde', 'sourceval')
-    assert getattr(res[1], 'bronwaarde', 'sourceval_missing_relation')
+    assert len(res) == 1
+    assert getattr(res[0], 'bronwaarde') == ''
 
     # Case 2. Single reference, provides bronwaarde as dictionary
     result = model_table_type()
-    result.__setattr__('dst_attr', 'sourceval')
     results = [result]
     obj = Obj()
     obj.__setattr__('ref', {'bronwaarde': 'sourceval'})
@@ -215,30 +208,8 @@ def test_add_bronwaardes_to_results(monkeypatch):
     assert len(res) == 1
     assert getattr(res[0], 'bronwaarde') == 'sourceval'
 
-    # Case 3. Have object in results that does not have a corresponding bronwaarde anymore. Ignore result object.
-    result = model_table_type()
-    result.__setattr__('dst_attr', 'not_in_source')
-    results = [result]
-    obj = Obj()
-    obj.__setattr__('ref', {'bronwaarde': 'someval'})
-    res = add_bronwaardes_to_results(RelationTable(), Model(), obj, results)
-    assert len(res) == 1
-    # 'not_in_source' should have been ignored
-    assert getattr(res[0], 'bronwaarde') == 'someval'
-
     # Case 4. Objects have been matched on geometry. Bronwaarde should be geometrie
-    monkeypatch.setattr(gobsources, '_relations', {
-        'cat': {
-            'collection': [{
-                'field_name': 'ref',
-                'destination_attribute': 'dst_attr',
-                'method': 'lies_in'
-            }]
-        }
-    })
-
     result = model_table_type()
-    result.__setattr__('dst_attr', 'sourceval')
     results = [result]
     obj = Obj()
     obj.__setattr__('ref', {'bronwaarde': 'geometrie'})
