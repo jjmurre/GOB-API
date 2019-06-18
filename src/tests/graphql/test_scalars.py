@@ -15,6 +15,16 @@ class Session():
         return geom
 
 
+class MockManagedSession:
+
+    def __enter__(self):
+        self._session = Session()
+        return self._session
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
 class Geometry():
     def __init__(self, geojson):
         self.geojson = geojson
@@ -75,7 +85,7 @@ def test_datetime(monkeypatch):
 
 
 def test_geojson(monkeypatch):
-    monkeypatch.setattr(scalars , "get_session", lambda: Session())
+    monkeypatch.setattr(scalars , "ManagedSession", MockManagedSession)
 
     geojson = '{"type": "Point", "coordinates": [100, 100]}'
     geom = Geometry(geojson)

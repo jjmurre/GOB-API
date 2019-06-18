@@ -9,6 +9,5 @@ import os
 
 from gobapi.api import get_app
 
-
-# get the API object and start it up
-get_app().run(port=os.getenv("GOB_API_PORT", 8141))
+app = get_app()
+app.run(port=os.getenv("GOB_API_PORT", 8141))

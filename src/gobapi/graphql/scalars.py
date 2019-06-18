@@ -11,7 +11,7 @@ from graphene.types import Scalar
 from graphql.language import ast
 
 from gobapi.graphql.filters import FILTER_ON_NULL_VALUE
-from gobapi.storage import get_session
+from gobapi.session import ManagedSession
 from gobapi import serialize
 
 
@@ -107,8 +107,9 @@ class GeoJSON(Scalar):
         :param geom: geom
         :return: geometry as dict
         """
-        session = get_session()
-        return json.loads(session.scalar(geom.ST_AsGeoJSON()))
+        with ManagedSession() as session:
+            geojson = session.scalar(geom.ST_AsGeoJSON())
+        return json.loads(geojson)
 
     @staticmethod
     def parse_literal(node):
@@ -127,8 +128,9 @@ class GeoJSON(Scalar):
         :param value: string value to parse
         :return: value as a Geometry object
         """
-        session = get_session()
         if value == FILTER_ON_NULL_VALUE:
             return FILTER_ON_NULL_VALUE
         else:
-            return session.scalar(geoalchemy2.func.ST_GeomFromText(value))
+            with ManagedSession() as session:
+                geo = session.scalar(geoalchemy2.func.ST_GeomFromText(value))
+            return geo

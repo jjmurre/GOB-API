@@ -16,7 +16,9 @@ services:
       UWSGI_MODULE: "gobapi.wsgi"
       UWSGI_CALLABLE: "application"
       UWSGI_MASTER: 1
-      UWSGI_ENABLE_THREADS: 1
+      UWSGI_HARAKIRI: 30
+      UWSGI_PROCESSES: 2
+
 
 networks:
   default:

@@ -133,7 +133,7 @@ def mock_create_engine(url):
     return 'engine'
 
 
-def mock_scoped_session(func):
+def mock_scoped_session(func=None):
     engine = mock_create_engine('test')
     return MockSession(engine)
 
@@ -277,6 +277,7 @@ def before_each_storage_test(monkeypatch):
     monkeypatch.setattr(sqlalchemy.ext.automap, 'automap_base', mock_automap_base)
     monkeypatch.setattr(sqlalchemy.orm, 'scoped_session', mock_scoped_session)
     monkeypatch.setattr(sqlalchemy_filters, 'apply_filters', lambda q, f: q)
+    monkeypatch.setattr(gobapi.session, 'get_session', mock_scoped_session)
 
     monkeypatch.setattr(gobcore.model, 'GOBModel', mock_get_gobmodel)
     monkeypatch.setattr(gobcore.model.metadata, 'PUBLIC_META_FIELDS', mock_PUBLIC_META_FIELDS)
@@ -287,13 +288,6 @@ def before_each_storage_test(monkeypatch):
     from gobapi.storage import connect
     connect()
 
-
-def test_get_session(monkeypatch):
-    before_each_storage_test(monkeypatch)
-
-    from gobapi.storage import get_session, session
-    # assert the global session is returned
-    assert(get_session() == session)
 
 def test_entities(monkeypatch):
     before_each_storage_test(monkeypatch)
@@ -446,16 +440,6 @@ def test_entity_with_view(monkeypatch):
     mockEntity = MockEntity('identificatie', 'attribute', 'meta')
     MockEntities.one_entity = mockEntity
     assert(get_entity('catalog', 'collection1', 'identificatie', 'enhanced') == {'attribute': 'attribute', 'identificatie': 'identificatie', 'meta': 'meta'})
-
-
-def test_teardown_session(monkeypatch):
-    before_each_storage_test(monkeypatch)
-
-    from gobapi.storage import shutdown_session, session
-
-    assert(session._remove == False)
-    shutdown_session()
-    assert(session._remove == True)
 
 
 def test_get_convert_for_state(monkeypatch):
