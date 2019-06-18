@@ -21,21 +21,11 @@ from gobcore.typesystem import get_gob_type, get_gob_type_from_sql_type
 from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS, FIELD
 
 from gobapi.config import GOB_DB, API_BASE_PATH
+from gobapi.session import set_session, get_session
 
-# Ths session and Base will be initialised by the _init() method
-# The _init() method is called at the end of this module
 session = None
 _Base = None
 metadata = None
-
-
-def get_session():
-    """Get the current global session
-
-    :return: session
-    """
-    global session
-    return session
 
 
 def connect():
@@ -61,10 +51,7 @@ def connect():
 
     metadata = MetaData(engine)
 
-
-def shutdown_session(exception=None):
-    global session
-    session.remove()
+    set_session(session)
 
 
 def _get_table_and_model(catalog_name, collection_name, view=None):
@@ -271,7 +258,8 @@ def get_entities(catalog, collection, offset, limit, view=None):
     :param limit:
     :return:
     """
-    assert(session and _Base)
+    assert _Base
+    session = get_session()
 
     table, model = _get_table_and_model(catalog, collection, view)
 
@@ -316,7 +304,8 @@ def get_collection_states(catalog, collection):
     :param collection:
     :return states: A dict containing all entities by _id for easy lookup
     """
-    assert(session and _Base)
+    assert _Base
+    session = get_session()
 
     entity, model = _get_table_and_model(catalog, collection)
 
@@ -356,7 +345,8 @@ def get_entity(catalog, collection, id, view=None):
     :param view:
     :return:
     """
-    assert(session and _Base)
+    assert _Base
+    session = get_session()
 
     filter = {
         "_id": id,

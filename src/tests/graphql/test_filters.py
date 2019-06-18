@@ -7,6 +7,7 @@ from gobapi.graphql.filters import _build_query, _build_query_inverse, FilterCon
     get_resolve_secure_attribute, _add_query_filter_kwargs, get_resolve_inverse_attribute, \
     get_resolve_attribute_missing_relation, add_bronwaardes_to_results, gobmodel, gobsources
 from gobapi import storage
+from gobapi import session
 
 import gobapi.graphql.filters
 
@@ -17,6 +18,18 @@ class Session():
 
     def query(self, _):
         return self.query
+
+
+class MockManagedSession:
+
+    def __init__(self):
+        self._session = Session()
+
+    def __enter__(self):
+        return self._session
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
 
 
 class Columns():
@@ -135,7 +148,7 @@ def test_filterconnectionfield(monkeypatch):
 
 def test_resolve_attribute(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
-    monkeypatch.setattr(storage, "session", Session())
+    monkeypatch.setattr(gobapi.graphql.filters, "ManagedSession", MockManagedSession)
     monkeypatch.setattr(gobapi.graphql.filters, "add_bronwaardes_to_results", lambda r, m, o, res: res)
 
     # Setup the relation model
@@ -221,7 +234,7 @@ def test_resolve_attribute_resolve_query(monkeypatch):
     session = Session()
 
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: session.query)
-    monkeypatch.setattr(storage, "session", session)
+    monkeypatch.setattr(gobapi.graphql.filters, "ManagedSession", MockManagedSession)
     monkeypatch.setattr(gobapi.graphql.filters, "add_bronwaardes_to_results", lambda r, m, o, res: res)
 
     # Setup the relation model
@@ -237,14 +250,18 @@ def test_resolve_attribute_resolve_query(monkeypatch):
 
     r = get_resolve_attribute(rel, m)
 
-    assert(r(m, None, field="anyvalue") == 'FalseTrueTrueTrueAndJoined')
+    assert(r(m, None, field="anyvalue") == 'TrueTrueAndJoined')
 
 def test_resolve_inverse_attribute(monkeypatch):
     session = Session()
     q = Query(Columns(src_id="1", src_volgnummer="1"))
     setattr(session, 'query', q)
+
+    managed_session = MockManagedSession()
+    managed_session._session = session
+
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: q)
-    monkeypatch.setattr(storage, "session", session)
+    monkeypatch.setattr(gobapi.graphql.filters, "ManagedSession", lambda: managed_session)
     monkeypatch.setattr(gobapi.graphql.filters, "add_bronwaardes_to_results", lambda r, m, o, res: res)
 
     # Setup the relation model
