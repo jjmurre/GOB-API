@@ -366,19 +366,20 @@ def test_entities_with_view(monkeypatch):
 
     from gobapi.storage import get_entities
     MockEntities.all_entities = []
-    assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([], 0))
+    # Views return total_count None to prevent slow count on large tables
+    assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([], None))
 
     mockEntity = MockEntity('identificatie', 'attribute', '_private_attribute')
     MockEntities.all_entities = [
         mockEntity
     ]
-    assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'identificatie': 'identificatie'}], 1))
+    assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'identificatie': 'identificatie'}], None))
 
     mockEntity = MockEntity('identificatie', 'attribute', 'non_existing_attribute')
     MockEntities.all_entities = [
         mockEntity
     ]
-    assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'identificatie': 'identificatie'}], 1))
+    assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'identificatie': 'identificatie'}], None))
 
     # Add a reference to the table columns
     MockTable.columns = [MockColumn('identificatie'), MockColumn('attribute'), MockColumn('_ref_is_test_tse_tst')]
@@ -387,7 +388,7 @@ def test_entities_with_view(monkeypatch):
     MockEntities.all_entities = [
         mockEntity
     ]
-    assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'identificatie': 'identificatie', '_embedded': {'is_test': {FIELD.ID: '1234', '_links': {'self': {'href': '/gob/catalog/collection/1234/'}}}}}], 1))
+    assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'identificatie': 'identificatie', '_embedded': {'is_test': {FIELD.ID: '1234', '_links': {'self': {'href': '/gob/catalog/collection/1234/'}}}}}], None))
 
     # Reset the table columns
     MockTable.columns = [MockColumn('identificatie'), MockColumn('attribute'), MockColumn('meta')]
