@@ -101,7 +101,11 @@ def _entities(catalog_name, collection_name, page, page_size, view=None):
 
     entities, total_count = get_entities(catalog_name, collection_name, offset=offset, limit=page_size, view=view)
 
-    num_pages = (total_count + page_size - 1) // page_size
+    if view:
+        # For views always show next page unless no results are returned. Count is slow on large views
+        num_pages = page + 1 if len(entities) > 0 else page
+    else:
+        num_pages = (total_count + page_size - 1) // page_size
 
     return {
                'total_count': total_count,

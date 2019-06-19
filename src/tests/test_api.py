@@ -196,7 +196,7 @@ def test_entities_with_view(monkeypatch):
 
     from gobapi.api import _entities
     collection = 'collection'
-    assert(_entities('catalog', 'collection', 1, 1, 'enhanced') == ({'page_size': 1, 'pages': 0, 'results': [], 'total_count': 0}, {'next': None, 'previous': None}))
+    assert(_entities('catalog', 'collection', 1, 1, 'enhanced') == ({'page_size': 1, 'pages': 1, 'results': [], 'total_count': 0}, {'next': None, 'previous': None}))
 
 
 def test_entity(monkeypatch):
@@ -311,10 +311,11 @@ def test_collection_with_view(monkeypatch):
     MockGOBViews.views = {
         'enhanced': {}
     }
+    # Views always show 1 page extra because count is slow on large views
     assert(_collection('catalog', 'collection') == (
         ({
              'page_size': 100,
-             'pages': 0,
+             'pages': 1,
              'results': [],
              'total_count': 0
          },{

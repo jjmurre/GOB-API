@@ -279,7 +279,8 @@ def get_entities(catalog, collection, offset, limit, view=None):
     else:
         all_entities = apply_filters(all_entities, filters)
 
-    all_count = all_entities.count()
+    # For views count is slow on large views
+    all_count = all_entities.count() if view is None else None
 
     # Limit and offset for pagination
     page_entities = all_entities.offset(offset).limit(limit).all()
