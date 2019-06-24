@@ -16,10 +16,13 @@ services:
       UWSGI_MODULE: "gobapi.wsgi"
       UWSGI_CALLABLE: "application"
       UWSGI_MASTER: 1
-      UWSGI_HARAKIRI: 125
-      UWSGI_PROCESSES: 2
-      UWSGI_HTTP_TIMEOUT: 120
-
+      UWSGI_HARAKIRI: 180
+      UWSGI_PROCESSES: 4
+      UWSGI_LAZY: 1
+      UWSGI_ENABLE_THREADS: ""
+      UWSGI_THREADS: ""
+      UWSGI_MAX_WORKER_LIFETIME: 1800
+      UWSGI_HTTP_TIMEOUT: ""
 
 networks:
   default:

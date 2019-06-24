@@ -13,7 +13,7 @@ from gobcore.sources import GOBSources
 from gobcore.model import GOBModel
 
 from gobapi.storage import filter_active, filter_deleted
-from gobapi.session import ManagedSession
+from gobapi.session import get_session
 from gobapi import serialize
 
 gobsources = GOBSources()
@@ -198,9 +198,9 @@ def get_resolve_attribute(relation_table, model):
         :param kwargs: any filter arguments, <name of field>: <value of field>
         :return: the list of referenced objects
         """
-        with ManagedSession() as session:
-            # First get the relations for the specific object
-            relation = session.query(relation_table).filter(relation_table.src_id == getattr(obj, FIELD.ID))
+        # First get the relations for the specific object
+        session = get_session()
+        relation = session.query(relation_table).filter(relation_table.src_id == getattr(obj, FIELD.ID))
         if obj.__has_states__:
             relation = relation.filter(relation_table.src_volgnummer == getattr(obj, FIELD.SEQNR))
 
@@ -213,8 +213,8 @@ def get_resolve_attribute(relation_table, model):
 def get_resolve_inverse_attribute(relation_table, model):
 
     def resolve_attribute(obj, info, **kwargs):
-        with ManagedSession() as session:
-            relation = session.query(relation_table).filter(relation_table.dst_id == getattr(obj, FIELD.ID))
+        session = get_session()
+        relation = session.query(relation_table).filter(relation_table.dst_id == getattr(obj, FIELD.ID))
 
         if obj.__has_states__:
             relation = relation.filter(relation_table.dst_volgnummer == getattr(obj, FIELD.SEQNR))

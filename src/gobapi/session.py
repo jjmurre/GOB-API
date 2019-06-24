@@ -1,5 +1,3 @@
-from flask import g  # Safe global storage for sessions
-
 _db_session = None   # Private scoped session
 
 
@@ -16,25 +14,13 @@ def set_session(db_session):
 
 def get_session():
     """
-    Get a session and store it in the flask global storage
+    Get a session.
+
+    The returned session will automatically closed at application context end
 
     :return: session instance
     """
-    g.session = _db_session()
-    return g.session
-
-
-class ManagedSession:
-
-    def __init__(self):
-        pass
-
-    def __enter__(self):
-        self._session = _db_session()
-        return self._session
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._session.close()
+    return _db_session()
 
 
 def shutdown_session(exception=None):
@@ -46,12 +32,4 @@ def shutdown_session(exception=None):
     """
     if exception is not None:
         print(f"Shutdown session, exception: {str(exception)}")
-    if hasattr(g, 'session'):
-        # REST API
-        print("Close REST API session")
-        g.session.close()
-        delattr(g, 'session')
-    else:
-        # GraphQL API
-        print("Close GraphQL API session")
-        _db_session.remove()
+    _db_session.remove()
