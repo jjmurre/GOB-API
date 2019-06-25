@@ -85,7 +85,7 @@ def test_datetime(monkeypatch):
 
 
 def test_geojson(monkeypatch):
-    monkeypatch.setattr(scalars , "ManagedSession", MockManagedSession)
+    monkeypatch.setattr(scalars , "get_session", Session)
 
     geojson = '{"type": "Point", "coordinates": [100, 100]}'
     geom = Geometry(geojson)

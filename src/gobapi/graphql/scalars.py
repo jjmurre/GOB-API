@@ -11,7 +11,7 @@ from graphene.types import Scalar
 from graphql.language import ast
 
 from gobapi.graphql.filters import FILTER_ON_NULL_VALUE
-from gobapi.session import ManagedSession
+from gobapi.session import get_session
 from gobapi import serialize
 
 
@@ -107,8 +107,8 @@ class GeoJSON(Scalar):
         :param geom: geom
         :return: geometry as dict
         """
-        with ManagedSession() as session:
-            geojson = session.scalar(geom.ST_AsGeoJSON())
+        session = get_session()
+        geojson = session.scalar(geom.ST_AsGeoJSON())
         return json.loads(geojson)
 
     @staticmethod
@@ -131,6 +131,6 @@ class GeoJSON(Scalar):
         if value == FILTER_ON_NULL_VALUE:
             return FILTER_ON_NULL_VALUE
         else:
-            with ManagedSession() as session:
-                geo = session.scalar(geoalchemy2.func.ST_GeomFromText(value))
+            session = get_session()
+            geo = session.scalar(geoalchemy2.func.ST_GeomFromText(value))
             return geo

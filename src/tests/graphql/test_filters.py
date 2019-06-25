@@ -20,18 +20,6 @@ class Session():
         return self.query
 
 
-class MockManagedSession:
-
-    def __init__(self):
-        self._session = Session()
-
-    def __enter__(self):
-        return self._session
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
-
-
 class Columns():
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
@@ -148,7 +136,7 @@ def test_filterconnectionfield(monkeypatch):
 
 def test_resolve_attribute(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
-    monkeypatch.setattr(gobapi.graphql.filters, "ManagedSession", MockManagedSession)
+    monkeypatch.setattr(gobapi.graphql.filters, "get_session", Session)
     monkeypatch.setattr(gobapi.graphql.filters, "add_bronwaardes_to_results", lambda r, m, o, res: res)
 
     # Setup the relation model
@@ -234,7 +222,7 @@ def test_resolve_attribute_resolve_query(monkeypatch):
     session = Session()
 
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: session.query)
-    monkeypatch.setattr(gobapi.graphql.filters, "ManagedSession", MockManagedSession)
+    monkeypatch.setattr(gobapi.graphql.filters, "get_session", Session)
     monkeypatch.setattr(gobapi.graphql.filters, "add_bronwaardes_to_results", lambda r, m, o, res: res)
 
     # Setup the relation model
@@ -257,11 +245,8 @@ def test_resolve_inverse_attribute(monkeypatch):
     q = Query(Columns(src_id="1", src_volgnummer="1"))
     setattr(session, 'query', q)
 
-    managed_session = MockManagedSession()
-    managed_session._session = session
-
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: q)
-    monkeypatch.setattr(gobapi.graphql.filters, "ManagedSession", lambda: managed_session)
+    monkeypatch.setattr(gobapi.graphql.filters, "get_session", lambda: session)
     monkeypatch.setattr(gobapi.graphql.filters, "add_bronwaardes_to_results", lambda r, m, o, res: res)
 
     # Setup the relation model
