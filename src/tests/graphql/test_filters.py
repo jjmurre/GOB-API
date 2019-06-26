@@ -1,11 +1,13 @@
 import datetime
+from unittest import TestCase
+from unittest.mock import patch, MagicMock
 
 from sqlalchemy.sql.elements import AsBoolean
 from graphene_sqlalchemy import SQLAlchemyConnectionField
 from gobcore.typesystem.gob_secure_types import SecureString
-from gobapi.graphql.filters import _build_query, _build_query_inverse, FilterConnectionField, get_resolve_attribute, \
-    get_resolve_secure_attribute, _add_query_filter_kwargs, get_resolve_inverse_attribute, \
-    get_resolve_attribute_missing_relation, add_bronwaardes_to_results, gobmodel, gobsources
+from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute, \
+    get_resolve_secure_attribute, get_resolve_inverse_attribute, \
+    get_resolve_attribute_missing_relation, add_bronwaardes_to_results, gobmodel, gobsources, _extract_tuples
 from gobapi import storage
 from gobapi import session
 
@@ -24,6 +26,7 @@ class Columns():
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
+
 
 class Query():
     def __init__(self, c=None):
@@ -59,6 +62,7 @@ class Query():
     def all(self):
         return self.expr
 
+
 class Model():
     __tablename__ = "some_tablename"
 
@@ -72,90 +76,35 @@ class Model():
     def set_ref(self, ref_name):
         setattr(self, ref_name, {"_id": "id"})
 
-def test_add_query_filter_kwargs():
-    q = Query()
-    q = _add_query_filter_kwargs(q, Model("field", "anyvalue"), field=1)
-    assert(q.expr == "False")
 
+def test_build_query():
     q = Query()
-    q = _add_query_filter_kwargs(q, Model("field", "anyvalue"), field="anyvalue")
-    assert(q.expr == "True")
+    q = FilterConnectionField._build_query(q, Model("field", "anyvalue"), field=1)
+    assert (q.expr == "False")
 
     q = Query()
-    q = _add_query_filter_kwargs(q, Model("field", "anyvalue"), field="null")
-    assert(q.expr == "False")
+    q = FilterConnectionField._build_query(q, Model("field", "anyvalue"), field="anyvalue")
+    assert (q.expr == "True")
 
     q = Query()
-    q = _add_query_filter_kwargs(q, Model("field", None), field="null")
-    assert(q.expr == "True")
-
-def test_build_query(monkeypatch):
-    # Test with a relation model
-    rel = Model("src_id", "1")
-    setattr(rel, "c", Columns(dst_id="1", dst_volgnummer="1"))
+    q = FilterConnectionField._build_query(q, Model("field", "anyvalue"), field="null")
+    assert (q.expr == "False")
 
     q = Query()
-    q = _build_query(q, Model("field", None), rel, field="null")
-    assert(q.expr == "TrueJoined")
+    q = FilterConnectionField._build_query(q, Model("field", None), field="null")
+    assert (q.expr == "True")
 
-    # Test with seq nr
-    q = Query()
-    m = Model("field", None)
-    setattr(m, "__has_states__", True)
-    q = _build_query(q, m, rel, field="null")
-    assert(q.expr == "TrueAndJoined")
-
-def test_build_query_inverse(monkeypatch):
-    # Test with a relation model
-    rel = Model("dst_id", "1")
-    setattr(rel, "c", Columns(src_id="1", src_volgnummer="1"))
-
-    q = Query()
-    q = _build_query_inverse(q, Model("field", None), rel, field="null")
-    # Should not have "AND" joined
-    assert(q.expr == "TrueJoined")
-
-    # Should "AND" join with volgnummer
-    model = Model("field", None)
-    setattr(model, '__has_states__', True)
-    q = Query()
-    q = _build_query_inverse(q, model, rel, field="null")
-    assert(q.expr == "TrueAndJoined")
 
 def test_filterconnectionfield(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
     q = FilterConnectionField.get_query(Model("field", "anyvalue"), None, field="anyvalue")
-    assert(q.expr == "TrueTrue")
+    assert (q.expr == "TrueTrue")
 
     q = FilterConnectionField.get_query(Model("field", "anyvalue", datetime.datetime.now()), None, field="anyvalue")
-    assert(q.expr == "FalseTrue")
+    assert (q.expr == "FalseTrue")
 
     q = FilterConnectionField.get_query(Model("field", "anyvalue"), None, field="anyvalue", active=True)
-    assert(q.expr == "TruetrueTrue")
-
-
-def test_resolve_attribute(monkeypatch):
-    monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
-    monkeypatch.setattr(gobapi.graphql.filters, "get_session", Session)
-    monkeypatch.setattr(gobapi.graphql.filters, "add_bronwaardes_to_results", lambda r, m, o, res: res)
-
-    # Setup the relation model
-    rel = Model("src_id", "1")
-    setattr(rel, "src_volgnummer", "1")
-
-    m = Model("field", "anyvalue")
-    setattr(m, 'volgnummer', '1')
-    m.set_ref("ref")
-
-    r = get_resolve_attribute(rel, m)
-    assert(r(m, None, field=1) == "TrueFalseJoined")
-    assert(r(m, None, field="anyvalue") == "TrueTrueJoined")
-
-    m._id = "anotherid"
-    assert(r(m, None, field="anyvalue") == "TrueTrueJoined")
-
-    del m.ref["_id"]
-    assert(r(m, None, field="anyvalue") == 'TrueTrueJoined')
+    assert (q.expr == "TruetrueTrue")
 
 
 def test_resolve_attribute_missing_relation():
@@ -165,7 +114,7 @@ def test_resolve_attribute_missing_relation():
     a = Obj()
 
     f = get_resolve_attribute_missing_relation('someattr')
-    assert(f(a, None) == 'somevalue')
+    assert (f(a, None) == 'somevalue')
 
 
 def test_add_bronwaardes_to_results(monkeypatch):
@@ -173,13 +122,8 @@ def test_add_bronwaardes_to_results(monkeypatch):
         __tablename__ = "src_table"
         ref = [{'bronwaarde': 'sourceval'}, {'bronwaarde': 'sourceval_missing_relation'}]
 
-    class Model:
-        __tablename__ = 'model_table_name'
+    src_attr = 'ref'
 
-    class RelationTable:
-        __tablename__ = 'relation_table'
-
-    monkeypatch.setattr(gobapi.graphql.filters, 'get_reference_name_from_relation_table_name', lambda _: 'ref')
     monkeypatch.setattr(gobsources, '_relations', {
         'cat': {
             'collection': [{
@@ -196,7 +140,7 @@ def test_add_bronwaardes_to_results(monkeypatch):
     # Case 1. Two bronwaardes, for now we leave bronwaarde empty.
     result = model_table_type()
     results = [result]
-    res = add_bronwaardes_to_results(RelationTable(), Model(), Obj(), results)
+    res = add_bronwaardes_to_results(src_attr, Obj(), results)
     assert len(res) == 1
     assert getattr(res[0], 'bronwaarde') == ''
 
@@ -205,7 +149,7 @@ def test_add_bronwaardes_to_results(monkeypatch):
     results = [result]
     obj = Obj()
     obj.__setattr__('ref', {'bronwaarde': 'sourceval'})
-    res = add_bronwaardes_to_results(RelationTable(), Model(), obj, results)
+    res = add_bronwaardes_to_results(src_attr, obj, results)
     assert len(res) == 1
     assert getattr(res[0], 'bronwaarde') == 'sourceval'
 
@@ -214,60 +158,15 @@ def test_add_bronwaardes_to_results(monkeypatch):
     results = [result]
     obj = Obj()
     obj.__setattr__('ref', {'bronwaarde': 'geometrie'})
-    res = add_bronwaardes_to_results(RelationTable(), Model(), obj, results)
+    res = add_bronwaardes_to_results(src_attr, obj, results)
     assert len(res) == 1
     assert getattr(res[0], 'bronwaarde') == 'geometrie'
 
-def test_resolve_attribute_resolve_query(monkeypatch):
-    session = Session()
-
-    monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: session.query)
-    monkeypatch.setattr(gobapi.graphql.filters, "get_session", Session)
-    monkeypatch.setattr(gobapi.graphql.filters, "add_bronwaardes_to_results", lambda r, m, o, res: res)
-
-    # Setup the relation model
-    rel = Model("src_id", "1")
-    setattr(rel, "src_volgnummer", "1")
-
-    m = Model("field", "anyvalue")
-    setattr(m, 'volgnummer', '1')
-    m.set_ref("ref")
-
-    setattr(rel, '_id', '2')
-    setattr(m, '__has_states__', True)
-
-    r = get_resolve_attribute(rel, m)
-
-    assert(r(m, None, field="anyvalue") == 'TrueTrueAndJoined')
-
-def test_resolve_inverse_attribute(monkeypatch):
-    session = Session()
-    q = Query(Columns(src_id="1", src_volgnummer="1"))
-    setattr(session, 'query', q)
-
-    monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: q)
-    monkeypatch.setattr(gobapi.graphql.filters, "get_session", lambda: session)
-    monkeypatch.setattr(gobapi.graphql.filters, "add_bronwaardes_to_results", lambda r, m, o, res: res)
-
-    # Setup the relation model
-    rel = Model("dst_id", "1")
-    setattr(rel, "dst_volgnummer", "1")
-
-    m = Model("field", "anyvalue")
-    setattr(m, 'volgnummer', '1')
-    m.set_ref("ref")
-
-    setattr(rel, '_id', '2')
-    setattr(m, '__has_states__', True)
-
-    r = get_resolve_inverse_attribute(rel, m)
-
-    assert(r(m, None, field="anyvalue") == 'FalseTrueTrueTrueAndJoined')
 
 def test_resolve_secure_attribute(monkeypatch):
     monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
     monkeypatch.setattr(storage, "session", Session())
-    monkeypatch.setattr(gobapi.graphql.filters, "add_bronwaardes_to_results", lambda r, m, o, res: res)
+    monkeypatch.setattr(gobapi.graphql.filters, "add_bronwaardes_to_results", lambda s, o, res: res)
 
     # Setup the relation model
     rel = Model("src_id", "1")
@@ -280,4 +179,138 @@ def test_resolve_secure_attribute(monkeypatch):
     })
 
     r = get_resolve_secure_attribute("field", SecureString)
-    assert(r(m, None, field=1) == "**********")
+    assert (r(m, None, field=1) == "**********")
+
+
+class TestFilters(TestCase):
+
+    def test_extract_tuples(self):
+        input = [{'a': 1, 'b': 2, 'c': 3}, {'a': 4, 'b': 5, 'c': 6}, {'a': 7, 'b': 8}]
+
+        self.assertEqual([(1, 2), (4, 5), (7, 8)], _extract_tuples(input, ('a', 'b')))
+        self.assertEqual([(1, 3), (4, 6)], _extract_tuples(input, ('a', 'c')), 'Incomplete tuples should be ignored')
+        self.assertEqual([], _extract_tuples(input, ('a', 'd')), 'Incomplete tuples should be ignored')
+        self.assertEqual([(1,), (4,), (7,)], _extract_tuples(input, ('a',)), 'Should return single item tuples')
+        self.assertEqual([], _extract_tuples([], ('a',)), 'Empty input should result in empty output')
+
+    @patch("gobapi.graphql.filters.FilterConnectionField")
+    @patch("gobapi.graphql.filters.add_bronwaardes_to_results")
+    @patch("gobapi.graphql.filters._extract_tuples")
+    def test_resolve_attribute(self, mock_extract_tuples, mock_add_bronwaardes, mock_filterconnfield):
+        class Model():
+            _id = MagicMock()
+            volgnummer = '2'
+
+        class Object():
+            reference_field = {'bronwaarde': '1', '_id': '1', 'volgnummer': '2'}
+            __has_states__ = False
+
+        model = Model()
+        obj = Object()
+        info = MagicMock()
+        kwargs = {'a': '1', 'b': '2'}
+        src_attribute_name = 'reference_field'
+
+        resolve_attribute = get_resolve_attribute(model, src_attribute_name)
+        result = resolve_attribute(obj, info, **kwargs)
+
+        mock_filterconnfield.get_query.assert_called_with(model, info, **kwargs)
+        get_query_res = mock_filterconnfield.get_query.return_value
+        mock_extract_tuples.assert_called_with([obj.reference_field], ('id',))
+        get_query_res.filter.assert_called_with(model._id.in_.return_value)
+        filter_res = get_query_res.filter.return_value
+        mock_add_bronwaardes.assert_called_with(src_attribute_name, obj, filter_res.all.return_value)
+
+        self.assertEqual(mock_add_bronwaardes.return_value, result)
+
+    @patch("gobapi.graphql.filters.FilterConnectionField")
+    @patch("gobapi.graphql.filters.add_bronwaardes_to_results")
+    @patch("gobapi.graphql.filters._extract_tuples")
+    @patch("gobapi.graphql.filters.tuple_")
+    def test_resolve_attribute_with_states(self, mock_tuple_, mock_extract_tuples, mock_add_bronwaardes,
+                                           mock_filterconnfield):
+        class Model():
+            _id = '1'
+            volgnummer = '2'
+
+        class Object():
+            reference_field = {'bronwaarde': '1', '_id': '1', 'volgnummer': '2'}
+            __has_states__ = True
+
+        model = Model()
+        obj = Object()
+        info = MagicMock()
+        kwargs = {'a': '1', 'b': '2'}
+        src_attribute_name = 'reference_field'
+
+        resolve_attribute = get_resolve_attribute(model, src_attribute_name)
+        result = resolve_attribute(obj, info, **kwargs)
+
+        mock_filterconnfield.get_query.assert_called_with(model, info, **kwargs)
+        get_query_res = mock_filterconnfield.get_query.return_value
+        mock_extract_tuples.assert_called_with([obj.reference_field], ('id', 'volgnummer'))
+        mock_tuple_.assert_called_with('1', '2')
+        tuple_res = mock_tuple_.return_value
+        get_query_res.filter.assert_called_with(tuple_res.in_.return_value)
+        filter_res = get_query_res.filter.return_value
+        mock_add_bronwaardes.assert_called_with(src_attribute_name, obj, filter_res.all.return_value)
+
+        self.assertEqual(mock_add_bronwaardes.return_value, result)
+
+    @patch("gobapi.graphql.filters.FilterConnectionField")
+    def test_resolve_attribute_inverse(self, mock_filterconnfield):
+        class Model():
+            reference_field = MagicMock()
+
+        class Object():
+            _id = '1'
+            volgnummer = '2'
+            __has_states__ = False
+
+        model = Model()
+        obj = Object()
+        info = MagicMock()
+        kwargs = {'a': '1', 'b': '2'}
+        src_attribute_name = 'reference_field'
+        is_many = False
+
+        resolve_attribute = get_resolve_inverse_attribute(model, src_attribute_name, is_many)
+        result = resolve_attribute(obj, info, **kwargs)
+
+        mock_filterconnfield.get_query.assert_called_with(model, info, **kwargs)
+        get_query_res = mock_filterconnfield.get_query.return_value
+
+        model.reference_field.contains.assert_called_with({'id': '1'})
+
+        get_query_res.filter.assert_called_with(model.reference_field.contains.return_value)
+        filter_res = get_query_res.filter.return_value
+        self.assertEqual(filter_res.all.return_value, result)
+
+    @patch("gobapi.graphql.filters.FilterConnectionField")
+    def test_resolve_attribute_inverse_ismany_and_states(self, mock_filterconnfield):
+        class Model():
+            reference_field = MagicMock()
+
+        class Object():
+            _id = '1'
+            volgnummer = '2'
+            __has_states__ = True
+
+        model = Model()
+        obj = Object()
+        info = MagicMock()
+        kwargs = {'a': '1', 'b': '2'}
+        src_attribute_name = 'reference_field'
+        is_many = True
+
+        resolve_attribute = get_resolve_inverse_attribute(model, src_attribute_name, is_many)
+        result = resolve_attribute(obj, info, **kwargs)
+
+        mock_filterconnfield.get_query.assert_called_with(model, info, **kwargs)
+        get_query_res = mock_filterconnfield.get_query.return_value
+
+        model.reference_field.contains.assert_called_with([{'id': '1', 'volgnummer': '2'}])
+
+        get_query_res.filter.assert_called_with(model.reference_field.contains.return_value)
+        filter_res = get_query_res.filter.return_value
+        self.assertEqual(filter_res.all.return_value, result)

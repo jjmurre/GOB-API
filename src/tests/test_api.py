@@ -6,7 +6,11 @@ As it is a unit test all external dependencies are mocked
 """
 import importlib
 import os
+from unittest import TestCase
 from unittest.mock import patch
+
+from gobapi.api import API_INFRA_SERVICES
+from gobapi.api import GOBFlask
 
 def noop(*args):
     pass

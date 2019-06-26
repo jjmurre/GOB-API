@@ -15,19 +15,19 @@ import sqlalchemy
 from sqlalchemy.dialects import postgresql
 
 from gobcore.model import GOBModel
-from gobcore.model.relations import get_relation_name, get_fieldnames_for_missing_relations
+from gobcore.model.relations import get_fieldnames_for_missing_relations
 from gobcore.model.sa.gob import models
 from gobcore.typesystem import GOB_SECURE_TYPES, get_gob_type
 
 from gobapi.graphql import graphene_type, exclude_fields
 from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute, get_resolve_secure_attribute, \
-    get_resolve_inverse_attribute, FilterInverseConnectionField, get_resolve_attribute_missing_relation
+    get_resolve_inverse_attribute, get_resolve_attribute_missing_relation
 from gobapi.graphql.scalars import DateTime, GeoJSON
 
 # Use the GOB model to generate the GraphQL query
 model = GOBModel()
 connection_fields = {}  # FilterConnectionField() per collection
-inverse_connection_fields = {}  # FilterInverseConnectionField()
+inverse_connection_fields = {}  # FilterConnectionField() per collection without bronwaardes
 
 # Generation of GraphQL schema goes past the default recursion limit of 1000 (something in Graphene)
 sys.setrecursionlimit(1500)
@@ -179,7 +179,7 @@ def get_graphene_query():
             **{connection["field_name"]: connection["connection_field"] for connection in connections},
             **{connection["field_name"]: connection["connection_field"] for connection in inverse_connections},
             **get_secure_resolvers(catalog_name, collection_name, sec_attributes),
-            **get_relation_resolvers(catalog_name, collection_name, connections),
+            **get_relation_resolvers(connections),
             **get_inverse_relation_resolvers(inverse_connections),
             **get_missing_relation_resolvers(missing_rels),
             **{rel: graphene.JSONString for rel in missing_rels},
@@ -206,7 +206,7 @@ def get_graphene_query():
         connection_fields[collection_name] = FilterConnectionField(rel_connection_class, **attributes)
 
         # Use root_connection_class for inverse relations as well. No need for bronwaardes here.
-        inverse_connection_fields[collection_name] = FilterInverseConnectionField(root_connection_class, **attributes)
+        inverse_connection_fields[collection_name] = FilterConnectionField(root_connection_class, **attributes)
         base_models[collection_name] = base_model
 
     Query = type("Query", (graphene.ObjectType,),
@@ -264,16 +264,13 @@ def get_inverse_relation_resolvers(inverse_connections):
     resolvers = {}
 
     for connection in inverse_connections:
-        relation_table = get_relation_name(
-            model,
-            connection['src_catalog'],
-            connection['src_collection'],
-            connection['src_relation_name'],
-        )
+        collection = model._data[connection['src_catalog']]['collections'][connection['src_collection']]
+        is_many = collection['attributes'][connection['src_relation_name']]['type'] == 'GOB.ManyReference'
 
         resolvers[f"resolve_{connection['field_name']}"] = get_resolve_inverse_attribute(
-            models[f'rel_{relation_table}'],
             models[model.get_table_name(connection['src_catalog'], connection['src_collection'])],
+            connection['src_relation_name'],
+            is_many,
         )
     return resolvers
 
@@ -287,19 +284,13 @@ def get_missing_relation_resolvers(missing_relations):
     return resolvers
 
 
-def get_relation_resolvers(src_catalog_name, src_collection_name, connections):
+def get_relation_resolvers(connections):
     resolvers = {}
     for connection in connections:
-        # Get the relations table name for the relation
-        relation_table = get_relation_name(
-            model,
-            src_catalog_name,
-            src_collection_name,
-            connection['field_name'])
         try:
             resolvers[f"resolve_{connection['field_name']}"] = get_resolve_attribute(
-                models[f'rel_{relation_table}'],
-                models[connection['dst_name']])
+                models[connection['dst_name']],
+                connection['field_name'])
         except KeyError:
             pass
     return resolvers

@@ -69,17 +69,20 @@ class TestGraphqlSchema(TestCase):
             # Return key
             return item
 
-    @patch("gobapi.graphql.schema.get_relation_name")
     @patch("gobapi.graphql.schema.get_resolve_inverse_attribute")
     @patch("gobapi.graphql.schema.model")
     @patch("gobapi.graphql.schema.models", MockModels())
-    def test_get_inverse_relation_resolvers(self, mock_model, mock_resolve, mock_get_name):
+    def test_get_inverse_relation_resolvers(self, mock_model, mock_resolve):
         connections = [
             {'src_catalog': 'cata', 'src_collection': 'cola', 'src_relation_name': 'relation_a', 'field_name': 'field_a'},
             {'src_catalog': 'catb', 'src_collection': 'colb', 'src_relation_name': 'relation_b', 'field_name': 'field_b'},
         ]
         mock_model.get_table_name.side_effect = ['table_name_a', 'table_name_b']
-        mock_get_name.side_effect = ['relation_name_a', 'relation_name_b']
+        mock_model._data = {
+            'cata': { 'collections': { 'cola': { 'attributes': { 'relation_a': { 'type': 'GOB.ManyReference'}}}}},
+            'catb': { 'collections': { 'colb': { 'attributes': { 'relation_b': { 'type': 'GOB.Reference'}}}}},
+
+        }
         mock_resolve.side_effect = ['resolver a', 'resolver b']
 
         result = get_inverse_relation_resolvers(connections)
@@ -89,14 +92,9 @@ class TestGraphqlSchema(TestCase):
         }
         self.assertEqual(expected_result, result)
 
-        mock_get_name.assert_has_calls([
-            call(mock_model, 'cata', 'cola', 'relation_a'),
-            call(mock_model, 'catb', 'colb', 'relation_b'),
-        ])
-
         mock_resolve.assert_has_calls([
-            call('rel_relation_name_a', 'table_name_a'),
-            call('rel_relation_name_b', 'table_name_b'),
+            call('table_name_a', 'relation_a', True),
+            call('table_name_b', 'relation_b', False),
         ])
 
     @patch("gobapi.graphql.schema.model")
