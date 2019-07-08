@@ -99,6 +99,11 @@ def hal_response(data, links={}):
     return json.dumps(response, cls=APIGobTypeJSONEncoder), 200, {'Content-Type': 'application/json'}
 
 
+def stream_response(data):
+    response = _dict_to_camelcase(data)
+    return json.dumps(response, cls=APIGobTypeJSONEncoder)
+
+
 def not_found(msg):
     """Not found
 

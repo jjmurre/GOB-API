@@ -258,6 +258,20 @@ def get_entities(catalog, collection, offset, limit, view=None):
     :param limit:
     :return:
     """
+    all_entities, entity_convert = query_entities(catalog, collection, view)
+
+    # For views count is slow on large views
+    all_count = all_entities.count() if view is None else None
+
+    # Limit and offset for pagination
+    page_entities = all_entities.offset(offset).limit(limit).all()
+
+    entities = [entity_convert(entity) for entity in page_entities]
+
+    return entities, all_count
+
+
+def query_entities(catalog, collection, view):
     assert _Base
     session = get_session()
 
@@ -279,21 +293,13 @@ def get_entities(catalog, collection, offset, limit, view=None):
     else:
         all_entities = apply_filters(all_entities, filters)
 
-    # For views count is slow on large views
-    all_count = all_entities.count() if view is None else None
-
-    # Limit and offset for pagination
-    page_entities = all_entities.offset(offset).limit(limit).all()
-
     if view:
         entity_convert = _get_convert_for_table(table,
                                                 {**PUBLIC_META_FIELDS, **PRIVATE_META_FIELDS, **FIXED_COLUMNS})
     else:
         entity_convert = _get_convert_for_model(catalog, collection, model)
 
-    entities = [entity_convert(entity) for entity in page_entities]
-
-    return entities, all_count
+    return all_entities, entity_convert
 
 
 def get_collection_states(catalog, collection):
