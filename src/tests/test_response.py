@@ -7,6 +7,11 @@ As it is a unit test all external dependencies are mocked
 import importlib
 import datetime
 
+from unittest import TestCase
+from unittest.mock import patch
+
+from gobapi.response import stream_response
+
 class MockRequest:
     args = {}
     path = 'path'
@@ -120,3 +125,10 @@ def test_camelcase_converter(monkeypatch):
     assert(_dict_to_camelcase(adict) == {
         'camelCase1': [[{'camelCase2': 'camel_case'}]]
     })
+
+
+class TestStream(TestCase):
+
+    def test_stream(self):
+        result = stream_response({'some_key': 'some data'})
+        self.assertEqual(result, '{"someKey": "some data"}')

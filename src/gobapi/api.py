@@ -16,13 +16,12 @@ from flask_cors import CORS
 from gobcore.model import GOBModel
 from gobcore.views import GOBViews
 
-from gobapi.config import API_BASE_PATH, API_INFRA_SERVICES
+from gobapi.config import API_BASE_PATH
 from gobapi.response import hal_response, not_found, get_page_ref, stream_response
 from gobapi.states import get_states
 from gobapi.storage import connect, get_entities, get_entity, query_entities
 
 from gobapi.graphql.schema import schema
-from gobapi import infra
 from gobapi.session import shutdown_session
 
 
@@ -237,16 +236,6 @@ def _states():
 
 def _health():
     return 'Connectivity OK'
-
-
-class GOBFlask(Flask):
-    _infra_threads = None
-
-    def run(self, *args, **kwargs):
-        self._infra_threads = infra.start_all_services(
-            API_INFRA_SERVICES
-        )
-        super().run(*args, **kwargs)
 
 
 def get_app():
