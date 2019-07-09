@@ -10,19 +10,18 @@ The API can be started by get_app().run()
 
 """
 from flask_graphql import GraphQLView
-from flask import Flask, request
+from flask import Flask, request, Response
 from flask_cors import CORS
 
 from gobcore.model import GOBModel
 from gobcore.views import GOBViews
 
-from gobapi.config import API_BASE_PATH, API_INFRA_SERVICES
-from gobapi.response import hal_response, not_found, get_page_ref
+from gobapi.config import API_BASE_PATH
+from gobapi.response import hal_response, not_found, get_page_ref, stream_response
 from gobapi.states import get_states
-from gobapi.storage import connect, get_entities, get_entity
+from gobapi.storage import connect, get_entities, get_entity, query_entities
 
 from gobapi.graphql.schema import schema
-from gobapi import infra
 from gobapi.session import shutdown_session
 
 
@@ -118,6 +117,20 @@ def _entities(catalog_name, collection_name, page, page_size, view=None):
            }
 
 
+def _stream_entities(entities, convert):
+    yield("[")
+    empty = True
+    for entity in entities:
+        yield ("" if empty else ",") + stream_response(convert(entity))
+        empty = False
+    yield("]")
+
+
+def _ndjson_entities(entities, convert):
+    for entity in entities:
+        yield stream_response(convert(entity)) + "\n"
+
+
 def _collection(catalog_name, collection_name):
     """Returns the list of entities within the specified collection
 
@@ -134,14 +147,24 @@ def _collection(catalog_name, collection_name):
 
         view = request.args.get('view', None)
 
+        stream = request.args.get('stream', None) == "true"
+        ndjson = request.args.get('ndjson', None) == "true"
+
         # If a view is requested and doesn't exist return a 404
         if view and view not in GOBViews().get_views(catalog_name, collection_name):
             return not_found(f'{catalog_name}.{collection_name}?view={view} not found')
 
         view_name = f"{catalog_name}_{collection_name}_{view}" if view else None
 
-        result, links = _entities(catalog_name, collection_name, page, page_size, view_name)
-        return hal_response(data=result, links=links)
+        if stream:
+            entities, convert = query_entities(catalog_name, collection_name, view_name)
+            return Response(_stream_entities(entities, convert), mimetype='application/json')
+        elif ndjson:
+            entities, convert = query_entities(catalog_name, collection_name, view_name)
+            return Response(_ndjson_entities(entities, convert), mimetype='application/x-ndjson')
+        else:
+            result, links = _entities(catalog_name, collection_name, page, page_size, view_name)
+            return hal_response(data=result, links=links)
     else:
         return not_found(f'{catalog_name}.{collection_name} not found')
 
@@ -214,16 +237,6 @@ def _states():
 
 def _health():
     return 'Connectivity OK'
-
-
-class GOBFlask(Flask):
-    _infra_threads = None
-
-    def run(self, *args, **kwargs):
-        self._infra_threads = infra.start_all_services(
-            API_INFRA_SERVICES
-        )
-        super().run(*args, **kwargs)
 
 
 def get_app():

@@ -12,4 +12,4 @@ echo "Running unit tests"
 pytest
 
 echo "Running coverage tests"
-pytest --cov=gobapi --cov-report html --cov-fail-under=99 tests/
+pytest --cov=gobapi --cov-report html --cov-fail-under=100 tests/
