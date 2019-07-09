@@ -146,8 +146,9 @@ def _collection(catalog_name, collection_name):
         page_size = int(request.args.get('page_size', 100))
 
         view = request.args.get('view', None)
-        stream = request.args.get('stream', None)
-        ndjson = request.args.get('ndjson', None)
+
+        stream = request.args.get('stream', None) == "true"
+        ndjson = request.args.get('ndjson', None) == "true"
 
         # If a view is requested and doesn't exist return a 404
         if view and view not in GOBViews().get_views(catalog_name, collection_name):
@@ -155,12 +156,12 @@ def _collection(catalog_name, collection_name):
 
         view_name = f"{catalog_name}_{collection_name}_{view}" if view else None
 
-        if stream is not None:
+        if stream:
             entities, convert = query_entities(catalog_name, collection_name, view_name)
             return Response(_stream_entities(entities, convert), mimetype='application/json')
-        elif ndjson is not None:
+        elif ndjson:
             entities, convert = query_entities(catalog_name, collection_name, view_name)
-            return Response(_ndjson_entities(entities, convert), mimetype='application/json')
+            return Response(_ndjson_entities(entities, convert), mimetype='application/x-ndjson')
         else:
             result, links = _entities(catalog_name, collection_name, page, page_size, view_name)
             return hal_response(data=result, links=links)
