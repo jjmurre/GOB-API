@@ -9,7 +9,7 @@ import json
 from unittest import TestCase
 from unittest.mock import patch
 
-from gobapi.api import _stream_entities, _ndjson_entities, _collection
+from gobapi.api import _collection
 
 def noop(*args):
     pass
@@ -21,7 +21,7 @@ class MockFlask:
     def __init__(self, name):
         pass
 
-    def route(self, rule):
+    def route(self, rule, **kwargs):
         return noop
 
     def teardown_appcontext(self, func):
@@ -371,27 +371,9 @@ def test_wsgi(monkeypatch):
 
 class TestStreams(TestCase):
 
-    @patch('gobapi.api.stream_response')
-    def test_stream(self, mock_response):
-        mock_response.side_effect = lambda r: str(r)
-        entities = [{'a': 'b'}, 5, "s"]
-        convert = lambda e: json.dumps(e)
-        result = _stream_entities(entities, convert)
-        json_result = ' '.join([r for r in result])
-        self.assertEqual(json.loads(json_result) , entities)
-
-    @patch('gobapi.api.stream_response')
-    def test_ndjson(self, mock_response):
-        mock_response.side_effect = lambda r: str(r)
-        entities = [{'a': 'b'}, 5, "s"]
-        convert = lambda e: json.dumps(e)
-        result = _ndjson_entities(entities, convert)
-        json_result = [json.loads(r) for r in result]
-        self.assertEqual(json_result, entities)
-
     @patch('gobapi.api.request', mockRequest)
-    @patch('gobapi.api._ndjson_entities')
-    @patch('gobapi.api._stream_entities')
+    @patch('gobapi.api.ndjson_entities')
+    @patch('gobapi.api.stream_entities')
     @patch('gobapi.api.query_entities')
     @patch('gobapi.api.GOBModel')
     def test_collection(self, mock_gobmodel, mock_query, mock_stream, mock_ndjson):
@@ -409,3 +391,5 @@ class TestStreams(TestCase):
         }
         result = _collection('catalog', 'collection')
         mock_ndjson.assert_called()
+
+

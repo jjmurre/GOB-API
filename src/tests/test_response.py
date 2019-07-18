@@ -5,12 +5,12 @@ As it is a unit test all external dependencies are mocked
 
 """
 import importlib
-import datetime
+import json
 
 from unittest import TestCase
 from unittest.mock import patch
 
-from gobapi.response import stream_response
+from gobapi.response import stream_response, ndjson_entities, stream_entities
 
 class MockRequest:
     args = {}
@@ -132,3 +132,22 @@ class TestStream(TestCase):
     def test_stream(self):
         result = stream_response({'some_key': 'some data'})
         self.assertEqual(result, '{"someKey": "some data"}')
+
+    @patch('gobapi.response.stream_response')
+    def test_stream_entities(self, mock_response):
+        mock_response.side_effect = lambda r: str(r)
+        entities = [{'a': 'b'}, 5, "s"]
+        convert = lambda e: json.dumps(e)
+        result = stream_entities(entities, convert)
+        json_result = ' '.join([r for r in result])
+        self.assertEqual(json.loads(json_result) , entities)
+
+    @patch('gobapi.response.stream_response')
+    def test_ndjson_entities(self, mock_response):
+        mock_response.side_effect = lambda r: str(r)
+        entities = [{'a': 'b'}, 5, "s"]
+        convert = lambda e: json.dumps(e)
+        result = ndjson_entities(entities, convert)
+        json_result = [json.loads(r) for r in result]
+        self.assertEqual(json_result, entities)
+

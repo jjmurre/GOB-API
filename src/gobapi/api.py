@@ -17,12 +17,13 @@ from gobcore.model import GOBModel
 from gobcore.views import GOBViews
 
 from gobapi.config import API_BASE_PATH
-from gobapi.response import hal_response, not_found, get_page_ref, stream_response
+from gobapi.response import hal_response, not_found, get_page_ref, ndjson_entities, stream_entities
 from gobapi.states import get_states
 from gobapi.storage import connect, get_entities, get_entity, query_entities
 
 from gobapi.graphql.schema import schema
 from gobapi.session import shutdown_session
+from gobapi.graphql_streaming.api import GraphQLStreamingApi
 
 
 def _catalogs():
@@ -117,20 +118,6 @@ def _entities(catalog_name, collection_name, page, page_size, view=None):
            }
 
 
-def _stream_entities(entities, convert):
-    yield("[")
-    empty = True
-    for entity in entities:
-        yield ("" if empty else ",") + stream_response(convert(entity))
-        empty = False
-    yield("]")
-
-
-def _ndjson_entities(entities, convert):
-    for entity in entities:
-        yield stream_response(convert(entity)) + "\n"
-
-
 def _collection(catalog_name, collection_name):
     """Returns the list of entities within the specified collection
 
@@ -158,10 +145,10 @@ def _collection(catalog_name, collection_name):
 
         if stream:
             entities, convert = query_entities(catalog_name, collection_name, view_name)
-            return Response(_stream_entities(entities, convert), mimetype='application/json')
+            return Response(stream_entities(entities, convert), mimetype='application/json')
         elif ndjson:
             entities, convert = query_entities(catalog_name, collection_name, view_name)
-            return Response(_ndjson_entities(entities, convert), mimetype='application/x-ndjson')
+            return Response(ndjson_entities(entities, convert), mimetype='application/x-ndjson')
         else:
             result, links = _entities(catalog_name, collection_name, page, page_size, view_name)
             return hal_response(data=result, links=links)
@@ -276,6 +263,9 @@ def get_app():
 
     for route, view_func in ROUTES:
         app.route(rule=route)(view_func)
+
+    graphql_streaming = GraphQLStreamingApi()
+    app.route(rule=f'{API_BASE_PATH}/graphql/streaming/', methods=['POST'])(graphql_streaming.entrypoint)
 
     app.teardown_appcontext(shutdown_session)
 
