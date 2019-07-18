@@ -1,0 +1,2 @@
+[run]
+omit = gobapi/graphql_streaming/graphql2sql/grammar/*

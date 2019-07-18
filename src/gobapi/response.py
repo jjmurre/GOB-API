@@ -130,3 +130,17 @@ def get_page_ref(page, num_pages):
         args = request.args.copy()
         args['page'] = page
         return f'{request.path}?{urllib.parse.urlencode(args)}'
+
+
+def stream_entities(entities, convert):
+    yield("[")
+    empty = True
+    for entity in entities:
+        yield ("" if empty else ",") + stream_response(convert(entity))
+        empty = False
+    yield("]")
+
+
+def ndjson_entities(entities, convert):
+    for entity in entities:
+        yield stream_response(convert(entity)) + "\n"

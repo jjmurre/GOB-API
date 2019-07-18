@@ -15,6 +15,19 @@ Every endpoint contains the links to explore the data in more detail.
 
 ## Local
 
+Make sure ANTLR4 is installed.
+The name of the ANTLR-executable is system-dependent. Sometimes it is called
+```antlr```, other times it is called ```antlr4```.
+The build script default is ```antlr4```. To change this, run
+
+    export ANTLR_CMD=antlr4
+
+Run
+
+    ./build.sh
+    
+to build generate the project files.
+
 Create a virtual environment:
 
     python3 -m venv venv
