@@ -139,7 +139,7 @@ class SqlGenerator:
         self.model = GOBModel()
 
     def to_snake(self, camel: str):
-        return re.sub('([A-Z]+)', r'_\1', camel).lower()
+        return re.sub('([A-Z])', r'_\1', camel).lower()
 
     def _format_select_exprs(self, fields: list, prefix: str):
         return [f'{prefix}.{self.to_snake(field)}' for field in fields]
