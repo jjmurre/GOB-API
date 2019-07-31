@@ -16,6 +16,7 @@ from sqlalchemy_filters import apply_filters
 from sqlalchemy.sql import label
 
 from gobcore.model import GOBModel
+from gobcore.model.relations import get_relation_name
 from gobcore.model.sa.gob import Base
 from gobcore.typesystem import get_gob_type, get_gob_type_from_sql_type
 from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS, FIELD
@@ -72,14 +73,29 @@ def _get_table_and_model(catalog_name, collection_name, view=None):
 
 
 def _create_reference_link(reference, catalog, collection):
-    identificatie = reference.get(FIELD.ID)
+    identificatie = reference.get(FIELD.REFERENCE_ID)
     if identificatie:
         return {'_links': {'self': {'href': f'{API_BASE_PATH}/{catalog}/{collection}/{identificatie}/'}}}
     else:
         return {}
 
 
-def _create_reference(entity, field, spec):
+def _create_external_reference_link(entity, field, entity_catalog, entity_collection):
+    identificatie = getattr(entity, FIELD.ID)
+    field_path = field.replace('_', '-')
+    return {'href': f'{API_BASE_PATH}/{entity_catalog}/{entity_collection}/{identificatie}/{field_path}/'}
+
+
+def _create_reference(entity, field, spec, entity_catalog=None, entity_collection=None):
+    """Create an embedded reference
+
+    :param entity: The entity
+    :param field: The field a reference is being created for
+    :param spec: The field specification
+    :param catalog: The catalog of the entity
+    :param collection: The collection of the entity
+    :return:
+    """
     # Get the dict or array of dicts from a (Many)Reference field
     embedded = _to_gob_value(entity, field, spec).to_db
 
@@ -149,9 +165,18 @@ def _get_convert_for_model(catalog, collection, model, meta={}, private_attribut
         }
         # Add references to other entities, exclude private_attributes unless specifically requested
         if model['references']:
-            hal_entity['_embedded'] = {k: _create_reference(entity, k, v)
+            hal_entity['_embedded'] = {k: _create_reference(entity, k, v, catalog, collection)
                                        for k, v in model['references'].items()
-                                       if (not k.startswith('_') and not v.get('hidden')) or private_attributes}
+                                       if k not in model.get('very_many_references', {}).keys()
+                                       and (not k.startswith('_') and not v.get('hidden')) or private_attributes}
+
+            # Delete embedded from the entity if no references are added
+            if not hal_entity['_embedded']:
+                del hal_entity['_embedded']
+
+        if model.get('very_many_references'):
+            hal_entity['_links'].update({k: _create_external_reference_link(entity, k, catalog, collection)
+                                        for k, v in model['very_many_references'].items()})
 
         return hal_entity
     # Get the attributes which are not a reference, exclude private_attributes unless specifically requested
@@ -247,7 +272,7 @@ def isReference(column_name):
     return column_name.startswith(('_ref', '_mref'))
 
 
-def get_entities(catalog, collection, offset, limit, view=None):
+def get_entities(catalog, collection, offset, limit, view=None, reference_name=None, src_id=None):
     """Entities
 
     Returns the list of entities within a collection.
@@ -256,9 +281,13 @@ def get_entities(catalog, collection, offset, limit, view=None):
     :param collection_name:
     :param offset:
     :param limit:
+    :param view: optional view for the collection
+    :param reference_name: optional reference_name, will return entities for a specific relation
+    :param src_id: optional e.g. 1234
     :return:
     """
-    all_entities, entity_convert = query_entities(catalog, collection, view)
+    all_entities, entity_convert = query_reference_entities(catalog, collection, reference_name, src_id) \
+        if reference_name else query_entities(catalog, collection, view)
 
     # For views count is slow on large views
     all_count = all_entities.count() if view is None else None
@@ -267,7 +296,6 @@ def get_entities(catalog, collection, offset, limit, view=None):
     page_entities = all_entities.offset(offset).limit(limit).all()
 
     entities = [entity_convert(entity) for entity in page_entities]
-
     return entities, all_count
 
 
@@ -298,6 +326,38 @@ def query_entities(catalog, collection, view):
                                                 {**PUBLIC_META_FIELDS, **PRIVATE_META_FIELDS, **FIXED_COLUMNS})
     else:
         entity_convert = _get_convert_for_model(catalog, collection, model)
+
+    return all_entities, entity_convert
+
+
+def query_reference_entities(catalog, collection, reference_name, src_id):
+    assert _Base
+    session = get_session()
+
+    gob_model = GOBModel()
+
+    rel_catalog_name = 'rel'
+    rel_collection_name = get_relation_name(gob_model, catalog, collection, reference_name)
+
+    rel_table, rel_model = _get_table_and_model(rel_catalog_name, rel_collection_name)
+
+    dst_catalog_name, dst_collection_name = gob_model.get_collection(
+        catalog, collection)['references'][reference_name]['ref'].split(':')
+
+    # Destination table and model
+    dst_table, dst_model = _get_table_and_model(dst_catalog_name, dst_collection_name)
+
+    query = session.query(dst_table) \
+                   .join(rel_table, dst_table._id == rel_table.dst_id) \
+                   .filter(rel_table.src_id == src_id)
+
+    # Exclude all records with date_deleted
+    all_entities = filter_deleted(query, dst_table)
+
+    # The default result is where expiration date is in the future or empty
+    all_entities = filter_active(all_entities, dst_table)
+
+    entity_convert = _get_convert_for_model(dst_catalog_name, dst_collection_name, dst_model)
 
     return all_entities, entity_convert
 

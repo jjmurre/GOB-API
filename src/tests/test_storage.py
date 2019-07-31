@@ -19,21 +19,21 @@ class MockEntity:
         self._id = '1'
         self.identificatie = '1'
         self.reference = {
-            FIELD.ID: '1',
+            FIELD.REFERENCE_ID: '1',
             'bronwaarde': '1'
         }
         self.manyreference = [
             {
-                FIELD.ID: '1',
+                FIELD.REFERENCE_ID: '1',
                 'bronwaarde': '1'
             },
             {
-                FIELD.ID: '2',
+                FIELD.REFERENCE_ID: '2',
                 'bronwaarde': '2'
             }
         ]
         self._private_reference = {
-            FIELD.ID: '1',
+            FIELD.REFERENCE_ID: '1',
             'bronwaarde': '1'
         }
         self.datum_begin_geldigheid = datetime.date.today() - datetime.timedelta(days=365)
@@ -43,6 +43,8 @@ class MockEntity:
         self._date_deleted = None
         self.volgnummer = 1
         self.max_seqnr = 1
+        self.src_id = 1
+        self.dst_id = 1
         for key in args:
             setattr(self, key, key)
 
@@ -51,6 +53,8 @@ class MockClasses:
     def __init__(self):
         self.catalog_collection1 = MockEntity()
         self.catalog_collection2 = MockEntity()
+        self.catalog_collection3 = MockEntity()
+        self.rel_relation_name = MockEntity()
 
 
 class MockBase:
@@ -152,6 +156,9 @@ mock_PUBLIC_META_FIELDS = {
 
 def mock_get_gobmodel():
     class model:
+        def get_catalog(self, catalog_name):
+            return catalog_name
+
         def get_collection(self, catalog_name, collection_name):
             return {
                 'collection1': {
@@ -249,6 +256,68 @@ def mock_get_gobmodel():
                             'ref': 'catalog:collection'
                         },
                     }
+                },
+                'collection3': {
+                    'entity_id': 'identificatie',
+                    'attributes': {
+                        'identificatie': {
+                            'type': 'GOB.String',
+                            'description': 'Unique id of the collection'
+                        },
+                        'attribute': {
+                            'type': 'GOB.String',
+                            'description': 'Some attribute'
+                        },
+                        'verymanyreference': {
+                            'type': 'GOB.VeryManyReference',
+                            'description': 'Reference array to another entity',
+                            'ref': 'catalog:collection2'
+                        },
+                    },
+                    'fields': {
+                        'identificatie': {
+                            'type': 'GOB.String',
+                            'description': 'Unique id of the collection'
+                        },
+                        'attribute': {
+                            'type': 'GOB.String',
+                            'description': 'Some attribute'
+                        },
+                        'verymanyreference': {
+                            'type': 'GOB.VeryManyReference',
+                            'description': 'Reference array to another entity',
+                            'ref': 'catalog:collection2'
+                        },
+                    },
+                    'references': {
+                        'verymanyreference': {
+                            'type': 'GOB.ManyReference',
+                            'description': 'Reference array to another entity',
+                            'ref': 'catalog:collection2'
+                        },
+                    },
+                    'very_many_references': {
+                        'verymanyreference': {
+                            'type': 'GOB.ManyReference',
+                            'description': 'Reference array to another entity',
+                            'ref': 'catalog:collection2'
+                        },
+                    }
+                },
+                'relation_name': {
+                    'entity_id': 'identificatie',
+                    'attributes': {
+                        'identificatie': {
+                            'type': 'GOB.String',
+                            'description': 'Unique id of the collection'
+                        },
+                    },
+                    'fields': {
+                        'identificatie': {
+                            'type': 'GOB.String',
+                            'description': 'Unique id of the collection'
+                        },
+                    },
                 }
             }[collection_name]
         def get_table_name(self, catalog_name, collection_name):
@@ -281,6 +350,8 @@ def before_each_storage_test(monkeypatch):
 
     monkeypatch.setattr(gobcore.model, 'GOBModel', mock_get_gobmodel)
     monkeypatch.setattr(gobcore.model.metadata, 'PUBLIC_META_FIELDS', mock_PUBLIC_META_FIELDS)
+
+    monkeypatch.setattr(gobcore.model.relations, 'get_relation_name', lambda m, a, o, r: 'relation_name')
 
     import gobapi.storage
     importlib.reload(gobapi.storage)
@@ -326,10 +397,10 @@ def test_entities_with_references(monkeypatch):
             'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
-            'reference': {'bronwaarde': '1', FIELD.ID: '1', '_links': {'self': {'href': '/gob/catalog/collection/1/'}}},
+            'reference': {'bronwaarde': '1', FIELD.REFERENCE_ID: '1', '_links': {'self': {'href': '/gob/catalog/collection/1/'}}},
             'manyreference': [
-                {'bronwaarde': '1', FIELD.ID: '1', '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
-                {'bronwaarde': '2', FIELD.ID: '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
+                {'bronwaarde': '1', FIELD.REFERENCE_ID: '1', '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
+                {'bronwaarde': '2', FIELD.REFERENCE_ID: '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
             ]
         }
     }], 1))
@@ -340,7 +411,7 @@ def test_entities_without_reference_id(monkeypatch):
     from gobapi.storage import get_entities
 
     mockEntity = MockEntity('identificatie', 'attribute')
-    mockEntity.reference[FIELD.ID] = None
+    mockEntity.reference[FIELD.REFERENCE_ID] = None
     MockEntities.all_entities = [
         mockEntity
     ]
@@ -352,10 +423,56 @@ def test_entities_without_reference_id(monkeypatch):
             'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
-            'reference': {FIELD.ID: None, 'bronwaarde': '1'},
+            'reference': {FIELD.REFERENCE_ID: None, 'bronwaarde': '1'},
             'manyreference': [
-                {FIELD.ID: '1', 'bronwaarde': '1' , '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
-                {FIELD.ID: '2', 'bronwaarde': '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
+                {FIELD.REFERENCE_ID: '1', 'bronwaarde': '1' , '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
+                {FIELD.REFERENCE_ID: '2', 'bronwaarde': '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
+            ]
+        }
+    }], 1))
+
+
+def test_entities_with_verymanyreferences(monkeypatch):
+    before_each_storage_test(monkeypatch)
+
+    from gobapi.storage import get_entities
+
+    mockEntity = MockEntity('identificatie', 'attribute')
+    MockEntities.all_entities = [
+        mockEntity
+    ]
+    # It should have a reference link to the verymanyreference
+    assert(get_entities('catalog', 'collection3', 0, 1) == ([{
+        'attribute': 'attribute',
+        'identificatie': 'identificatie',
+        '_links': {
+            'self': {'href': '/gob/catalog/collection3/1/'},
+            'verymanyreference': {'href': '/gob/catalog/collection3/1/verymanyreference/'}
+        }
+    }], 1))
+
+
+def test_reference_entities(monkeypatch):
+    before_each_storage_test(monkeypatch)
+
+    from gobapi.storage import get_entities
+
+    mockEntity = MockEntity('identificatie', 'attribute')
+    MockEntities.all_entities = [
+        mockEntity
+    ]
+    # A list of entities of catalog:collection2 should be returned
+    assert(get_entities('catalog', 'collection3', 0, 1, None, 'verymanyreference', '1') == ([{
+        'attribute': 'attribute',
+        'identificatie': 'identificatie',
+        '_links': {
+            'self': {'href': '/gob/catalog/collection2/1/'}
+        },
+        '_embedded': {
+            'reference': {'bronwaarde': '1', FIELD.REFERENCE_ID: '1', '_links': {'self': {'href': '/gob/catalog/collection/1/'}}},
+            'manyreference': [
+                {'bronwaarde': '1', FIELD.REFERENCE_ID: '1', '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
+                {'bronwaarde': '2', FIELD.REFERENCE_ID: '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
             ]
         }
     }], 1))
@@ -384,11 +501,11 @@ def test_entities_with_view(monkeypatch):
     # Add a reference to the table columns
     MockTable.columns = [MockColumn('identificatie'), MockColumn('attribute'), MockColumn('_ref_is_test_tse_tst')]
     mockEntity = MockEntity('identificatie', 'attribute', '_ref_is_test_tse_tst')
-    mockEntity._ref_is_test_tse_tst = {FIELD.ID: '1234'}
+    mockEntity._ref_is_test_tse_tst = {FIELD.REFERENCE_ID: '1234'}
     MockEntities.all_entities = [
         mockEntity
     ]
-    assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'identificatie': 'identificatie', '_embedded': {'is_test': {FIELD.ID: '1234', '_links': {'self': {'href': '/gob/catalog/collection/1234/'}}}}}], None))
+    assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') == ([{'attribute': 'attribute', 'identificatie': 'identificatie', '_embedded': {'is_test': {FIELD.REFERENCE_ID: '1234', '_links': {'self': {'href': '/gob/catalog/collection/1234/'}}}}}], None))
 
     # Reset the table columns
     MockTable.columns = [MockColumn('identificatie'), MockColumn('attribute'), MockColumn('meta')]

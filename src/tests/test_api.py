@@ -79,7 +79,7 @@ class MockGOBModel:
         return collection
 
 
-def mock_entities(catalog, collection, offset, limit, view=None):
+def mock_entities(catalog, collection, offset, limit, view=None, reference_name=None, src_id=None):
     global entities
 
     return entities, len(entities)
@@ -128,7 +128,7 @@ def before_each_api_test(monkeypatch):
 
     monkeypatch.setattr(gobapi.storage, 'connect', noop)
     monkeypatch.setattr(gobapi.storage, 'get_entities', mock_entities)
-    monkeypatch.setattr(gobapi.storage, 'get_entity', lambda catalog, collection, id, view: entity)
+    monkeypatch.setattr(gobapi.storage, 'get_entity', lambda catalog, collection, id, view=None: entity)
 
     monkeypatch.setattr(gobapi.states, 'get_states', lambda collections, offset, limit: ([{'id': '1', 'attribute': 'attribute'}], 1))
 
@@ -200,6 +200,17 @@ def test_entities_with_view(monkeypatch):
     from gobapi.api import _entities
     collection = 'collection'
     assert(_entities('catalog', 'collection', 1, 1, 'enhanced') == ({'page_size': 1, 'pages': 1, 'results': [], 'total_count': 0}, {'next': None, 'previous': None}))
+
+
+def test_reference_entities(monkeypatch):
+    global collection
+
+    before_each_api_test(monkeypatch)
+
+    from gobapi.api import _reference_entities
+
+    collection = {'references': {'reference': True}}
+    assert(_reference_entities('catalog', 'collection', 'reference', 1, 1, 1) == ({'page_size': 1, 'pages': 0, 'results': [], 'total_count': 0}, {'next': None, 'previous': None}))
 
 
 def test_entity(monkeypatch):
@@ -327,6 +338,43 @@ def test_collection_with_view(monkeypatch):
         ), 200, {'Content-Type': 'application/json'}))
 
 
+def test_reference_collection(monkeypatch):
+    global mockRequest
+    global catalog, collection
+    global entities, entity
+
+    before_each_api_test(monkeypatch)
+
+    from gobapi.api import _reference_collection
+    assert(_reference_collection('catalog', 'collection', '1234', 'reference') == 'catalog.collection not found')
+
+    catalog = 'catalog'
+    collection = {'references': {'reference': True}}
+
+    mockRequest.args = {}
+    assert(_reference_collection('catalog', 'collection', '1234', 'reference') == 'catalog.collection:1234 not found')
+
+    mockRequest.args = {
+        'page': 5,
+        'page_size': 10
+    }
+    entity = {'id': 1234}
+    collection = {'references': {'reference': False}}
+    assert(_reference_collection('catalog', 'collection', '1234', 'reference') == 'catalog.collection:1234:reference not found')
+
+    collection = {'references': {'reference': True}}
+    assert(_reference_collection('catalog', 'collection', '1234', 'reference') == (
+        ({
+             'page_size': 10,
+             'pages': 0,
+             'results': [],
+             'total_count': 0
+         },{
+             'next': None,
+             'previous': None}
+        ), 200, {'Content-Type': 'application/json'}))
+
+
 def test_states(monkeypatch):
     global mockRequest
     global catalog, collection
@@ -391,5 +439,3 @@ class TestStreams(TestCase):
         }
         result = _collection('catalog', 'collection')
         mock_ndjson.assert_called()
-
-

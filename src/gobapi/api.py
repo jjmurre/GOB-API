@@ -118,6 +118,45 @@ def _entities(catalog_name, collection_name, page, page_size, view=None):
            }
 
 
+def _reference_entities(src_catalog_name, src_collection_name, reference_name, src_id, page, page_size):
+    """Returns the entities for a reference with specified source entity
+
+    The page and page_size are used to calculate the offset and number of entities to return
+
+    A result, links tuple is returned.
+    Result is an object containing relevant metadata about the result
+    Links contain the references to any next or previous page
+
+    :param src_catalog_name: e.g. meetbouten
+    :param src_collection_name: e.g. metingen
+    :param reference_name: e.g. ligt_in_buurt
+    :param src_id: e.g. 1234
+    :param page: any page number, page numbering starts at 1
+    :param page_size: the number of entities per page
+    :return: (result, links)
+    """
+    assert (GOBModel().get_collection(src_catalog_name, src_collection_name)['references'].get(reference_name))
+    assert (page >= 1)
+    assert (page_size >= 1)
+
+    offset = (page - 1) * page_size
+
+    entities, total_count = get_entities(src_catalog_name, src_collection_name, offset=offset, limit=page_size,
+                                         view=None, reference_name=reference_name, src_id=src_id)
+
+    num_pages = (total_count + page_size - 1) // page_size
+
+    return {
+               'total_count': total_count,
+               'page_size': page_size,
+               'pages': num_pages,
+               'results': entities
+           }, {
+               'next': get_page_ref(page + 1, num_pages),
+               'previous': get_page_ref(page - 1, num_pages)
+           }
+
+
 def _collection(catalog_name, collection_name):
     """Returns the list of entities within the specified collection
 
@@ -179,6 +218,44 @@ def _entity(catalog_name, collection_name, entity_id, view=None):
         result = get_entity(catalog_name, collection_name, entity_id, view_name)
         return hal_response(result) if result is not None else not_found(
             f'{catalog_name}.{collection_name}:{entity_id} not found')
+    else:
+        return not_found(f'{catalog_name}.{collection_name} not found')
+
+
+def _reference_collection(catalog_name, collection_name, entity_id, reference_path):
+    """Returns the (very many) references from an entity within the specified collection
+    with the specified id
+
+    An list of references is returned.
+
+    :param catalog_name: e.g. meetbouten
+    :param collection_name: e.g. meting
+    :param entity_id: unique identifier of the entity
+    :param reference: unique identifier of the reference attribute e.g. ligt_in_buurt
+    :param view: the database view that's being used to get the entity, defaults to the entity table
+    :return:
+    """
+    model = GOBModel()
+    entity_collection = model.get_collection(catalog_name, collection_name)
+
+    if entity_collection:
+        # Get the reference
+        reference_name = reference_path.replace('-', '_')
+        reference = model.get_collection(catalog_name, collection_name)['references'].get(reference_name)
+        # Check if the source entity exists
+        entity = get_entity(catalog_name, collection_name, entity_id)
+
+        if entity and reference:
+            page = int(request.args.get('page', 1))
+            page_size = int(request.args.get('page_size', 100))
+
+            result, links = _reference_entities(catalog_name, collection_name, reference_name, entity_id,
+                                                page, page_size)
+            return hal_response(data=result, links=links)
+        elif not entity:
+            return not_found(f'{catalog_name}.{collection_name}:{entity_id} not found')
+        elif not reference:
+            return not_found(f'{catalog_name}.{collection_name}:{entity_id}:{reference_name} not found')
     else:
         return not_found(f'{catalog_name}.{collection_name} not found')
 
@@ -251,6 +328,7 @@ def get_app():
         (f'{API_BASE_PATH}/<catalog_name>/', _catalog),
         (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/', _collection),
         (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/<entity_id>/', _entity),
+        (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/<entity_id>/<reference_path>/', _reference_collection),
 
         # Get states with history for a list of collections
         (f'{API_BASE_PATH}/toestanden/', _states),
