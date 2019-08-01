@@ -19,7 +19,7 @@ from gobcore.views import GOBViews
 from gobapi.config import API_BASE_PATH
 from gobapi.response import hal_response, not_found, get_page_ref, ndjson_entities, stream_entities
 from gobapi.states import get_states
-from gobapi.storage import connect, get_entities, get_entity, query_entities
+from gobapi.storage import connect, get_entities, get_entity, query_entities, query_reference_entities
 
 from gobapi.graphql.schema import schema
 from gobapi.session import shutdown_session
@@ -249,13 +249,23 @@ def _reference_collection(catalog_name, collection_name, entity_id, reference_pa
             page = int(request.args.get('page', 1))
             page_size = int(request.args.get('page_size', 100))
 
-            result, links = _reference_entities(catalog_name, collection_name, reference_name, entity_id,
-                                                page, page_size)
-            return hal_response(data=result, links=links)
-        elif not entity:
-            return not_found(f'{catalog_name}.{collection_name}:{entity_id} not found')
-        elif not reference:
-            return not_found(f'{catalog_name}.{collection_name}:{entity_id}:{reference_name} not found')
+            stream = request.args.get('stream', None) == "true"
+            ndjson = request.args.get('ndjson', None) == "true"
+
+            if stream:
+                entities, convert = query_reference_entities(catalog_name, collection_name, reference_name, entity_id)
+                return Response(stream_entities(entities, convert), mimetype='application/json')
+            elif ndjson:
+                entities, convert = query_reference_entities(catalog_name, collection_name, reference_name, entity_id)
+                return Response(ndjson_entities(entities, convert), mimetype='application/x-ndjson')
+            else:
+                result, links = _reference_entities(catalog_name, collection_name, reference_name, entity_id,
+                                                    page, page_size)
+                return hal_response(data=result, links=links)
+
+        response = not_found(f'{catalog_name}.{collection_name}:{entity_id} not found') \
+            if not entity else not_found(f'{catalog_name}.{collection_name}:{entity_id}:{reference_name} not found')
+        return response
     else:
         return not_found(f'{catalog_name}.{collection_name} not found')
 

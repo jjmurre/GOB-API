@@ -9,7 +9,7 @@ import json
 from unittest import TestCase
 from unittest.mock import patch
 
-from gobapi.api import _collection
+from gobapi.api import _collection, _reference_collection
 
 def noop(*args):
     pass
@@ -438,4 +438,28 @@ class TestStreams(TestCase):
             'ndjson': 'true'
         }
         result = _collection('catalog', 'collection')
+        mock_ndjson.assert_called()
+
+    @patch('gobapi.api.request', mockRequest)
+    @patch('gobapi.api.ndjson_entities')
+    @patch('gobapi.api.stream_entities')
+    @patch('gobapi.api.query_reference_entities')
+    @patch('gobapi.api.get_entity')
+    @patch('gobapi.api.GOBModel')
+    def test_reference_collection(self, mock_gobmodel, mock_entity, mock_query, mock_stream, mock_ndjson):
+        mock_gobmodel = MockGOBModel
+        mock_entity.return_value = True
+
+        mock_query.side_effect = lambda cat, col, ref, entity_id: ([], lambda e: e)
+
+        mockRequest.args = {
+            'stream': 'true'
+        }
+        result = _reference_collection('catalog', 'collection', 'reference', '1234')
+        mock_stream.assert_called()
+
+        mockRequest.args = {
+            'ndjson': 'true'
+        }
+        result = _reference_collection('catalog', 'collection', 'reference', '1234')
         mock_ndjson.assert_called()
