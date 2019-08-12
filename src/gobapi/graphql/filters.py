@@ -174,8 +174,7 @@ def get_resolve_attribute(model, src_attribute_name):
             bronwaardes = [bronwaardes]
 
         query = FilterConnectionField.get_query(model, info, **kwargs)
-
-        if obj.__has_states__:
+        if model.__has_states__:
             ids = _extract_tuples(bronwaardes, ('id', 'volgnummer'))
             query = query.filter(tuple_(getattr(model, FIELD.ID), getattr(model, FIELD.SEQNR)).in_(ids))
         else:

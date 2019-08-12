@@ -168,7 +168,7 @@ def _get_convert_for_model(catalog, collection, model, meta={}, private_attribut
             hal_entity['_embedded'] = {k: _create_reference(entity, k, v, catalog, collection)
                                        for k, v in model['references'].items()
                                        if k not in model.get('very_many_references', {}).keys()
-                                       and (not k.startswith('_') and not v.get('hidden')) or private_attributes}
+                                       and ((not k.startswith('_') and not v.get('hidden')) or private_attributes)}
 
             # Delete embedded from the entity if no references are added
             if not hal_entity['_embedded']:

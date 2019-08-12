@@ -200,6 +200,7 @@ class TestFilters(TestCase):
         class Model():
             _id = MagicMock()
             volgnummer = '2'
+            __has_states__ = False
 
         class Object():
             reference_field = {'bronwaarde': '1', '_id': '1', 'volgnummer': '2'}
@@ -232,6 +233,7 @@ class TestFilters(TestCase):
         class Model():
             _id = '1'
             volgnummer = '2'
+            __has_states__ = True
 
         class Object():
             reference_field = {'bronwaarde': '1', '_id': '1', 'volgnummer': '2'}
