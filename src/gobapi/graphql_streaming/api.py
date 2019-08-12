@@ -59,9 +59,9 @@ class GraphQLStreamingApi():
         return result
 
     def entrypoint(self):
-
+        unfold = request.args.get('unfold') == 'true'
         request_data = json.loads(request.data.decode('utf-8'))
-        sql = GraphQL2SQL.graphql2sql(request_data['query'])
+        sql = GraphQL2SQL.graphql2sql(request_data['query'], unfold)
 
         session = get_session()
         entities = session.execute(text(sql))

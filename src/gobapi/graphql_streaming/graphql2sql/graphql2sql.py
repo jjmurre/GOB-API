@@ -131,12 +131,13 @@ class SqlGenerator:
     JSON_SEQ_NR = 'volgnummer'
     JSON_ID = 'id'
 
-    def __init__(self, visitor: GraphQLVisitor):
+    def __init__(self, visitor: GraphQLVisitor, unfold: bool):
         self.visitor = visitor
         self.selects = visitor.selects
         self.relation_parents = visitor.relationParents
         self.relation_info = {}
         self.model = GOBModel()
+        self.unfold = unfold
 
     def to_snake(self, camel: str):
         return re.sub('([A-Z])', r'_\1', camel).lower()
@@ -218,11 +219,14 @@ class SqlGenerator:
             joins_str = "\n".join(self.subjoins)
 
             on_clause = f"rels.{base_info['alias']}_id = {base_info['alias']}.{FIELD.ID}"
-            group_by = f"{base_info['alias']}.{FIELD.ID}"
 
             if base_info['has_states']:
                 on_clause += f" AND rels.{base_info['alias']}_{FIELD.SEQNR} = {base_info['alias']}.{FIELD.SEQNR}"
-                group_by += f", {base_info['alias']}.{FIELD.SEQNR}"
+
+            if not self.unfold:
+                group_by = self._default_group_by(base_info['alias'], base_info['has_states'])
+            else:
+                group_by = ""
 
             self.joins.append(f'''
 LEFT JOIN (
@@ -230,7 +234,7 @@ LEFT JOIN (
 {join_selects_str}
     FROM {base_info['tablename']} {base_info['alias']}
 {joins_str}
-    GROUP BY {group_by}
+    {group_by}
 ) rels
 ON {on_clause}''')
 
@@ -239,6 +243,20 @@ ON {on_clause}''')
         where = f"WHERE ({') AND ('.join(self.filter_conditions)})" if len(self.filter_conditions) > 0 else ""
         query = f"SELECT\n{select}\n{table_select}\n{where}"
         return query
+
+    def _default_group_by(self, relation_name: str, has_states: bool):
+        """Returns default GROUP BY expression for relation_name, grouping by ID and optionally by SEQNR
+
+        :param relation_name:
+        :param has_states:
+        :return:
+        """
+        group_by = f"GROUP BY {relation_name}.{FIELD.ID}"
+
+        if has_states:
+            group_by += f", {relation_name}.{FIELD.SEQNR}"
+
+        return group_by
 
     def _is_many(self, gobtype: str):
         return gobtype == f"GOB.{gob_types.ManyReference.name}"
@@ -253,6 +271,52 @@ ON {on_clause}''')
             else:
                 self._join_relation(relation_name, select['fields'], arguments)
             self.relcnt += 1
+
+    def _join_relation_many(self, src_relation_name: str, src_attr_name: str, dst_relation: dict, filter_active: bool):
+        """Joins relation src_relation with
+
+        :param src_relation_name:
+        :param src_attr_name:
+        :param dst_relation: Expected keys: tablename, alias, has_states
+        :param filter_active:
+
+        :return:
+        """
+        jsonb_join = f"LEFT JOIN jsonb_array_elements({src_relation_name}.{src_attr_name}) " \
+            f"rel_{src_attr_name}(item)" \
+            f" ON rel_{src_attr_name}.item->>'{self.JSON_ID}' IS NOT NULL"
+
+        left_join = f"LEFT JOIN {dst_relation['tablename']} {dst_relation['alias']} " \
+            f"ON {dst_relation['alias']}.{FIELD.ID} = rel_{src_attr_name}.item->>'{self.JSON_ID}'"
+
+        if dst_relation['has_states']:
+            jsonb_join += f" AND rel_{src_attr_name}.item->>'{self.JSON_SEQ_NR}' IS NOT NULL"
+            left_join += f" AND {dst_relation['alias']}.{FIELD.SEQNR} = " \
+                f"rel_{src_attr_name}.item->>'{self.JSON_SEQ_NR}'"
+
+        if filter_active:
+            left_join += f" AND ({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
+                f"OR {dst_relation['alias']}.{FIELD.EXPIRATION_DATE} > NOW())"
+
+        self.subjoins.append(jsonb_join)
+        self.subjoins.append(left_join)
+
+    def _join_relation_single(self, src_relation_name: str, src_attr_name: str, dst_relation: dict,
+                              filter_active: bool):
+        join = f"LEFT JOIN {dst_relation['tablename']} {dst_relation['alias']} " \
+            f"ON {src_relation_name}.{src_attr_name}->>'{self.JSON_ID}' IS NOT NULL " \
+            f"AND {src_relation_name}.{src_attr_name}->>'{self.JSON_ID}' = {dst_relation['alias']}.{FIELD.ID}"
+
+        if dst_relation['has_states']:
+            join += f" AND {src_relation_name}.{src_attr_name}->>'{self.JSON_SEQ_NR}' IS NOT NULL " \
+                f"AND {src_relation_name}.{src_attr_name}->>'{self.JSON_SEQ_NR}' " \
+                f"= {dst_relation['alias']}.{FIELD.SEQNR}"
+
+        if filter_active:
+            join += f" AND ({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
+                f"OR {dst_relation['alias']}.{FIELD.EXPIRATION_DATE} > NOW())"
+
+        self.subjoins.append(join)
 
     def _join_relation(self, relation_name: str, attributes: list, arguments: dict):
         parent = self.relation_parents[relation_name]
@@ -272,45 +336,92 @@ ON {on_clause}''')
         is_many = self._is_many(parent_info['collection']['attributes'][relation_attr_name]['type'])
 
         if is_many:
-            jsonb_join = f"LEFT JOIN jsonb_array_elements({parent_info['alias']}.{relation_attr_name}) " \
-                f"rel_{relation_attr_name}(item)" \
-                f" ON rel_{relation_attr_name}.item->>'{self.JSON_ID}' IS NOT NULL"
-
-            left_join = f"LEFT JOIN {dst_info['tablename']} {dst_info['alias']} " \
-                f"ON {dst_info['alias']}.{FIELD.ID} = rel_{relation_attr_name}.item->>'{self.JSON_ID}'"
-
-            if dst_info['has_states']:
-                jsonb_join += f" AND rel_{relation_attr_name}.item->>'{self.JSON_SEQ_NR}' IS NOT NULL"
-                left_join += f" AND {dst_info['alias']}.{FIELD.SEQNR} = " \
-                    f"rel_{relation_attr_name}.item->>'{self.JSON_SEQ_NR}'"
-
-            if arguments['active']:
-                left_join += f" AND ({dst_info['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
-                    f"OR {dst_info['alias']}.{FIELD.EXPIRATION_DATE} > NOW())"
-
-            self.subjoins.append(jsonb_join)
-            self.subjoins.append(left_join)
-
+            self._join_relation_many(parent_info['alias'], relation_attr_name, dst_info, arguments['active'])
         else:
-            join = f"LEFT JOIN {dst_info['tablename']} {dst_info['alias']} " \
-                f"ON {parent_info['alias']}.{relation_attr_name}->>'{self.JSON_ID}' IS NOT NULL " \
-                f"AND {parent_info['alias']}.{relation_attr_name}->>'{self.JSON_ID}' = {dst_info['alias']}.{FIELD.ID}"
+            self._join_relation_single(parent_info['alias'], relation_attr_name, dst_info, arguments['active'])
 
-            if dst_info['has_states']:
-                join += f" AND {parent_info['alias']}.{relation_attr_name}->>'{self.JSON_SEQ_NR}' IS NOT NULL " \
-                    f"AND {parent_info['alias']}.{relation_attr_name}->>'{self.JSON_SEQ_NR}' " \
-                    f"= {dst_info['alias']}.{FIELD.SEQNR}"
+        subjoin_select = f"json_build_object({json_attrs})"
 
-            if arguments['active']:
-                join += f" AND ({dst_info['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
-                    f"OR {dst_info['alias']}.{FIELD.EXPIRATION_DATE} > NOW())"
+        if not self.unfold:
+            # Aggregate if no unfold
+            subjoin_select = f"json_agg( {subjoin_select} )"
 
-            self.subjoins.append(join)
+        subjoin_select += f" {alias}"
 
-        self.subjoin_select_list.append(f"json_agg( json_build_object ( {json_attrs} )) {alias}")
+        self.subjoin_select_list.append(subjoin_select)
         self.select_expressions.append(f"rels.{alias}")
 
-    def _join_inverse_relation(self, relation_name: str, attributes: list, arguments: dict):
+    def _join_inverse_relation_many(self, src_relation: dict, dst_relation: dict, dst_attr_name: str, attrs: str,
+                                    alias: str):
+        """Creates an inverse join for dst_relation. Dst_relation has an attr dst_attr_name that has a many relation
+        to src_relation.
+
+        :param src_relation:
+        :param src_attr_name:
+        :param dst_relation:
+        :param attrs:
+        :param alias:
+        :return:
+        """
+        joinalias = f"invrel_{self.relcnt}"
+        selects = [f"{src_relation['alias']}.{FIELD.ID} {src_relation['alias']}{FIELD.ID}"]
+
+        if src_relation['has_states']:
+            selects.append(f"\t{src_relation['alias']}.{FIELD.SEQNR} {src_relation['alias']}_volgnummer")
+
+        select = f"json_build_object({attrs})"
+
+        if not self.unfold:
+            select = f"json_agg( {select} )"
+        select += f" {alias}"
+        selects.append(select)
+
+        s = ",".join(selects)
+
+        on_clause = f"{joinalias}.{src_relation['alias']}{FIELD.ID} = {src_relation['alias']}.{FIELD.ID}"
+
+        if not self.unfold:
+            group_by = self._default_group_by(src_relation['alias'], src_relation['has_states'])
+        else:
+            group_by = ""
+
+        if src_relation['has_states']:
+            on_clause += f" AND {joinalias}.{src_relation['alias']}_volgnummer = " \
+                f"{src_relation['alias']}.{FIELD.SEQNR}"
+
+        self.joins.append(f'''
+LEFT JOIN (
+    SELECT
+        {s}
+    FROM {dst_relation['tablename']} {dst_relation['alias']}
+    LEFT JOIN jsonb_array_elements({dst_relation['alias']}.{dst_attr_name}) rel_{dst_attr_name}(item)
+    ON rel_{dst_attr_name}.item->>'id' IS NOT NULL
+    LEFT JOIN {src_relation['tablename']} {src_relation['alias']}
+    ON {src_relation['alias']}.{FIELD.ID} = rel_{dst_attr_name}.item->>'id'
+    {group_by}
+) {joinalias}
+ON {on_clause}''')
+        self.select_expressions.append(f"{joinalias}.{alias}")
+
+    def _join_inverse_relation_single(self, src_relation: dict, dst_relation: dict, dst_attr_name: str,
+                                      filter_active: bool, alias: str):
+        join = f"LEFT JOIN {dst_relation['tablename']} {dst_relation['alias']} " \
+            f"ON {dst_relation['alias']}.{dst_attr_name}->>'{self.JSON_ID}' IS NOT NULL " \
+            f"AND {dst_relation['alias']}.{dst_attr_name}->>'{self.JSON_ID}' = {src_relation['alias']}.{FIELD.ID}"
+
+        if src_relation['has_states']:
+            join += f" AND {dst_relation['alias']}.{dst_attr_name}->>'{self.JSON_SEQ_NR}' IS NOT NULL " \
+                f"AND {dst_relation['alias']}.{dst_attr_name}->>'{self.JSON_SEQ_NR}' " \
+                f"= {src_relation['alias']}.{FIELD.SEQNR}"
+
+        if filter_active:
+            join += f" AND ({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
+                f"OR {dst_relation['alias']}.{FIELD.EXPIRATION_DATE} > NOW())"
+
+        self.subjoins.append(join)
+        self.select_expressions.append(f"rels.{alias}")
+
+    def _join_inverse_relation(self, relation_name: str, attributes: list, arguments: dict):  # noqa: C901
         parent = self.relation_parents[relation_name]
         parent_info = self._get_relation_info(parent)
 
@@ -329,54 +440,19 @@ ON {on_clause}''')
         is_many = self._is_many(dst_info['collection']['attributes'][relation_attr_name]['type'])
 
         if is_many:
-            joinalias = f"invrel_{self.relcnt}"
-            selects = [f"{parent_info['alias']}.{FIELD.ID} {parent_info['alias']}{FIELD.ID}"]
-
-            if parent_info['has_states']:
-                selects.append(f"\t{parent_info['alias']}.{FIELD.SEQNR} {parent_info['alias']}_volgnummer")
-
-            selects.append(f"json_agg( json_build_object( {json_attrs} ) ) {alias}")
-            s = ",".join(selects)
-
-            on_clause = f"{joinalias}.{parent_info['alias']}{FIELD.ID} = {parent_info['alias']}.{FIELD.ID}"
-            group_by = f"{parent_info['alias']}.{FIELD.ID}"
-
-            if parent_info['has_states']:
-                on_clause += f" AND {joinalias}.{parent_info['alias']}_volgnummer = " \
-                    f"{parent_info['alias']}.{FIELD.SEQNR}"
-                group_by += f", {parent_info['alias']}.volgnummer"
-
-            self.joins.append(f'''
-LEFT JOIN (
-    SELECT
-        {s}
-    FROM {dst_info['tablename']} {dst_info['alias']}
-    LEFT JOIN jsonb_array_elements({dst_info['alias']}.{relation_attr_name}) rel_{relation_attr_name}(item)
-    ON rel_{relation_attr_name}.item->>'id' IS NOT NULL
-    LEFT JOIN {parent_info['tablename']} {parent_info['alias']}
-    ON {parent_info['alias']}.{FIELD.ID} = rel_{relation_attr_name}.item->>'id'
-    GROUP BY {group_by}
-) {joinalias}
-ON {on_clause}''')
-            self.select_expressions.append(f"{joinalias}.{alias}")
+            self._join_inverse_relation_many(parent_info, dst_info, relation_attr_name, json_attrs, alias)
         else:
-            join = f"LEFT JOIN {dst_info['tablename']} {dst_info['alias']} " \
-                f"ON {dst_info['alias']}.{relation_attr_name}->>'{self.JSON_ID}' IS NOT NULL " \
-                f"AND {dst_info['alias']}.{relation_attr_name}->>'{self.JSON_ID}' = {parent_info['alias']}.{FIELD.ID}"
+            self._join_inverse_relation_single(parent_info, dst_info, relation_attr_name, arguments['active'], alias)
 
-            if parent_info['has_states']:
-                join += f" AND {dst_info['alias']}.{relation_attr_name}->>'{self.JSON_SEQ_NR}' IS NOT NULL " \
-                    f"AND {dst_info['alias']}.{relation_attr_name}->>'{self.JSON_SEQ_NR}' " \
-                    f"= {parent_info['alias']}.{FIELD.SEQNR}"
+        subjoin_select = f"json_build_object({json_attrs})"
 
-            if arguments['active']:
-                join += f" AND ({dst_info['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
-                    f"OR {dst_info['alias']}.{FIELD.EXPIRATION_DATE} > NOW())"
+        if not self.unfold:
+            # Aggregate if no unfold
+            subjoin_select = f"json_agg( {subjoin_select} )"
 
-            self.subjoins.append(join)
-            self.select_expressions.append(f"rels.{alias}")
+        subjoin_select += f" {alias}"
 
-        self.subjoin_select_list.append(f"json_agg( json_build_object ( {json_attrs} )) {alias}")
+        self.subjoin_select_list.append(subjoin_select)
 
 
 class GraphQL2SQL:
@@ -387,7 +463,7 @@ class GraphQL2SQL:
     """
 
     @staticmethod
-    def graphql2sql(graphql_query: str):
+    def graphql2sql(graphql_query: str, unfold: bool):
         input_stream = InputStream(graphql_query)
         lexer = GraphQLLexer(input_stream)
         stream = CommonTokenStream(lexer)
@@ -396,5 +472,5 @@ class GraphQL2SQL:
         visitor = GraphQLVisitor()
         visitor.visit(tree)
 
-        generator = SqlGenerator(visitor)
+        generator = SqlGenerator(visitor, unfold)
         return generator.sql()
