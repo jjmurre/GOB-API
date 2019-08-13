@@ -188,13 +188,13 @@ FROM catalog_collectiona cola_0
             '''
         SELECT
             colb_0.identificatie,
-            invrel_0._some_nested_many_relation
+            invrel_0._inv_some_nested_many_relation_catalog_collectiona
         FROM catalog_collectionb colb_0
         LEFT JOIN (
             SELECT
                 colb_0._id colb_0_id,
                 colb_0.volgnummer colb_0_volgnummer,
-                json_agg( json_build_object ( 'identificatie', cola_0.identificatie )) _some_nested_many_relation
+                json_agg( json_build_object ( 'identificatie', cola_0.identificatie )) _inv_some_nested_many_relation_catalog_collectiona
             FROM catalog_collectiona cola_0
             LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_some_nested_many_relation(item)
             ON rel_some_nested_many_relation.item->>'id' IS NOT NULL
@@ -227,13 +227,13 @@ FROM catalog_collectiona cola_0
             '''
 SELECT
 	colb_0.identificatie,
-	rels._some_nested_relation
+	rels._inv_some_nested_relation_catalog_collectiona
 FROM catalog_collectionb colb_0 
 LEFT JOIN ( 
 	SELECT 
 		colb_0._id colb_0_id,
 		colb_0.volgnummer colb_0_volgnummer,
-		json_agg (json_build_object ('identificatie' , cola_0.identificatie)) _some_nested_relation
+		json_agg (json_build_object ('identificatie' , cola_0.identificatie)) _inv_some_nested_relation_catalog_collectiona
 		FROM catalog_collectionb colb_0
 		LEFT JOIN catalog_collectiona cola_0
 		ON cola_0.some_nested_relation->>'id' IS NOT NULL
@@ -353,13 +353,13 @@ WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ())
             '''
         SELECT
             colb_0.identificatie,
-            invrel_0._some_nested_many_relation
+            invrel_0._inv_some_nested_many_relation_catalog_collectiona
         FROM catalog_collectionb colb_0
         LEFT JOIN (
             SELECT
                 colb_0._id colb_0_id,
                 colb_0.volgnummer colb_0_volgnummer,
-                json_build_object ( 'identificatie', cola_0.identificatie ) _some_nested_many_relation
+                json_build_object ( 'identificatie', cola_0.identificatie ) _inv_some_nested_many_relation_catalog_collectiona
             FROM catalog_collectiona cola_0
             LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_some_nested_many_relation(item)
             ON rel_some_nested_many_relation.item->>'id' IS NOT NULL
@@ -391,13 +391,13 @@ WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ())
             '''
 SELECT
 	colb_0.identificatie,
-	rels._some_nested_relation
+	rels._inv_some_nested_relation_catalog_collectiona
 FROM catalog_collectionb colb_0 
 LEFT JOIN ( 
 	SELECT 
 		colb_0._id colb_0_id,
 		colb_0.volgnummer colb_0_volgnummer,
-		json_build_object ('identificatie' , cola_0.identificatie) _some_nested_relation
+		json_build_object ('identificatie' , cola_0.identificatie) _inv_some_nested_relation_catalog_collectiona
 		FROM catalog_collectionb colb_0
 		LEFT JOIN catalog_collectiona cola_0
 		ON cola_0.some_nested_relation->>'id' IS NOT NULL

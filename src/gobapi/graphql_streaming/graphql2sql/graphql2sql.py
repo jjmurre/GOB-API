@@ -435,7 +435,7 @@ ON {on_clause}''')
 
         json_attrs = ",".join([f"'{self.to_snake(attr)}', {dst_info['alias']}.{self.to_snake(attr)}"
                                for attr in attributes])
-        alias = f"_{relation_attr_name}"
+        alias = f"_inv_{relation_attr_name}_{dst_info['catalog_name']}_{dst_info['collection_name']}"
 
         is_many = self._is_many(dst_info['collection']['attributes'][relation_attr_name]['type'])
 
