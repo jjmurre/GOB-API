@@ -72,6 +72,42 @@ WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
         (
             '''
 {
+  collectiona(filterarg: 3, filterarg2: "strval") {
+    edges {
+      node {
+        identificatie
+      }
+    }
+  }
+}
+''', '''
+SELECT cola_0.identificatie 
+FROM catalog_collectiona cola_0
+WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
+AND (cola_0.filterarg = 3) AND (cola_0.filterarg2 = 'strval')
+'''
+        ),
+        (
+            '''
+{
+  collectiona(first: 20) {
+    edges {
+      node {
+        identificatie
+      }
+    }
+  }
+}
+''', '''
+SELECT cola_0.identificatie 
+FROM catalog_collectiona cola_0
+WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
+LIMIT 20
+'''
+        ),
+        (
+            '''
+{
   collectiona(active: false) {
     edges {
       node {

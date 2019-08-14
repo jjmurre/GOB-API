@@ -152,6 +152,29 @@ class SqlGenerator:
         args.update(arguments)
         return args
 
+    def _get_filter_arguments(self, arguments: dict) -> dict:
+        """Returns filter arguments from arguments dict
+
+        Changes GraphQL strings with double quotes to single quotes for Postgres
+
+        :param arguments:
+        :return:
+        """
+        ignore = ['first', 'last', 'before', 'after', 'sort', 'active']
+
+        def change_quotation(value):
+            strval = str(value)
+            double_quote = '"'
+            if strval[0] == double_quote and strval[-1] == double_quote:
+                return "'" + strval[1:-1] + "'"
+            return value
+
+        return {k: change_quotation(v) for k, v in arguments.items() if
+                k not in ignore and
+                not k.endswith('_desc') and
+                not k.endswith('_asc')
+                }
+
     def _reset(self):
         self.select_expressions = []
         self.joins = []
@@ -205,6 +228,8 @@ class SqlGenerator:
         if arguments['active']:
             self.filter_conditions.append(self._get_active(base_info['alias']))
 
+        self._add_filter_args_to_filter_conditions(arguments, base_info['alias'])
+
         del self.selects[base_collection]
 
         self._join_relations(self.selects)
@@ -241,8 +266,21 @@ ON {on_clause}''')
         select = ',\n'.join(self.select_expressions)
         table_select = ''.join(self.joins)
         where = f"WHERE ({') AND ('.join(self.filter_conditions)})" if len(self.filter_conditions) > 0 else ""
-        query = f"SELECT\n{select}\n{table_select}\n{where}"
+        limit = self._get_limit_expression(arguments)
+        query = f"SELECT\n{select}\n{table_select}\n{where}\n{limit}"
+
         return query
+
+    def _add_filter_args_to_filter_conditions(self, arguments: dict, base_alias: str):
+        filter_args = self._get_filter_arguments(arguments)
+
+        for k, v in filter_args.items():
+            self.filter_conditions.append(f"{base_alias}.{k} = {v}")
+
+    def _get_limit_expression(self, arguments: dict):
+        if 'first' in arguments:
+            return f"LIMIT {arguments['first']}"
+        return ""
 
     def _default_group_by(self, relation_name: str, has_states: bool):
         """Returns default GROUP BY expression for relation_name, grouping by ID and optionally by SEQNR
