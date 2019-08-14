@@ -92,7 +92,7 @@ class GraphQLVisitor(BaseVisitor):
                 return self.visitBooleanValue(ctx.value())
             else:
                 raise NotImplementedError("Not implemented value type")
-        else:
+        elif ctx.variable():
             return self.visitVariable(ctx.variable())
 
     def visitStringValue(self, ctx: GraphQLParser.StringValueContext):
