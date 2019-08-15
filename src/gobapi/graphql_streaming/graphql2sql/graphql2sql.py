@@ -131,13 +131,17 @@ class SqlGenerator:
     JSON_SEQ_NR = 'volgnummer'
     JSON_ID = 'id'
 
-    def __init__(self, visitor: GraphQLVisitor, unfold: bool):
+    def __init__(self, visitor: GraphQLVisitor):
+        """If unfold = False, information will be lost.
+
+        :param visitor:
+        :param unfold:
+        """
         self.visitor = visitor
         self.selects = visitor.selects
         self.relation_parents = visitor.relationParents
         self.relation_info = {}
         self.model = GOBModel()
-        self.unfold = unfold
 
     def to_snake(self, camel: str):
         return re.sub('([A-Z])', r'_\1', camel).lower()
@@ -218,8 +222,8 @@ class SqlGenerator:
         self._collect_relation_info(base_collection, base_collection)
         base_info = self._get_relation_info(base_collection)
 
-        self.select_expressions.extend(
-            self._format_select_exprs(self.selects[base_collection]['fields'], base_info['alias']))
+        select_fields = [FIELD.GOBID] + self.selects[base_collection]['fields']
+        self.select_expressions.extend(self._format_select_exprs(select_fields, base_info['alias']))
 
         arguments = self._get_arguments_with_defaults(self.selects[base_collection]['arguments'])
 
@@ -248,18 +252,12 @@ class SqlGenerator:
             if base_info['has_states']:
                 on_clause += f" AND rels.{base_info['alias']}_{FIELD.SEQNR} = {base_info['alias']}.{FIELD.SEQNR}"
 
-            if not self.unfold:
-                group_by = self._default_group_by(base_info['alias'], base_info['has_states'])
-            else:
-                group_by = ""
-
             self.joins.append(f'''
 LEFT JOIN (
     SELECT
 {join_selects_str}
     FROM {base_info['tablename']} {base_info['alias']}
 {joins_str}
-    {group_by}
 ) rels
 ON {on_clause}''')
 
@@ -282,20 +280,6 @@ ON {on_clause}''')
             return f"LIMIT {arguments['first']}"
         return ""
 
-    def _default_group_by(self, relation_name: str, has_states: bool):
-        """Returns default GROUP BY expression for relation_name, grouping by ID and optionally by SEQNR
-
-        :param relation_name:
-        :param has_states:
-        :return:
-        """
-        group_by = f"GROUP BY {relation_name}.{FIELD.ID}"
-
-        if has_states:
-            group_by += f", {relation_name}.{FIELD.SEQNR}"
-
-        return group_by
-
     def _is_many(self, gobtype: str):
         return gobtype == f"GOB.{gob_types.ManyReference.name}"
 
@@ -303,11 +287,12 @@ ON {on_clause}''')
         self.relcnt = 0
         for relation_name, select in relations.items():
             arguments = self._get_arguments_with_defaults(select['arguments'])
+            select_fields = [FIELD.GOBID] + select['fields']
 
             if relation_name.startswith('inv'):
-                self._join_inverse_relation(relation_name, select['fields'], arguments)
+                self._join_inverse_relation(relation_name, select_fields, arguments)
             else:
-                self._join_relation(relation_name, select['fields'], arguments)
+                self._join_relation(relation_name, select_fields, arguments)
             self.relcnt += 1
 
     def _join_relation_many(self, src_relation_name: str, src_attr_name: str, dst_relation: dict, filter_active: bool):
@@ -378,13 +363,7 @@ ON {on_clause}''')
         else:
             self._join_relation_single(parent_info['alias'], relation_attr_name, dst_info, arguments['active'])
 
-        subjoin_select = f"json_build_object({json_attrs})"
-
-        if not self.unfold:
-            # Aggregate if no unfold
-            subjoin_select = f"json_agg( {subjoin_select} )"
-
-        subjoin_select += f" {alias}"
+        subjoin_select = f"json_build_object({json_attrs}) {alias}"
 
         self.subjoin_select_list.append(subjoin_select)
         self.select_expressions.append(f"rels.{alias}")
@@ -407,21 +386,13 @@ ON {on_clause}''')
         if src_relation['has_states']:
             selects.append(f"\t{src_relation['alias']}.{FIELD.SEQNR} {src_relation['alias']}_volgnummer")
 
-        select = f"json_build_object({attrs})"
+        select = f"json_build_object({attrs}) {alias}"
 
-        if not self.unfold:
-            select = f"json_agg( {select} )"
-        select += f" {alias}"
         selects.append(select)
 
         s = ",".join(selects)
 
         on_clause = f"{joinalias}.{src_relation['alias']}{FIELD.ID} = {src_relation['alias']}.{FIELD.ID}"
-
-        if not self.unfold:
-            group_by = self._default_group_by(src_relation['alias'], src_relation['has_states'])
-        else:
-            group_by = ""
 
         if src_relation['has_states']:
             on_clause += f" AND {joinalias}.{src_relation['alias']}_volgnummer = " \
@@ -436,7 +407,6 @@ LEFT JOIN (
     ON rel_{dst_attr_name}.item->>'id' IS NOT NULL
     LEFT JOIN {src_relation['tablename']} {src_relation['alias']}
     ON {src_relation['alias']}.{FIELD.ID} = rel_{dst_attr_name}.item->>'id'
-    {group_by}
 ) {joinalias}
 ON {on_clause}''')
         self.select_expressions.append(f"{joinalias}.{alias}")
@@ -482,13 +452,7 @@ ON {on_clause}''')
         else:
             self._join_inverse_relation_single(parent_info, dst_info, relation_attr_name, arguments['active'], alias)
 
-        subjoin_select = f"json_build_object({json_attrs})"
-
-        if not self.unfold:
-            # Aggregate if no unfold
-            subjoin_select = f"json_agg( {subjoin_select} )"
-
-        subjoin_select += f" {alias}"
+        subjoin_select = f"json_build_object({json_attrs}) {alias}"
 
         self.subjoin_select_list.append(subjoin_select)
 
@@ -501,7 +465,14 @@ class GraphQL2SQL:
     """
 
     @staticmethod
-    def graphql2sql(graphql_query: str, unfold: bool):
+    def graphql2sql(graphql_query: str):
+        """Returns a tuple (sql, relation_parents), where sql is the generated sql and relation_parents is a dict
+        containing the hierarchy of the relations in this query, so that the result set can be reconstructed as one
+        object with nested relations.
+
+        :param graphql_query:
+        :return:
+        """
         input_stream = InputStream(graphql_query)
         lexer = GraphQLLexer(input_stream)
         stream = CommonTokenStream(lexer)
@@ -510,5 +481,5 @@ class GraphQL2SQL:
         visitor = GraphQLVisitor()
         visitor.visit(tree)
 
-        generator = SqlGenerator(visitor, unfold)
-        return generator.sql()
+        generator = SqlGenerator(visitor)
+        return generator.sql(), visitor.relationParents
