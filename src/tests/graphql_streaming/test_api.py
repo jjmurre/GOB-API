@@ -83,7 +83,7 @@ class TestGraphQLStreaming(TestCase):
         mock_graphql2sql.graphql2sql.return_value = 'parsed query'
 
         self.api.entrypoint()
-        mock_graphql2sql.graphql2sql.assert_called_with("some query")
+        mock_graphql2sql.graphql2sql.assert_called_with("some query", False)
         mock_get_session.return_value.execute.assert_called_with('text_parsed query')
 
         mock_response.assert_called_with(mock_ndjson_entities.return_value, mimetype='application/x-ndjson')

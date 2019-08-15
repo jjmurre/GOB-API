@@ -72,6 +72,42 @@ WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
         (
             '''
 {
+  collectiona(filterarg: 3, filterarg2: "strval") {
+    edges {
+      node {
+        identificatie
+      }
+    }
+  }
+}
+''', '''
+SELECT cola_0.identificatie 
+FROM catalog_collectiona cola_0
+WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
+AND (cola_0.filterarg = 3) AND (cola_0.filterarg2 = 'strval')
+'''
+        ),
+        (
+            '''
+{
+  collectiona(first: 20) {
+    edges {
+      node {
+        identificatie
+      }
+    }
+  }
+}
+''', '''
+SELECT cola_0.identificatie 
+FROM catalog_collectiona cola_0
+WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
+LIMIT 20
+'''
+        ),
+        (
+            '''
+{
   collectiona(active: false) {
     edges {
       node {
@@ -188,13 +224,13 @@ FROM catalog_collectiona cola_0
             '''
         SELECT
             colb_0.identificatie,
-            invrel_0._some_nested_many_relation
+            invrel_0._inv_some_nested_many_relation_catalog_collectiona
         FROM catalog_collectionb colb_0
         LEFT JOIN (
             SELECT
                 colb_0._id colb_0_id,
                 colb_0.volgnummer colb_0_volgnummer,
-                json_agg( json_build_object ( 'identificatie', cola_0.identificatie )) _some_nested_many_relation
+                json_agg( json_build_object ( 'identificatie', cola_0.identificatie )) _inv_some_nested_many_relation_catalog_collectiona
             FROM catalog_collectiona cola_0
             LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_some_nested_many_relation(item)
             ON rel_some_nested_many_relation.item->>'id' IS NOT NULL
@@ -227,13 +263,13 @@ FROM catalog_collectiona cola_0
             '''
 SELECT
 	colb_0.identificatie,
-	rels._some_nested_relation
+	rels._inv_some_nested_relation_catalog_collectiona
 FROM catalog_collectionb colb_0 
 LEFT JOIN ( 
 	SELECT 
 		colb_0._id colb_0_id,
 		colb_0.volgnummer colb_0_volgnummer,
-		json_agg (json_build_object ('identificatie' , cola_0.identificatie)) _some_nested_relation
+		json_agg (json_build_object ('identificatie' , cola_0.identificatie)) _inv_some_nested_relation_catalog_collectiona
 		FROM catalog_collectionb colb_0
 		LEFT JOIN catalog_collectiona cola_0
 		ON cola_0.some_nested_relation->>'id' IS NOT NULL
@@ -242,6 +278,169 @@ LEFT JOIN (
 		AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer
 		AND ( cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW ())
 		GROUP BY colb_0._id, colb_0.volgnummer
+	) rels
+ON rels.colb_0_id = colb_0._id 
+AND rels.colb_0_volgnummer = colb_0.volgnummer 
+WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ())
+         '''
+        ),
+    ]
+
+    test_cases_unfolded = [
+        (
+
+            '''
+{
+  collectiona(active: false) {
+    edges {
+      node {
+        identificatie
+        
+        someNestedRelation {
+            edges {
+                node {
+                    nestedIdentificatie
+                }
+            }
+        }
+      }
+    }
+  }
+}''',
+            '''
+        SELECT 
+            cola_0.identificatie,
+            rels._some_nested_relation
+        FROM catalog_collectiona cola_0 
+        LEFT JOIN (
+            SELECT 
+                cola_0._id cola_0_id, 
+                json_build_object ( 'nested_identificatie', colb_0.nested_identificatie ) _some_nested_relation
+            FROM catalog_collectiona cola_0 
+            LEFT JOIN catalog_collectionb colb_0 
+            ON cola_0.some_nested_relation->>'id' IS NOT NULL 
+            AND cola_0.some_nested_relation->>'id' = colb_0._id 
+            AND cola_0.some_nested_relation->>'volgnummer' IS NOT NULL 
+            AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer 
+            AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
+        ) rels 
+        ON rels.cola_0_id = cola_0._id
+         '''
+
+        ),
+        (
+            '''
+{
+  collectiona(active: false) {
+    edges {
+      node {
+        identificatie
+        
+        someNestedManyRelation {
+            edges {
+                node {
+                    nestedIdentificatie
+                }
+            }
+        }
+      }
+    }
+  }
+}''',
+            '''
+        SELECT 
+            cola_0.identificatie,
+            rels._some_nested_many_relation
+        FROM catalog_collectiona cola_0 
+        LEFT JOIN (
+            SELECT 
+                cola_0._id cola_0_id, 
+                json_build_object ( 'nested_identificatie', colb_0.nested_identificatie ) _some_nested_many_relation
+            FROM catalog_collectiona cola_0 
+            LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_some_nested_many_relation(item) 
+            ON rel_some_nested_many_relation.item->>'id' IS NOT NULL 
+            AND rel_some_nested_many_relation.item->>'volgnummer' IS NOT NULL 
+            LEFT JOIN catalog_collectionb colb_0 ON colb_0._id = rel_some_nested_many_relation.item->>'id' 
+            AND colb_0.volgnummer = rel_some_nested_many_relation.item->>'volgnummer' 
+            AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) 
+        ) rels 
+        ON rels.cola_0_id = cola_0._id
+         '''
+        ),
+        (
+            '''
+{
+  collectionb {
+    edges {
+      node {
+        identificatie
+
+        invSomeNestedManyRelationCatalogCollectiona {
+            edges {
+                node {
+                   identificatie
+                }
+            }
+        }
+      }
+    }
+  }
+}''',
+            '''
+        SELECT
+            colb_0.identificatie,
+            invrel_0._inv_some_nested_many_relation_catalog_collectiona
+        FROM catalog_collectionb colb_0
+        LEFT JOIN (
+            SELECT
+                colb_0._id colb_0_id,
+                colb_0.volgnummer colb_0_volgnummer,
+                json_build_object ( 'identificatie', cola_0.identificatie ) _inv_some_nested_many_relation_catalog_collectiona
+            FROM catalog_collectiona cola_0
+            LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_some_nested_many_relation(item)
+            ON rel_some_nested_many_relation.item->>'id' IS NOT NULL
+            LEFT JOIN catalog_collectionb colb_0 ON colb_0._id = rel_some_nested_many_relation.item->>'id'
+        ) invrel_0
+        ON invrel_0.colb_0_id = colb_0._id AND invrel_0.colb_0_volgnummer = colb_0.volgnummer 
+        WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ( ) )
+         '''
+        ),
+        (
+            '''
+{
+  collectionb {
+    edges {
+      node {
+        identificatie
+
+        invSomeNestedRelationCatalogCollectiona {
+            edges {
+                node {
+                   identificatie
+                }
+            }
+        }
+      }
+    }
+  }
+}''',
+            '''
+SELECT
+	colb_0.identificatie,
+	rels._inv_some_nested_relation_catalog_collectiona
+FROM catalog_collectionb colb_0 
+LEFT JOIN ( 
+	SELECT 
+		colb_0._id colb_0_id,
+		colb_0.volgnummer colb_0_volgnummer,
+		json_build_object ('identificatie' , cola_0.identificatie) _inv_some_nested_relation_catalog_collectiona
+		FROM catalog_collectionb colb_0
+		LEFT JOIN catalog_collectiona cola_0
+		ON cola_0.some_nested_relation->>'id' IS NOT NULL
+		AND cola_0.some_nested_relation->>'id' = colb_0._id
+		AND cola_0.some_nested_relation->>'volgnummer' IS NOT NULL
+		AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer
+		AND ( cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW ())
 	) rels
 ON rels.colb_0_id = colb_0._id 
 AND rels.colb_0_volgnummer = colb_0.volgnummer 
@@ -264,7 +463,14 @@ WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ())
         mock_model.return_value = MockModel()
 
         for inp, outp in self.test_cases:
-            self.assertResult(outp, GraphQL2SQL.graphql2sql(inp))
+            self.assertResult(outp, GraphQL2SQL.graphql2sql(inp, False))
+
+    def test_graphql2sql_unfolded(self, mock_model):
+        self.maxDiff = None
+        mock_model.return_value = MockModel()
+
+        for inp, outp in self.test_cases_unfolded:
+            self.assertResult(outp, GraphQL2SQL.graphql2sql(inp, True))
 
 
 class TestGraphQLVisitor(TestCase):
