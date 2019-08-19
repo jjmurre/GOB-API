@@ -161,7 +161,7 @@ FROM catalog_collectiona cola_0
       node {
         identificatie
         
-        someNestedRelation {
+        someNestedRelation(someProperty: "someval") {
             edges {
                 node {
                     nestedIdentificatie
@@ -191,6 +191,7 @@ FROM catalog_collectiona cola_0
             AND cola_0.some_nested_relation->>'volgnummer' IS NOT NULL 
             AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer 
             AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
+            WHERE (colb_0.some_property = 'someval')
         ) rels 
         ON rels.cola_0_id = cola_0._id
          '''
