@@ -12,7 +12,9 @@ class MockModel:
             'abbreviation': 'cola',
             'has_states': False,
             'attributes': {
-                'identificatie': {},
+                'identificatie': {
+                    'type': 'GOB.String',
+                },
                 'some_nested_relation': {
                     'type': 'GOB.Reference',
                     'ref': 'catalog:collectionb',
@@ -27,7 +29,18 @@ class MockModel:
             'abbreviation': 'colb',
             'has_states': True,
             'attributes': {
-                'identificatie': {}
+                'identificatie': {
+                    'type': 'GOB.String',
+                }
+            }
+        },
+        'collectionwithgeometry': {
+            'abbreviation': 'geocoll',
+            'has_states': False,
+            'attributes': {
+                'geofield': {
+                    'type': 'GOB.Geo.Polygon'
+                }
             }
         }
     }
@@ -68,6 +81,24 @@ class TestGraphQL2SQL(TestCase):
 SELECT cola_0._gobid, cola_0.identificatie 
 FROM catalog_collectiona cola_0
 WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
+'''
+        ),
+        (
+            '''
+{
+  collectionwithgeometry {
+    edges {
+      node {
+        identificatie
+        geofield
+      }
+    }
+  }
+}
+''', '''
+SELECT geocoll_0._gobid, geocoll_0.identificatie, ST_AsText(geocoll_0.geofield) geofield
+FROM catalog_collectionwithgeometry geocoll_0
+WHERE (geocoll_0._expiration_date IS NULL OR geocoll_0._expiration_date > NOW())
 '''
         ),
         (

@@ -6,7 +6,7 @@ from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLVisitor import GraphQLV
 
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
-from gobcore.typesystem import gob_types
+from gobcore.typesystem import gob_types, is_gob_geo_type
 
 
 class GraphQLVisitor(BaseVisitor):
@@ -132,10 +132,9 @@ class SqlGenerator:
     JSON_ID = 'id'
 
     def __init__(self, visitor: GraphQLVisitor):
-        """If unfold = False, information will be lost.
+        """
 
         :param visitor:
-        :param unfold:
         """
         self.visitor = visitor
         self.selects = visitor.selects
@@ -145,9 +144,6 @@ class SqlGenerator:
 
     def to_snake(self, camel: str):
         return re.sub('([A-Z])', r'_\1', camel).lower()
-
-    def _format_select_exprs(self, fields: list, prefix: str):
-        return [f'{prefix}.{self.to_snake(field)}' for field in fields]
 
     def _get_arguments_with_defaults(self, arguments: dict) -> dict:
         args = {
@@ -205,12 +201,23 @@ class SqlGenerator:
             'alias': f'{abbr}_{abbr_cnt}',
             'has_states': collection.get('has_states', False),
             'collection': collection,
+            'attributes': collection['attributes'],
         }
 
         return self.relation_info[relation_name]
 
     def _get_relation_info(self, relation_name: str):
         return self.relation_info[relation_name]
+
+    def _select_expression(self, relation: dict, field: str):
+        field_snake = self.to_snake(field)
+        expression = f"{relation['alias']}.{field_snake}"
+
+        # If geometry field, transform to WKT
+        if field_snake in relation['attributes'] and is_gob_geo_type(relation['attributes'][field_snake]['type']):
+            return f"ST_AsText({expression}) {field_snake}"
+
+        return expression
 
     def sql(self):
         self._reset()
@@ -222,8 +229,10 @@ class SqlGenerator:
         self._collect_relation_info(base_collection, base_collection)
         base_info = self._get_relation_info(base_collection)
 
-        select_fields = [FIELD.GOBID] + self.selects[base_collection]['fields']
-        self.select_expressions.extend(self._format_select_exprs(select_fields, base_info['alias']))
+        select_fields = [self._select_expression(base_info, field)
+                         for field in [FIELD.GOBID] + self.selects[base_collection]['fields']]
+
+        self.select_expressions.extend(select_fields)
 
         arguments = self._get_arguments_with_defaults(self.selects[base_collection]['arguments'])
 
@@ -374,8 +383,8 @@ ON {on_clause}''')
         to src_relation.
 
         :param src_relation:
-        :param src_attr_name:
         :param dst_relation:
+        :param dst_attr_name:
         :param attrs:
         :param alias:
         :return:
