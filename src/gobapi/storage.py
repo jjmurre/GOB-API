@@ -41,7 +41,7 @@ def connect():
     global session, _Base, metadata
 
     engine = create_engine(URL(**GOB_DB))
-    session = scoped_session(sessionmaker(autocommit=False,
+    session = scoped_session(sessionmaker(autocommit=True,
                                           autoflush=False,
                                           bind=engine))
     _Base = automap_base()
