@@ -15,6 +15,7 @@ def graphene_type(gob_typename, description=""):
     :return: The Graphene type if a corresponding type can be found, else None
     """
     conversion = {
+        "GOB.Character": graphene.String,
         "GOB.String": graphene.String,
         "GOB.Integer": graphene.Int,
         "GOB.Decimal": graphene.Float,

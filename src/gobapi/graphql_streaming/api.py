@@ -64,6 +64,10 @@ class GraphQLStreamingResponseBuilder:
             "node": obj
         }
 
+    def _add_relation(self, insert_position: dict, relation_name: str):
+        if relation_name not in insert_position:
+            insert_position[relation_name] = {"edges": []}
+
     def _add_row_to_entity(self, row: dict, entity: dict):
         """Adds the data from a result row to entity
 
@@ -82,12 +86,18 @@ class GraphQLStreamingResponseBuilder:
 
             if parent == self.root_relation:
                 insert_position = entity
-            else:
+            elif parent in row_relations:
                 insert_position = row_relations[parent]
+            else:
+                insert_position = None
+                continue
 
-            if relation_name not in insert_position:
-                insert_position[relation_name] = {"edges": []}
+            self._add_relation(insert_position, relation_name)
 
+            if not row_relation:
+                continue
+
+            # Find correct parent for this relation
             item = [rel for rel in insert_position[relation_name]['edges']
                     if rel['node'][FIELD.GOBID] == row_relation[FIELD.GOBID]]
 
@@ -125,7 +135,7 @@ class GraphQLStreamingResponseBuilder:
             relations = {k[1:]: v for k, v in row.items() if k[1:] in self.relations_hierarchy.keys()}
 
             for relation in relations.values():
-                if FIELD.GOBID in relation:
+                if relation and FIELD.GOBID in relation:
                     del relation[FIELD.GOBID]
 
     def __iter__(self):

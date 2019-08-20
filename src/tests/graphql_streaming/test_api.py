@@ -88,6 +88,67 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
         builder._add_row_to_entity(row, entity)
         self.assertEqual(entity, expected_result)
 
+    def test_add_row_to_entity_empty_nested_relation(self):
+        builder = self.get_instance()
+        builder.evaluation_order = ['a', 'b']
+        builder.root_relation = 'rootrel'
+        builder.relations_hierarchy = {
+            'a': 'rootrel',
+            'b': 'a'
+        }
+
+        entity = {'existing': 'value'}
+        row = {
+            '_a': {'some': 'value'},
+            '_b': None,
+        }
+
+        expected_result = {
+            'existing': 'value',
+            'a': {
+                'edges': [
+                    {
+                        'node': {
+                            'some': 'value',
+                            'b': {
+                                'edges': []
+                            }
+                        },
+                    }
+                ]
+            },
+        }
+
+        builder._add_row_to_entity(row, entity)
+        self.assertEqual(entity, expected_result)
+
+    def test_add_row_to_entity_empty_relations(self):
+        builder = self.get_instance()
+        builder.evaluation_order = ['a', 'b', 'c']
+        builder.root_relation = 'rootrel'
+        builder.relations_hierarchy = {
+            'a': 'rootrel',
+            'b': 'a',
+            'c': 'b',
+        }
+
+        entity = {'existing': 'value'}
+        row = {
+            '_a': None,
+            '_b': None,
+            '_c': None,
+        }
+
+        expected_result = {
+            'existing': 'value',
+            'a': {
+                'edges': []  # Shows empty list for top relation. Nested relations are - of course - not visible
+            },
+        }
+
+        builder._add_row_to_entity(row, entity)
+        self.assertEqual(entity, expected_result)
+
     def test_add_row_to_entity_add(self):
         builder = self.get_instance()
         builder.evaluation_order = ['a', 'b']

@@ -80,6 +80,18 @@ def _create_reference_link(reference, catalog, collection):
         return {}
 
 
+def _format_reference(reference, catalog, collection):
+    reference_root_fields = ['id', 'volgnummer', 'bronwaarde']
+
+    link = _create_reference_link(reference, catalog, collection)
+
+    return {
+        **{k: v for k, v in reference.items() if k in reference_root_fields},
+        'broninfo': {k: v for k, v in reference.items() if k not in reference_root_fields},
+        **link,
+    }
+
+
 def _create_external_reference_link(entity, field, entity_catalog, entity_collection):
     identificatie = getattr(entity, FIELD.ID)
     field_path = field.replace('_', '-')
@@ -102,10 +114,12 @@ def _create_reference(entity, field, spec, entity_catalog=None, entity_collectio
     if embedded is not None and spec['ref'] is not None:
         catalog, collection = spec['ref'].split(':')
         if spec['type'] == 'GOB.ManyReference':
+            formatted = []
             for reference in embedded:
-                reference.update(_create_reference_link(reference, catalog, collection))
+                formatted.append(_format_reference(reference, catalog, collection))
+            embedded = formatted
         else:
-            embedded.update(_create_reference_link(embedded, catalog, collection))
+            embedded = _format_reference(embedded, catalog, collection)
 
     return embedded
 
