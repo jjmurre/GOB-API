@@ -10,7 +10,7 @@ WORKDIR /app
 
 # Install required Python packages
 COPY requirements.txt /app/
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip3 install --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host files.pythonhosted.org --no-cache-dir -r requirements.txt
 RUN rm requirements.txt
 
 # Copy gob api module
