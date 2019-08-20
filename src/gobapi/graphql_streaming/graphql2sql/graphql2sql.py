@@ -6,7 +6,7 @@ from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLVisitor import GraphQLV
 
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
-from gobcore.typesystem import gob_types
+from gobcore.typesystem import gob_types, is_gob_geo_type
 
 
 class GraphQLVisitor(BaseVisitor):
@@ -132,10 +132,9 @@ class SqlGenerator:
     JSON_ID = 'id'
 
     def __init__(self, visitor: GraphQLVisitor):
-        """If unfold = False, information will be lost.
+        """
 
         :param visitor:
-        :param unfold:
         """
         self.visitor = visitor
         self.selects = visitor.selects
@@ -145,9 +144,6 @@ class SqlGenerator:
 
     def to_snake(self, camel: str):
         return re.sub('([A-Z])', r'_\1', camel).lower()
-
-    def _format_select_exprs(self, fields: list, prefix: str):
-        return [f'{prefix}.{self.to_snake(field)}' for field in fields]
 
     def _get_arguments_with_defaults(self, arguments: dict) -> dict:
         args = {
@@ -173,7 +169,7 @@ class SqlGenerator:
                 return "'" + strval[1:-1] + "'"
             return value
 
-        return {k: change_quotation(v) for k, v in arguments.items() if
+        return {self.to_snake(k): change_quotation(v) for k, v in arguments.items() if
                 k not in ignore and
                 not k.endswith('_desc') and
                 not k.endswith('_asc')
@@ -186,6 +182,7 @@ class SqlGenerator:
         self.relation_info = {}
         self.subjoins = []
         self.subjoin_select_list = []
+        self.subjoin_filter_conditions = []
 
     def _get_active(self, tablename: str):
         return f"{tablename}.{FIELD.EXPIRATION_DATE} IS NULL OR {tablename}.{FIELD.EXPIRATION_DATE} > NOW()"
@@ -205,12 +202,23 @@ class SqlGenerator:
             'alias': f'{abbr}_{abbr_cnt}',
             'has_states': collection.get('has_states', False),
             'collection': collection,
+            'attributes': collection['attributes'],
         }
 
         return self.relation_info[relation_name]
 
     def _get_relation_info(self, relation_name: str):
         return self.relation_info[relation_name]
+
+    def _select_expression(self, relation: dict, field: str):
+        field_snake = self.to_snake(field)
+        expression = f"{relation['alias']}.{field_snake}"
+
+        # If geometry field, transform to WKT
+        if field_snake in relation['attributes'] and is_gob_geo_type(relation['attributes'][field_snake]['type']):
+            return f"ST_AsText({expression}) {field_snake}"
+
+        return expression
 
     def sql(self):
         self._reset()
@@ -222,8 +230,10 @@ class SqlGenerator:
         self._collect_relation_info(base_collection, base_collection)
         base_info = self._get_relation_info(base_collection)
 
-        select_fields = [FIELD.GOBID] + self.selects[base_collection]['fields']
-        self.select_expressions.extend(self._format_select_exprs(select_fields, base_info['alias']))
+        select_fields = [self._select_expression(base_info, field)
+                         for field in [FIELD.GOBID] + self.selects[base_collection]['fields']]
+
+        self.select_expressions.extend(select_fields)
 
         arguments = self._get_arguments_with_defaults(self.selects[base_collection]['arguments'])
 
@@ -232,7 +242,8 @@ class SqlGenerator:
         if arguments['active']:
             self.filter_conditions.append(self._get_active(base_info['alias']))
 
-        self._add_filter_args_to_filter_conditions(arguments, base_info['alias'])
+        filter_args = self._get_formatted_filter_arguments(arguments, base_info['alias'])
+        self.filter_conditions.extend(filter_args)
 
         del self.selects[base_collection]
 
@@ -252,12 +263,16 @@ class SqlGenerator:
             if base_info['has_states']:
                 on_clause += f" AND rels.{base_info['alias']}_{FIELD.SEQNR} = {base_info['alias']}.{FIELD.SEQNR}"
 
+            where = f"WHERE ({') AND ('.join(self.subjoin_filter_conditions)})" \
+                if len(self.subjoin_filter_conditions) > 0 else ""
+
             self.joins.append(f'''
 LEFT JOIN (
     SELECT
 {join_selects_str}
     FROM {base_info['tablename']} {base_info['alias']}
 {joins_str}
+{where}
 ) rels
 ON {on_clause}''')
 
@@ -269,11 +284,13 @@ ON {on_clause}''')
 
         return query
 
-    def _add_filter_args_to_filter_conditions(self, arguments: dict, base_alias: str):
+    def _get_formatted_filter_arguments(self, arguments: dict, base_alias: str):
+        result = []
         filter_args = self._get_filter_arguments(arguments)
 
         for k, v in filter_args.items():
-            self.filter_conditions.append(f"{base_alias}.{k} = {v}")
+            result.append(f"{base_alias}.{k} = {v}")
+        return result
 
     def _get_limit_expression(self, arguments: dict):
         if 'first' in arguments:
@@ -365,6 +382,9 @@ ON {on_clause}''')
 
         subjoin_select = f"json_build_object({json_attrs}) {alias}"
 
+        filter_arguments = self._get_formatted_filter_arguments(arguments, dst_info['alias'])
+        self.subjoin_filter_conditions.extend(filter_arguments)
+
         self.subjoin_select_list.append(subjoin_select)
         self.select_expressions.append(f"rels.{alias}")
 
@@ -374,8 +394,8 @@ ON {on_clause}''')
         to src_relation.
 
         :param src_relation:
-        :param src_attr_name:
         :param dst_relation:
+        :param dst_attr_name:
         :param attrs:
         :param alias:
         :return:
@@ -447,10 +467,14 @@ ON {on_clause}''')
 
         is_many = self._is_many(dst_info['collection']['attributes'][relation_attr_name]['type'])
 
+        filter_arguments = self._get_formatted_filter_arguments(arguments, dst_info['alias'])
+
         if is_many:
             self._join_inverse_relation_many(parent_info, dst_info, relation_attr_name, json_attrs, alias)
+            self.filter_conditions.extend(filter_arguments)
         else:
             self._join_inverse_relation_single(parent_info, dst_info, relation_attr_name, arguments['active'], alias)
+            self.subjoin_filter_conditions.extend(filter_arguments)
 
         subjoin_select = f"json_build_object({json_attrs}) {alias}"
 

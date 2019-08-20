@@ -9,9 +9,9 @@ import importlib
 import sqlalchemy
 import sqlalchemy_filters
 
-from unittest import mock
+from unittest import mock, TestCase
 
-from gobapi.storage import _get_convert_for_state, filter_deleted
+from gobapi.storage import _get_convert_for_state, filter_deleted, connect
 from gobcore.model.metadata import FIELD
 
 class MockEntity:
@@ -575,3 +575,20 @@ def test_filter_deleted(monkeypatch):
     # Assert query is returned unchanged, when date_deleted is absent
     table = {}
     assert('query' == filter_deleted('query', table))
+
+
+class TestStorage(TestCase):
+
+    @mock.patch("gobapi.storage.create_engine")
+    @mock.patch("gobapi.storage.URL", mock.MagicMock())
+    @mock.patch("gobapi.storage.scoped_session", mock.MagicMock())
+    @mock.patch("gobapi.storage.sessionmaker")
+    @mock.patch("gobapi.storage.automap_base", mock.MagicMock())
+    @mock.patch("gobapi.storage.MetaData", mock.MagicMock())
+    @mock.patch("gobapi.storage.set_session", mock.MagicMock())
+    def test_connect_autocommit(self, mock_sessionmaker, mock_create_engine):
+        connect()
+
+        # Autocommit should always be set to True, to avoid problems with auto-creation of transactions that block
+        # other processes.
+        mock_sessionmaker.assert_called_with(autocommit=True, autoflush=False, bind=mock_create_engine.return_value)
