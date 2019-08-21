@@ -128,8 +128,9 @@ class SqlGenerator:
     """SqlGenerator generates SQL from the the GraphQLVisitor output.
 
     """
-    JSON_SEQ_NR = 'volgnummer'
-    JSON_ID = 'id'
+
+    # Attributes to ignore in the query on attributes.
+    ignore_relation_attributes = [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO]
 
     def __init__(self, visitor: GraphQLVisitor):
         """
@@ -324,15 +325,15 @@ ON {on_clause}''')
         """
         jsonb_join = f"LEFT JOIN jsonb_array_elements({src_relation_name}.{src_attr_name}) " \
             f"rel_{src_attr_name}(item)" \
-            f" ON rel_{src_attr_name}.item->>'{self.JSON_ID}' IS NOT NULL"
+            f" ON rel_{src_attr_name}.item->>'{FIELD.REFERENCE_ID}' IS NOT NULL"
 
         left_join = f"LEFT JOIN {dst_relation['tablename']} {dst_relation['alias']} " \
-            f"ON {dst_relation['alias']}.{FIELD.ID} = rel_{src_attr_name}.item->>'{self.JSON_ID}'"
+            f"ON {dst_relation['alias']}.{FIELD.ID} = rel_{src_attr_name}.item->>'{FIELD.REFERENCE_ID}'"
 
         if dst_relation['has_states']:
-            jsonb_join += f" AND rel_{src_attr_name}.item->>'{self.JSON_SEQ_NR}' IS NOT NULL"
+            jsonb_join += f" AND rel_{src_attr_name}.item->>'{FIELD.SEQNR}' IS NOT NULL"
             left_join += f" AND {dst_relation['alias']}.{FIELD.SEQNR} = " \
-                f"rel_{src_attr_name}.item->>'{self.JSON_SEQ_NR}'"
+                f"rel_{src_attr_name}.item->>'{FIELD.SEQNR}'"
 
         if filter_active:
             left_join += f" AND ({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
@@ -344,12 +345,12 @@ ON {on_clause}''')
     def _join_relation_single(self, src_relation_name: str, src_attr_name: str, dst_relation: dict,
                               filter_active: bool):
         join = f"LEFT JOIN {dst_relation['tablename']} {dst_relation['alias']} " \
-            f"ON {src_relation_name}.{src_attr_name}->>'{self.JSON_ID}' IS NOT NULL " \
-            f"AND {src_relation_name}.{src_attr_name}->>'{self.JSON_ID}' = {dst_relation['alias']}.{FIELD.ID}"
+            f"ON {src_relation_name}.{src_attr_name}->>'{FIELD.REFERENCE_ID}' IS NOT NULL " \
+            f"AND {src_relation_name}.{src_attr_name}->>'{FIELD.REFERENCE_ID}' = {dst_relation['alias']}.{FIELD.ID}"
 
         if dst_relation['has_states']:
-            join += f" AND {src_relation_name}.{src_attr_name}->>'{self.JSON_SEQ_NR}' IS NOT NULL " \
-                f"AND {src_relation_name}.{src_attr_name}->>'{self.JSON_SEQ_NR}' " \
+            join += f" AND {src_relation_name}.{src_attr_name}->>'{FIELD.SEQNR}' IS NOT NULL " \
+                f"AND {src_relation_name}.{src_attr_name}->>'{FIELD.SEQNR}' " \
                 f"= {dst_relation['alias']}.{FIELD.SEQNR}"
 
         if filter_active:
@@ -357,6 +358,16 @@ ON {on_clause}''')
                 f"OR {dst_relation['alias']}.{FIELD.EXPIRATION_DATE} > NOW())"
 
         self.subjoins.append(join)
+
+    def _json_build_attrs(self, attributes: list, relation_name: str):
+        """Create the list of attributes to be used in json_build_object( ) for attributes in relation_name
+
+        :param attributes:
+        :param relation_name:
+        :return:
+        """
+        return ",".join([f"'{self.to_snake(attr)}', {relation_name}.{self.to_snake(attr)}" for attr in attributes
+                         if attr not in self.ignore_relation_attributes])
 
     def _join_relation(self, relation_name: str, attributes: list, arguments: dict):
         parent = self.relation_parents[relation_name]
@@ -370,8 +381,7 @@ ON {on_clause}''')
         dst_info = self._collect_relation_info(relation_name, dst_collection_name)
 
         alias = f"_{relation_attr_name}"
-        json_attrs = ",".join(
-            [f"'{self.to_snake(attr)}', {dst_info['alias']}.{self.to_snake(attr)}" for attr in attributes])
+        json_attrs = self._json_build_attrs(attributes, dst_info['alias'])
 
         is_many = self._is_many(parent_info['collection']['attributes'][relation_attr_name]['type'])
 
@@ -434,12 +444,13 @@ ON {on_clause}''')
     def _join_inverse_relation_single(self, src_relation: dict, dst_relation: dict, dst_attr_name: str,
                                       filter_active: bool, alias: str):
         join = f"LEFT JOIN {dst_relation['tablename']} {dst_relation['alias']} " \
-            f"ON {dst_relation['alias']}.{dst_attr_name}->>'{self.JSON_ID}' IS NOT NULL " \
-            f"AND {dst_relation['alias']}.{dst_attr_name}->>'{self.JSON_ID}' = {src_relation['alias']}.{FIELD.ID}"
+            f"ON {dst_relation['alias']}.{dst_attr_name}->>'{FIELD.REFERENCE_ID}' IS NOT NULL " \
+            f"AND {dst_relation['alias']}.{dst_attr_name}->>'{FIELD.REFERENCE_ID}' = " \
+            f"{src_relation['alias']}.{FIELD.ID}"
 
         if src_relation['has_states']:
-            join += f" AND {dst_relation['alias']}.{dst_attr_name}->>'{self.JSON_SEQ_NR}' IS NOT NULL " \
-                f"AND {dst_relation['alias']}.{dst_attr_name}->>'{self.JSON_SEQ_NR}' " \
+            join += f" AND {dst_relation['alias']}.{dst_attr_name}->>'{FIELD.SEQNR}' IS NOT NULL " \
+                f"AND {dst_relation['alias']}.{dst_attr_name}->>'{FIELD.SEQNR}' " \
                 f"= {src_relation['alias']}.{FIELD.SEQNR}"
 
         if filter_active:
@@ -461,8 +472,7 @@ ON {on_clause}''')
         dst_collection_name = relation_name_snake[-1]
         dst_info = self._collect_relation_info(relation_name, dst_collection_name)
 
-        json_attrs = ",".join([f"'{self.to_snake(attr)}', {dst_info['alias']}.{self.to_snake(attr)}"
-                               for attr in attributes])
+        json_attrs = self._json_build_attrs(attributes, dst_info['alias'])
         alias = f"_inv_{relation_attr_name}_{dst_info['catalog_name']}_{dst_info['collection_name']}"
 
         is_many = self._is_many(dst_info['collection']['attributes'][relation_attr_name]['type'])
