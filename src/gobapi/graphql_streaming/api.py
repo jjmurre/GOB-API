@@ -18,7 +18,7 @@ class GraphQLStreamingResponseBuilder:
 
     For example:
 
-    "metingen": {
+    "meetboutenMetingen": {
       "edges": [
         {
           "node": {

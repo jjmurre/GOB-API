@@ -188,9 +188,10 @@ class SqlGenerator:
     def _get_active(self, tablename: str):
         return f"{tablename}.{FIELD.EXPIRATION_DATE} IS NULL OR {tablename}.{FIELD.EXPIRATION_DATE} > NOW()"
 
-    def _collect_relation_info(self, relation_name: str, collection_name: str):
+    def _collect_relation_info(self, relation_name: str, schema_collection_name: str):
+        catalog_name, collection_name = self.to_snake(schema_collection_name).split('_')
 
-        catalog_name, collection = self.model.get_collection_by_name(collection_name)
+        collection = self.model.get_collection(catalog_name, collection_name)
 
         abbr = collection['abbreviation'].lower()
         abbr_cnt = len([item for item in self.relation_info.values() if item['abbr'] == abbr])
@@ -392,7 +393,7 @@ ON {on_clause}''')
             parent_info['collection']['attributes'][relation_attr_name]['ref']
         )
 
-        dst_info = self._collect_relation_info(relation_name, dst_collection_name)
+        dst_info = self._collect_relation_info(relation_name, f'{dst_catalog_name}_{dst_collection_name}')
 
         alias = f"_{relation_attr_name}"
         json_attrs = self._json_build_attrs(attributes, dst_info['alias'])
@@ -485,8 +486,9 @@ ON {on_clause}''')
         assert relation_name_snake[0] == 'inv'
 
         relation_attr_name = '_'.join(relation_name_snake[1:-2])
+        dst_catalog_name = relation_name_snake[-2]
         dst_collection_name = relation_name_snake[-1]
-        dst_info = self._collect_relation_info(relation_name, dst_collection_name)
+        dst_info = self._collect_relation_info(relation_name, f'{dst_catalog_name}_{dst_collection_name}')
 
         json_attrs = self._json_build_attrs(attributes, dst_info['alias'])
         alias = f"_inv_{relation_attr_name}_{dst_info['catalog_name']}_{dst_info['collection_name']}"

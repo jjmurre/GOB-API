@@ -50,7 +50,7 @@ def get_inverse_references(catalogue, collection):
         return {}
 
 
-def get_collecction_secure_attributes(collection):
+def get_collection_secure_attributes(collection):
     SEC_TYPES = [f"GOB.{type.name}" for type in GOB_SECURE_TYPES]
 
     attrs = collection["attributes"]
@@ -108,7 +108,7 @@ def _get_inverse_connections_for_references(inverse_references: dict) -> list:
                     "src_collection": col_name,
                     "src_relation_name": relation_name,
                     "field_name": f"inv_{relation_name}_{cat_name}_{col_name}",
-                    "connection_field": graphene.Dynamic(get_inverse_connection_field(col_name)),
+                    "connection_field": graphene.Dynamic(get_inverse_connection_field(f'{cat_name}_{col_name}')),
                 })
     return inverse_connections
 
@@ -156,7 +156,7 @@ def get_graphene_query():
         catalog_name, collection_name = re.findall(pattern, ref)[0]
         collection = model.get_collection(catalog_name, collection_name)
 
-        sec_attributes = get_collecction_secure_attributes(collection)
+        sec_attributes = get_collection_secure_attributes(collection)
 
         # Get all references for the collection
         ref_items = get_collection_references(collection)
@@ -166,7 +166,7 @@ def get_graphene_query():
 
             connections.append({
                 "dst_name": model.get_table_name(cat_name, col_name),
-                "connection_field": graphene.Dynamic(get_connection_field(col_name)),
+                "connection_field": graphene.Dynamic(get_connection_field(f'{cat_name}_{col_name}')),
                 "field_name": key
             })
 
@@ -176,7 +176,7 @@ def get_graphene_query():
 
         base_model = models[model.get_table_name(catalog_name, collection_name)]  # SQLAlchemy model
         object_type_fields = {
-            "__repr__": lambda self: f"SQLAlchemyObjectType {collection_name}",
+            "__repr__": lambda self: f"SQLAlchemyObjectType {catalog_name}_{collection_name}",
             **{connection["field_name"]: connection["connection_field"] for connection in connections},
             **{connection["field_name"]: connection["connection_field"] for connection in inverse_connections},
             **get_secure_resolvers(catalog_name, collection_name, sec_attributes),
@@ -191,8 +191,10 @@ def get_graphene_query():
             "interfaces": (graphene.relay.Node,)
         })
 
-        root_connection_class = _create_connection_class(f"{collection_name}Root", object_type_fields, meta)
-        rel_connection_class = _create_connection_class(f"{collection_name}Rel", {
+        root_connection_class = _create_connection_class(f"{catalog_name}_{collection_name}Root",
+                                                         object_type_fields,
+                                                         meta)
+        rel_connection_class = _create_connection_class(f"{catalog_name}_{collection_name}Rel", {
             "bronwaarde": graphene.String(description=bronwaarde_description),
             "broninfo": GenericScalar(description=broninfo_description),
             **object_type_fields,
@@ -204,12 +206,15 @@ def get_graphene_query():
         attributes = {attr: graphene_type(value["type"], value["description"]) for attr, value in
                       collection["attributes"].items() if
                       not graphene_type(value["type"]) is None}
-        root_connection_fields[collection_name] = FilterConnectionField(root_connection_class, **attributes)
-        connection_fields[collection_name] = FilterConnectionField(rel_connection_class, **attributes)
+        root_connection_fields[f'{catalog_name}_{collection_name}'] = FilterConnectionField(root_connection_class,
+                                                                                            **attributes)
+        connection_fields[f'{catalog_name}_{collection_name}'] = FilterConnectionField(rel_connection_class,
+                                                                                       **attributes)
 
         # Use root_connection_class for inverse relations as well. No need for bronwaardes here.
-        inverse_connection_fields[collection_name] = FilterConnectionField(root_connection_class, **attributes)
-        base_models[collection_name] = base_model
+        inverse_connection_fields[f'{catalog_name}_{collection_name}'] = FilterConnectionField(root_connection_class,
+                                                                                               **attributes)
+        base_models[f'{catalog_name}_{collection_name}'] = base_model
 
     Query = type("Query", (graphene.ObjectType,),
                  # <collection> = FilterConnectionField(<collection>Connection, filters...)
