@@ -130,7 +130,7 @@ class SqlGenerator:
     """
 
     # Attributes to ignore in the query on attributes.
-    ignore_relation_attributes = [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO]
+    srcvalues_attributes = [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO]
 
     def __init__(self, visitor: GraphQLVisitor):
         """
@@ -313,7 +313,8 @@ ON {on_clause}''')
                 self._join_relation(relation_name, select_fields, arguments)
             self.relcnt += 1
 
-    def _join_relation_many(self, src_relation_name: str, src_attr_name: str, dst_relation: dict, filter_active: bool):
+    def _join_relation_many(self, src_relation_name: str, src_attr_name: str, dst_relation: dict, filter_active: bool,
+                            src_value_requested: bool):
         """Joins relation src_relation with
 
         :param src_relation_name:
@@ -339,11 +340,16 @@ ON {on_clause}''')
             left_join += f" AND ({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
                 f"OR {dst_relation['alias']}.{FIELD.EXPIRATION_DATE} > NOW())"
 
+        if src_value_requested:
+            src_alias = f"_src_{src_attr_name}"
+            self.subjoin_select_list.append(f"rel_{src_attr_name}.item {src_alias}")
+            self.select_expressions.append(f"rels.{src_alias}")
+
         self.subjoins.append(jsonb_join)
         self.subjoins.append(left_join)
 
     def _join_relation_single(self, src_relation_name: str, src_attr_name: str, dst_relation: dict,
-                              filter_active: bool):
+                              filter_active: bool, src_value_requested: bool):
         join = f"LEFT JOIN {dst_relation['tablename']} {dst_relation['alias']} " \
             f"ON {src_relation_name}.{src_attr_name}->>'{FIELD.REFERENCE_ID}' IS NOT NULL " \
             f"AND {src_relation_name}.{src_attr_name}->>'{FIELD.REFERENCE_ID}' = {dst_relation['alias']}.{FIELD.ID}"
@@ -357,6 +363,11 @@ ON {on_clause}''')
             join += f" AND ({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
                 f"OR {dst_relation['alias']}.{FIELD.EXPIRATION_DATE} > NOW())"
 
+        if src_value_requested:
+            src_alias = f"_src_{src_attr_name}"
+            self.subjoin_select_list.append(f"{src_relation_name}.{src_attr_name} {src_alias}")
+            self.select_expressions.append(f"rels.{src_alias}")
+
         self.subjoins.append(join)
 
     def _json_build_attrs(self, attributes: list, relation_name: str):
@@ -367,7 +378,10 @@ ON {on_clause}''')
         :return:
         """
         return ",".join([f"'{self.to_snake(attr)}', {relation_name}.{self.to_snake(attr)}" for attr in attributes
-                         if attr not in self.ignore_relation_attributes])
+                         if attr not in self.srcvalues_attributes])
+
+    def _is_srcvalue_requested(self, attributes: list):
+        return any([attr in self.srcvalues_attributes for attr in attributes])
 
     def _join_relation(self, relation_name: str, attributes: list, arguments: dict):
         parent = self.relation_parents[relation_name]
@@ -386,9 +400,11 @@ ON {on_clause}''')
         is_many = self._is_many(parent_info['collection']['attributes'][relation_attr_name]['type'])
 
         if is_many:
-            self._join_relation_many(parent_info['alias'], relation_attr_name, dst_info, arguments['active'])
+            self._join_relation_many(parent_info['alias'], relation_attr_name, dst_info, arguments['active'],
+                                     self._is_srcvalue_requested(attributes))
         else:
-            self._join_relation_single(parent_info['alias'], relation_attr_name, dst_info, arguments['active'])
+            self._join_relation_single(parent_info['alias'], relation_attr_name, dst_info, arguments['active'],
+                                       self._is_srcvalue_requested(attributes))
 
         subjoin_select = f"json_build_object({json_attrs}) {alias}"
 
@@ -460,7 +476,7 @@ ON {on_clause}''')
         self.subjoins.append(join)
         self.select_expressions.append(f"rels.{alias}")
 
-    def _join_inverse_relation(self, relation_name: str, attributes: list, arguments: dict):  # noqa: C901
+    def _join_inverse_relation(self, relation_name: str, attributes: list, arguments: dict):
         parent = self.relation_parents[relation_name]
         parent_info = self._get_relation_info(parent)
 
@@ -498,8 +514,12 @@ class GraphQL2SQL:
     the GOB use and data model.
     """
 
-    @staticmethod
-    def graphql2sql(graphql_query: str):
+    def __init__(self, graphql_query: str):
+        self.query = graphql_query
+        self.relations_hierarchy = None
+        self.selections = None
+
+    def sql(self):
         """Returns a tuple (sql, relation_parents), where sql is the generated sql and relation_parents is a dict
         containing the hierarchy of the relations in this query, so that the result set can be reconstructed as one
         object with nested relations.
@@ -507,7 +527,7 @@ class GraphQL2SQL:
         :param graphql_query:
         :return:
         """
-        input_stream = InputStream(graphql_query)
+        input_stream = InputStream(self.query)
         lexer = GraphQLLexer(input_stream)
         stream = CommonTokenStream(lexer)
         parser = GraphQLParser(stream)
@@ -516,4 +536,7 @@ class GraphQL2SQL:
         visitor.visit(tree)
 
         generator = SqlGenerator(visitor)
-        return generator.sql(), visitor.relationParents
+        self.relations_hierarchy = visitor.relationParents
+        self.selections = visitor.selects
+
+        return generator.sql()

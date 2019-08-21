@@ -165,6 +165,8 @@ FROM catalog_collectiona cola_0
             edges {
                 node {
                     nestedIdentificatie
+                    bronwaarde
+                    broninfo
                 }
             }
         }
@@ -172,15 +174,18 @@ FROM catalog_collectiona cola_0
     }
   }
 }''',
+        # bronwaarde and broninfo are added as special case, they change the query by adding the _src selection
             '''
         SELECT 
             cola_0._gobid,
             cola_0.identificatie,
+            rels._src_some_nested_relation,
             rels._some_nested_relation
         FROM catalog_collectiona cola_0 
         LEFT JOIN (
             SELECT 
-                cola_0._id cola_0_id, 
+                cola_0._id cola_0_id,
+                cola_0.some_nested_relation _src_some_nested_relation,
                 json_build_object ( 
                     '_gobid', colb_0._gobid, 
                     'nested_identificatie', colb_0.nested_identificatie ) _some_nested_relation
@@ -209,6 +214,8 @@ FROM catalog_collectiona cola_0
             edges {
                 node {
                     nestedIdentificatie
+                    bronwaarde
+                    broninfo
                 }
             }
         }
@@ -216,15 +223,18 @@ FROM catalog_collectiona cola_0
     }
   }
 }''',
+            # bronwaarde and broninfo are added as special case, they change the query by adding the _src selection
             '''
         SELECT 
             cola_0._gobid,
             cola_0.identificatie,
+            rels._src_some_nested_many_relation,
             rels._some_nested_many_relation
         FROM catalog_collectiona cola_0 
         LEFT JOIN (
             SELECT 
                 cola_0._id cola_0_id, 
+                rel_some_nested_many_relation.item _src_some_nested_many_relation,
                 json_build_object ( 
                     '_gobid', colb_0._gobid, 
                     'nested_identificatie', colb_0.nested_identificatie ) _some_nested_many_relation
@@ -341,8 +351,8 @@ WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ())
         mock_model.return_value = MockModel()
 
         for inp, outp in self.test_cases:
-            sql, _ = GraphQL2SQL.graphql2sql(inp)
-            self.assertResult(outp, sql)
+            graphql2sql = GraphQL2SQL(inp)
+            self.assertResult(outp, graphql2sql.sql())
 
 
 class TestGraphQLVisitor(TestCase):
