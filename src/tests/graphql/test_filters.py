@@ -7,7 +7,7 @@ from graphene_sqlalchemy import SQLAlchemyConnectionField
 from gobcore.typesystem.gob_secure_types import SecureString
 from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute, \
     get_resolve_secure_attribute, get_resolve_inverse_attribute, \
-    get_resolve_attribute_missing_relation, add_bronwaardes_to_results, gobmodel, gobsources, _extract_tuples
+    get_resolve_attribute_missing_relation, add_bronwaardes_to_results, gobmodel, _extract_tuples, models
 from gobapi import storage
 from gobapi import session
 
@@ -120,47 +120,73 @@ def test_resolve_attribute_missing_relation():
 def test_add_bronwaardes_to_results(monkeypatch):
     class Obj:
         __tablename__ = "src_table"
-        ref = [{'bronwaarde': 'sourceval'}, {'bronwaarde': 'sourceval_missing_relation'}]
+        ref = [{'bronwaarde': 'sourceval', 'id': 5, 'someotherval': 'value'},
+               {'bronwaarde': 'sourceval_missing_relation', 'someothervalue': 'val'}]
 
     src_attr = 'ref'
 
-    monkeypatch.setattr(gobsources, '_relations', {
-        'cat': {
-            'collection': [{
-                'field_name': 'ref',
-                'destination_attribute': 'dst_attr',
-                'method': 'equals'
-            }]
-        }
-    })
     model_table_type = type('model_table_name', (), {
         "__tablename__": "model_table_name",
+        "__has_states__": False,
+        "_id": 5,
+        "volgnummer": 3,
+        "property": None,
     })
+
+    monkeypatch.setitem(models, 'model_table_name', model_table_type)
 
     # Case 1. Two bronwaardes, for now we leave bronwaarde empty.
     result = model_table_type()
+
     results = [result]
-    res = add_bronwaardes_to_results(src_attr, Obj(), results)
-    assert len(res) == 1
-    assert getattr(res[0], 'bronwaarde') == ''
+    res = add_bronwaardes_to_results(src_attr, model_table_type, Obj(), results)
+    assert len(res) == 2
+    assert getattr(res[0], 'bronwaarde') == 'sourceval'
+    assert getattr(res[1], 'bronwaarde') == 'sourceval_missing_relation'
+    assert getattr(res[0], 'broninfo') == {'someotherval': 'value'}
+    assert getattr(res[1], 'broninfo') == {'someothervalue': 'val'}
 
     # Case 2. Single reference, provides bronwaarde as dictionary
     result = model_table_type()
     results = [result]
     obj = Obj()
-    obj.__setattr__('ref', {'bronwaarde': 'sourceval'})
-    res = add_bronwaardes_to_results(src_attr, obj, results)
+    obj.__setattr__('ref', {'bronwaarde': 'sourceval', 'otherkey': 'otherval'})
+    res = add_bronwaardes_to_results(src_attr, model_table_type, obj, results)
     assert len(res) == 1
     assert getattr(res[0], 'bronwaarde') == 'sourceval'
+    assert getattr(res[0], 'broninfo') == {'otherkey': 'otherval'}
 
     # Case 4. Objects have been matched on geometry. Bronwaarde should be geometrie
     result = model_table_type()
     results = [result]
     obj = Obj()
     obj.__setattr__('ref', {'bronwaarde': 'geometrie'})
-    res = add_bronwaardes_to_results(src_attr, obj, results)
+    res = add_bronwaardes_to_results(src_attr, model_table_type, obj, results)
     assert len(res) == 1
     assert getattr(res[0], 'bronwaarde') == 'geometrie'
+
+    # Case 5. Result has states
+    result = model_table_type()
+    result.__setattr__('property', 'propval')
+    result.__setattr__('__has_states__', True)
+    results = [result]
+    obj = Obj()
+    obj.__setattr__('ref', [
+        {'bronwaarde': 'sourceval', 'otherkey': 'otherval'},
+        {'bronwaarde': 'sourceval2', 'otherkey': 'matchingobject', 'id': 5, 'volgnummer': 3},
+        {'bronwaarde': 'sourceval3', 'otherkey': 'nonmatchingobject', 'id': 5, 'volgnummer': 2},
+    ])
+    res = add_bronwaardes_to_results(src_attr, model_table_type, obj, results)
+    assert len(res) == 3
+    assert getattr(res[0], 'bronwaarde') == 'sourceval2'
+    assert getattr(res[0], 'broninfo') == {'otherkey': 'matchingobject'}
+    assert getattr(res[0], 'property') == 'propval'
+    assert getattr(res[1], 'bronwaarde') == 'sourceval'
+    assert getattr(res[1], 'broninfo') == {'otherkey': 'otherval'}
+    assert getattr(res[1], 'property') is None
+    assert getattr(res[2], 'bronwaarde') == 'sourceval3'
+    assert getattr(res[2], 'broninfo') == {'otherkey': 'nonmatchingobject'}
+    assert getattr(res[2], 'property') is None
 
 
 def test_resolve_secure_attribute(monkeypatch):
@@ -220,7 +246,7 @@ class TestFilters(TestCase):
         mock_extract_tuples.assert_called_with([obj.reference_field], ('id',))
         get_query_res.filter.assert_called_with(model._id.in_.return_value)
         filter_res = get_query_res.filter.return_value
-        mock_add_bronwaardes.assert_called_with(src_attribute_name, obj, filter_res.all.return_value)
+        mock_add_bronwaardes.assert_called_with(src_attribute_name, model, obj, filter_res.all.return_value)
 
         self.assertEqual(mock_add_bronwaardes.return_value, result)
 
@@ -255,7 +281,7 @@ class TestFilters(TestCase):
         tuple_res = mock_tuple_.return_value
         get_query_res.filter.assert_called_with(tuple_res.in_.return_value)
         filter_res = get_query_res.filter.return_value
-        mock_add_bronwaardes.assert_called_with(src_attribute_name, obj, filter_res.all.return_value)
+        mock_add_bronwaardes.assert_called_with(src_attribute_name, model, obj, filter_res.all.return_value)
 
         self.assertEqual(mock_add_bronwaardes.return_value, result)
 

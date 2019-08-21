@@ -33,6 +33,7 @@ inverse_connection_fields = {}  # FilterConnectionField() per collection without
 sys.setrecursionlimit(1500)
 
 bronwaarde_description = "De bronwaarde die als basis dient voor deze relatie"
+broninfo_description = "De extra waarden meegegeven vanuit de bron naast de bronwaarde voor deze relatie"
 
 
 def get_collection_references(collection):
@@ -193,6 +194,7 @@ def get_graphene_query():
         root_connection_class = _create_connection_class(f"{collection_name}Root", object_type_fields, meta)
         rel_connection_class = _create_connection_class(f"{collection_name}Rel", {
             "bronwaarde": graphene.String(description=bronwaarde_description),
+            "broninfo": GenericScalar(description=broninfo_description),
             **object_type_fields,
         }, meta)
 

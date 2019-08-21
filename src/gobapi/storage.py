@@ -81,13 +81,13 @@ def _create_reference_link(reference, catalog, collection):
 
 
 def _format_reference(reference, catalog, collection):
-    reference_root_fields = ['id', 'volgnummer', 'bronwaarde']
+    reference_root_fields = [FIELD.REFERENCE_ID, FIELD.SEQNR, FIELD.SOURCE_VALUE]
 
     link = _create_reference_link(reference, catalog, collection)
 
     return {
         **{k: v for k, v in reference.items() if k in reference_root_fields},
-        'broninfo': {k: v for k, v in reference.items() if k not in reference_root_fields},
+        FIELD.SOURCE_INFO: {k: v for k, v in reference.items() if k not in reference_root_fields},
         **link,
     }
 
