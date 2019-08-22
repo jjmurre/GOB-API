@@ -488,7 +488,8 @@ ON {on_clause}''')
         relation_attr_name = '_'.join(relation_name_snake[1:-2])
         dst_catalog_name = relation_name_snake[-2]
         dst_collection_name = relation_name_snake[-1]
-        dst_info = self._collect_relation_info(relation_name, f'{dst_catalog_name}_{dst_collection_name}')
+        dst_model_name = self.model.get_table_name(dst_catalog_name, dst_collection_name)
+        dst_info = self._collect_relation_info(relation_name, f'{dst_model_name}')
 
         json_attrs = self._json_build_attrs(attributes, dst_info['alias'])
         alias = f"_inv_{relation_attr_name}_{dst_info['catalog_name']}_{dst_info['collection_name']}"
