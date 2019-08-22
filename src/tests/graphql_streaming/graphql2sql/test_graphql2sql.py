@@ -7,46 +7,49 @@ from gobapi.graphql_streaming.graphql2sql.graphql2sql import GraphQL2SQL, GraphQ
 
 
 class MockModel:
-    collections = {
-        'collectiona': {
-            'abbreviation': 'cola',
-            'has_states': False,
-            'attributes': {
-                'identificatie': {
-                    'type': 'GOB.String',
-                },
-                'some_nested_relation': {
-                    'type': 'GOB.Reference',
-                    'ref': 'catalog:collectionb',
-                },
-                'some_nested_many_relation': {
-                    'type': 'GOB.ManyReference',
-                    'ref': 'catalog:collectionb',
+    model = {
+        'catalog': {
+            'collectiona': {
+                'abbreviation': 'cola',
+                'has_states': False,
+                'attributes': {
+                    'identificatie': {
+                        'type': 'GOB.String',
+                    },
+                    'some_nested_relation': {
+                        'type': 'GOB.Reference',
+                        'ref': 'catalog:collectionb',
+                    },
+                    'some_nested_many_relation': {
+                        'type': 'GOB.ManyReference',
+                        'ref': 'catalog:collectionb',
+                    }
                 }
-            }
-        },
-        'collectionb': {
-            'abbreviation': 'colb',
-            'has_states': True,
-            'attributes': {
-                'identificatie': {
-                    'type': 'GOB.String',
+            },
+            'collectionb': {
+                'abbreviation': 'colb',
+                'has_states': True,
+                'attributes': {
+                    'identificatie': {
+                        'type': 'GOB.String',
+                    }
                 }
-            }
-        },
-        'collectionwithgeometry': {
-            'abbreviation': 'geocoll',
-            'has_states': False,
-            'attributes': {
-                'geofield': {
-                    'type': 'GOB.Geo.Polygon'
+            },
+            'collectionwithgeometry': {
+                'abbreviation': 'geocoll',
+                'has_states': False,
+                'attributes': {
+                    'geofield': {
+                        'type': 'GOB.Geo.Polygon'
+                    }
                 }
             }
         }
     }
 
-    def get_collection_by_name(self, collection_name: str):
-        return 'catalog', self.collections[collection_name]
+    def get_collection(self, catalog_name, collection_name):
+        collections = self.model[catalog_name]
+        return collections[collection_name] if collections and collection_name in collections else None
 
     def get_table_name(self, catalog_name: str, collection_name: str):
         return f"{catalog_name}_{collection_name}"
@@ -69,7 +72,7 @@ class TestGraphQL2SQL(TestCase):
         (
             '''
 {
-  collectiona {
+  catalogCollectiona {
     edges {
       node {
         identificatie
@@ -78,7 +81,7 @@ class TestGraphQL2SQL(TestCase):
   }
 }
 ''', '''
-SELECT cola_0._gobid, cola_0.identificatie 
+SELECT cola_0._gobid, cola_0.identificatie
 FROM catalog_collectiona cola_0
 WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
 '''
@@ -86,7 +89,7 @@ WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
         (
             '''
 {
-  collectionwithgeometry {
+  catalogCollectionwithgeometry {
     edges {
       node {
         identificatie
@@ -104,7 +107,7 @@ WHERE (geocoll_0._expiration_date IS NULL OR geocoll_0._expiration_date > NOW())
         (
             '''
 {
-  collectiona(filterarg: 3, filterarg2: "strval") {
+  catalogCollectiona(filterarg: 3, filterarg2: "strval") {
     edges {
       node {
         identificatie
@@ -113,7 +116,7 @@ WHERE (geocoll_0._expiration_date IS NULL OR geocoll_0._expiration_date > NOW())
   }
 }
 ''', '''
-SELECT cola_0._gobid, cola_0.identificatie 
+SELECT cola_0._gobid, cola_0.identificatie
 FROM catalog_collectiona cola_0
 WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
 AND (cola_0.filterarg = 3) AND (cola_0.filterarg2 = 'strval')
@@ -122,7 +125,7 @@ AND (cola_0.filterarg = 3) AND (cola_0.filterarg2 = 'strval')
         (
             '''
 {
-  collectiona(first: 20) {
+  catalogCollectiona(first: 20) {
     edges {
       node {
         identificatie
@@ -131,7 +134,7 @@ AND (cola_0.filterarg = 3) AND (cola_0.filterarg2 = 'strval')
   }
 }
 ''', '''
-SELECT cola_0._gobid, cola_0.identificatie 
+SELECT cola_0._gobid, cola_0.identificatie
 FROM catalog_collectiona cola_0
 WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
 LIMIT 20
@@ -140,7 +143,7 @@ LIMIT 20
         (
             '''
 {
-  collectiona(active: false) {
+  catalogCollectiona(active: false) {
     edges {
       node {
         identificatie
@@ -149,22 +152,24 @@ LIMIT 20
   }
 }
 ''', '''
-SELECT cola_0._gobid, cola_0.identificatie 
+SELECT cola_0._gobid, cola_0.identificatie
 FROM catalog_collectiona cola_0
 '''),
         (
 
             '''
 {
-  collectiona(active: false) {
+  catalogCollectiona(active: false) {
     edges {
       node {
         identificatie
-        
+
         someNestedRelation(someProperty: "someval") {
             edges {
                 node {
                     nestedIdentificatie
+                    bronwaarde
+                    broninfo
                 }
             }
         }
@@ -172,27 +177,30 @@ FROM catalog_collectiona cola_0
     }
   }
 }''',
+        # bronwaarde and broninfo are added as special case, they change the query by adding the _src selection
             '''
-        SELECT 
+        SELECT
             cola_0._gobid,
             cola_0.identificatie,
+            rels._src_some_nested_relation,
             rels._some_nested_relation
-        FROM catalog_collectiona cola_0 
+        FROM catalog_collectiona cola_0
         LEFT JOIN (
-            SELECT 
-                cola_0._id cola_0_id, 
-                json_build_object ( 
-                    '_gobid', colb_0._gobid, 
+            SELECT
+                cola_0._id cola_0_id,
+                cola_0.some_nested_relation _src_some_nested_relation,
+                json_build_object (
+                    '_gobid', colb_0._gobid,
                     'nested_identificatie', colb_0.nested_identificatie ) _some_nested_relation
-            FROM catalog_collectiona cola_0 
-            LEFT JOIN catalog_collectionb colb_0 
-            ON cola_0.some_nested_relation->>'id' IS NOT NULL 
-            AND cola_0.some_nested_relation->>'id' = colb_0._id 
-            AND cola_0.some_nested_relation->>'volgnummer' IS NOT NULL 
-            AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer 
+            FROM catalog_collectiona cola_0
+            LEFT JOIN catalog_collectionb colb_0
+            ON cola_0.some_nested_relation->>'id' IS NOT NULL
+            AND cola_0.some_nested_relation->>'id' = colb_0._id
+            AND cola_0.some_nested_relation->>'volgnummer' IS NOT NULL
+            AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer
             AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
             WHERE (colb_0.some_property = 'someval')
-        ) rels 
+        ) rels
         ON rels.cola_0_id = cola_0._id
          '''
 
@@ -200,15 +208,17 @@ FROM catalog_collectiona cola_0
         (
             '''
 {
-  collectiona(active: false) {
+  catalogCollectiona(active: false) {
     edges {
       node {
         identificatie
-        
+
         someNestedManyRelation {
             edges {
                 node {
                     nestedIdentificatie
+                    bronwaarde
+                    broninfo
                 }
             }
         }
@@ -216,33 +226,36 @@ FROM catalog_collectiona cola_0
     }
   }
 }''',
+            # bronwaarde and broninfo are added as special case, they change the query by adding the _src selection
             '''
-        SELECT 
+        SELECT
             cola_0._gobid,
             cola_0.identificatie,
+            rels._src_some_nested_many_relation,
             rels._some_nested_many_relation
-        FROM catalog_collectiona cola_0 
+        FROM catalog_collectiona cola_0
         LEFT JOIN (
             SELECT 
-                cola_0._id cola_0_id, 
-                json_build_object ( 
-                    '_gobid', colb_0._gobid, 
+                cola_0._id cola_0_id,
+                rel_some_nested_many_relation.item _src_some_nested_many_relation,
+                json_build_object (
+                    '_gobid', colb_0._gobid,
                     'nested_identificatie', colb_0.nested_identificatie ) _some_nested_many_relation
-            FROM catalog_collectiona cola_0 
-            LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_some_nested_many_relation(item) 
-            ON rel_some_nested_many_relation.item->>'id' IS NOT NULL 
-            AND rel_some_nested_many_relation.item->>'volgnummer' IS NOT NULL 
-            LEFT JOIN catalog_collectionb colb_0 ON colb_0._id = rel_some_nested_many_relation.item->>'id' 
-            AND colb_0.volgnummer = rel_some_nested_many_relation.item->>'volgnummer' 
-            AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) 
-        ) rels 
+            FROM catalog_collectiona cola_0
+            LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_some_nested_many_relation(item)
+            ON rel_some_nested_many_relation.item->>'id' IS NOT NULL
+            AND rel_some_nested_many_relation.item->>'volgnummer' IS NOT NULL
+            LEFT JOIN catalog_collectionb colb_0 ON colb_0._id = rel_some_nested_many_relation.item->>'id'
+            AND colb_0.volgnummer = rel_some_nested_many_relation.item->>'volgnummer'
+            AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
+        ) rels
         ON rels.cola_0_id = cola_0._id
          '''
         ),
         (
             '''
 {
-  collectionb {
+  catalogCollectionb {
     edges {
       node {
         identificatie
@@ -260,7 +273,7 @@ FROM catalog_collectiona cola_0
 }''',
             '''
         SELECT
-            colb_0._gobid, 
+            colb_0._gobid,
             colb_0.identificatie,
             invrel_0._inv_some_nested_many_relation_catalog_collectiona
         FROM catalog_collectionb colb_0
@@ -269,21 +282,21 @@ FROM catalog_collectiona cola_0
                 colb_0._id colb_0_id,
                 colb_0.volgnummer colb_0_volgnummer,
                 json_build_object (
-                    '_gobid', cola_0._gobid,  
+                    '_gobid', cola_0._gobid,
                     'identificatie', cola_0.identificatie ) _inv_some_nested_many_relation_catalog_collectiona
             FROM catalog_collectiona cola_0
             LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_some_nested_many_relation(item)
             ON rel_some_nested_many_relation.item->>'id' IS NOT NULL
             LEFT JOIN catalog_collectionb colb_0 ON colb_0._id = rel_some_nested_many_relation.item->>'id'
         ) invrel_0
-        ON invrel_0.colb_0_id = colb_0._id AND invrel_0.colb_0_volgnummer = colb_0.volgnummer 
+        ON invrel_0.colb_0_id = colb_0._id AND invrel_0.colb_0_volgnummer = colb_0.volgnummer
         WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ( ) )
          '''
         ),
         (
             '''
 {
-  collectionb {
+  catalogCollectionb {
     edges {
       node {
         identificatie
@@ -304,9 +317,9 @@ SELECT
     colb_0._gobid,
 	colb_0.identificatie,
 	rels._inv_some_nested_relation_catalog_collectiona
-FROM catalog_collectionb colb_0 
-LEFT JOIN ( 
-	SELECT 
+FROM catalog_collectionb colb_0
+LEFT JOIN (
+	SELECT
 		colb_0._id colb_0_id,
 		colb_0.volgnummer colb_0_volgnummer,
 		json_build_object (
@@ -320,8 +333,8 @@ LEFT JOIN (
 		AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer
 		AND ( cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW ())
 	) rels
-ON rels.colb_0_id = colb_0._id 
-AND rels.colb_0_volgnummer = colb_0.volgnummer 
+ON rels.colb_0_id = colb_0._id
+AND rels.colb_0_volgnummer = colb_0.volgnummer
 WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ())
          '''
         ),
@@ -341,8 +354,8 @@ WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ())
         mock_model.return_value = MockModel()
 
         for inp, outp in self.test_cases:
-            sql, _ = GraphQL2SQL.graphql2sql(inp)
-            self.assertResult(outp, sql)
+            graphql2sql = GraphQL2SQL(inp)
+            self.assertResult(outp, graphql2sql.sql())
 
 
 class TestGraphQLVisitor(TestCase):
@@ -428,6 +441,3 @@ class TestGraphQLVisitor(TestCase):
         self.visitor.visitVariable = MagicMock()
         self.visitor.visitValueOrVariable(arg)
         self.visitor.visitVariable.assert_called_with(arg.variable.return_value)
-
-
-

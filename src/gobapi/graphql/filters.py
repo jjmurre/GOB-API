@@ -8,15 +8,14 @@ from graphene_sqlalchemy import SQLAlchemyConnectionField
 from sqlalchemy import tuple_
 
 from gobcore.model.metadata import FIELD
-from gobcore.sources import GOBSources
 from gobcore.model import GOBModel
+from gobcore.model.sa.gob import models
 
 from gobapi.storage import filter_active, filter_deleted
 from gobapi import serialize
 
 from typing import List
 
-gobsources = GOBSources()
 gobmodel = GOBModel()
 
 FILTER_ON_NULL_VALUE = "null"
@@ -77,7 +76,8 @@ def get_resolve_secure_attribute(name, GOBType):
     :param GOBType: the Secure GOBType class
     :return: a resolver function for secure attributes
     """
-    def resolve_attribute(obj, info,  **kwargs):
+
+    def resolve_attribute(obj, info, **kwargs):
         value = getattr(obj, name)
         return serialize.secure_value(GOBType(value))
 
@@ -90,6 +90,7 @@ def get_resolve_attribute_missing_relation(field_name):
     :param field_name:
     :return:
     """
+
     def resolve_attribute(obj, info, **kwargs):
         source_values = getattr(obj, field_name)
 
@@ -98,11 +99,57 @@ def get_resolve_attribute_missing_relation(field_name):
     return resolve_attribute
 
 
-def add_bronwaardes_to_results(src_attribute, obj, results: list):
+def get_source_values_filter(result):
+    """Returns filters to find result out of a list of source_values
+
+    :param result:
+    :return:
+    """
+    filters = [
+        lambda item: FIELD.REFERENCE_ID in item and item[FIELD.REFERENCE_ID] == getattr(result, FIELD.ID),
+    ]
+
+    if result.__has_states__:
+        filters.append(lambda item: FIELD.SEQNR in item and item[FIELD.SEQNR] == getattr(result, FIELD.SEQNR))
+
+    return filters
+
+
+def set_result_values(result, source_item: dict):
+    """Adds bronwaarde and broninfo attributes to result, from source_item.
+
+    :param result:
+    :param source_item:
+    :return:
+    """
+    reference_root_fields = [FIELD.REFERENCE_ID, FIELD.SEQNR, FIELD.SOURCE_VALUE]
+
+    setattr(result, FIELD.SOURCE_VALUE, source_item[FIELD.SOURCE_VALUE])
+    setattr(result, FIELD.SOURCE_INFO, {
+        k: v for k, v in source_item.items() if k not in reference_root_fields
+    })
+
+
+def create_bronwaarde_result_objects(source_values: list, model):
+    """Creates empty result objects of type model for the list of source_values
+
+    :param source_values:
+    :param model:
+    :return:
+    """
+    result = []
+    expected_type = models[model.__tablename__]
+
+    for source_value in source_values:
+        source_value_result = expected_type()
+        set_result_values(source_value_result, source_value)
+        result.append(source_value_result)
+    return result
+
+
+def add_bronwaardes_to_results(src_attribute, model, obj, results: list):
     """Adds bronwaardes to results from get_resolve_attribute.
 
-    Fetches all bronwaardes from the original object and gets the destination_attribute from gobsources.
-    Crossreferences bronwaardes from object with the values on destination_attribute in the results.
 
     The bronwaardes that are not matched with the results are added as new empty objects of the expected type with the
     bronwaarde attribute set.
@@ -113,17 +160,33 @@ def add_bronwaardes_to_results(src_attribute, obj, results: list):
     :param results:
     :return:
     """
+    source_values = getattr(obj, src_attribute)
+    return_results = []
 
     # Add bronwaarde to results
     for result in results:
-        # For now set an empty bronwaarde on many references
-        if isinstance(getattr(obj, src_attribute), list):
-            setattr(result, 'bronwaarde', '')
+        if isinstance(source_values, list):
+
+            # To find the item in source_values belonging to this result
+            filters = get_source_values_filter(result)
+            source_item_index = [idx for idx, item in enumerate(source_values) if all([f(item) for f in filters])]
+
+            if source_item_index:
+                source_item = source_values[source_item_index[0]]
+                set_result_values(result, source_item)
+                del source_values[source_item_index[0]]
+
         else:
             # Set the bronwaarde for single references
-            setattr(result, 'bronwaarde', getattr(obj, src_attribute)['bronwaarde'])
+            set_result_values(result, getattr(obj, src_attribute))
 
-    return results
+        return_results.append(result)
+
+    if isinstance(source_values, list):
+        # Add bronwaardes with missing relations
+        return_results.extend(create_bronwaarde_result_objects(source_values, model))
+
+    return return_results
 
 
 def _extract_tuples(lst: List[dict], attrs: tuple):
@@ -160,7 +223,7 @@ def get_resolve_attribute(model, src_attribute_name):
     :return: a function that resolves the object to a list of referenced objects
     """
 
-    def resolve_attribute(obj, info,  **kwargs):
+    def resolve_attribute(obj, info, **kwargs):
         """Resolve attribute
 
         :param obj: the object that contains a reference field to another collection
@@ -181,7 +244,7 @@ def get_resolve_attribute(model, src_attribute_name):
             ids = _extract_tuples(bronwaardes, ('id',))
             query = query.filter(getattr(model, FIELD.ID).in_(ids))
 
-        return add_bronwaardes_to_results(src_attribute_name, obj, query.all())
+        return add_bronwaardes_to_results(src_attribute_name, model, obj, query.all())
 
     return resolve_attribute
 
@@ -215,4 +278,5 @@ def get_resolve_inverse_attribute(model, src_attribute_name, is_many_reference):
 
         query = query.filter(getattr(model, src_attribute_name).contains(filter_args))
         return query.all()
+
     return resolve_attribute

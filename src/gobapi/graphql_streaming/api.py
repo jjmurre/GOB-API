@@ -18,7 +18,7 @@ class GraphQLStreamingResponseBuilder:
 
     For example:
 
-    "metingen": {
+    "meetboutenMetingen": {
       "edges": [
         {
           "node": {
@@ -54,9 +54,10 @@ class GraphQLStreamingResponseBuilder:
     Class is meant to be used as an iterator.
     """
 
-    def __init__(self, rows, relations_hierarchy: dict):
+    def __init__(self, rows, relations_hierarchy: dict, selections: dict):
         self.rows = rows
         self.relations_hierarchy = relations_hierarchy
+        self.selections = selections
         self.last_id = None
 
     def _to_node(self, obj: dict):
@@ -67,6 +68,29 @@ class GraphQLStreamingResponseBuilder:
     def _add_relation(self, insert_position: dict, relation_name: str):
         if relation_name not in insert_position:
             insert_position[relation_name] = {"edges": []}
+
+    def _create_broninfo(self, src_values: dict):
+        return {k: v for k, v in src_values.items() if k not in [FIELD.REFERENCE_ID, FIELD.SEQNR, FIELD.SOURCE_VALUE]}
+
+    def _add_sourcevalues_to_row(self, row: dict):
+        """Merges the source values as returned from the query with the actual relations, so the source values
+        (bronwaarde, broninfo dict) show up at the appropriate place in the output.
+
+        :param row:
+        :return:
+        """
+
+        for relation, requested in self.requested_sourcevalues.items():
+            src_key = '_src' + relation[0].upper() + relation[1:]
+            relation_key = '_' + relation
+
+            if FIELD.SOURCE_VALUE in requested:
+                row[relation_key][FIELD.SOURCE_VALUE] = row[src_key][FIELD.SOURCE_VALUE]
+
+            if FIELD.SOURCE_INFO in requested:
+                row[relation_key][FIELD.SOURCE_INFO] = self._create_broninfo(row[src_key])
+
+            del row[src_key]
 
     def _add_row_to_entity(self, row: dict, entity: dict):
         """Adds the data from a result row to entity
@@ -97,9 +121,10 @@ class GraphQLStreamingResponseBuilder:
             if not row_relation:
                 continue
 
-            # Find correct parent for this relation
+            # Find correct parent for this relation, only if GOBID is set (otherwise this relation can't be identified
+            # and a new item should be added)
             item = [rel for rel in insert_position[relation_name]['edges']
-                    if rel['node'][FIELD.GOBID] == row_relation[FIELD.GOBID]]
+                    if row_relation[FIELD.GOBID] is not None and rel['node'][FIELD.GOBID] == row_relation[FIELD.GOBID]]
 
             if item:
                 row_relations[relation_name] = item[0]['node']
@@ -119,6 +144,7 @@ class GraphQLStreamingResponseBuilder:
         result = {k: v for k, v in collected_rows[0].items() if not k.startswith('_')}
 
         for row in collected_rows:
+            self._add_sourcevalues_to_row(row)
             self._add_row_to_entity(row, result)
 
         # Clear gobids from result set
@@ -138,6 +164,16 @@ class GraphQLStreamingResponseBuilder:
                 if relation and FIELD.GOBID in relation:
                     del relation[FIELD.GOBID]
 
+    def _get_requested_sourcevalues(self):
+        """Determines per relation which sourcevalues (bronwaarde or broninfo, or both) are requested.
+
+        :return:
+        """
+        result = {}
+        for relation, selection in self.selections.items():
+            result[relation] = [v for v in [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO] if v in selection['fields']]
+        return result
+
     def __iter__(self):
         """Main method. Use class as iterator.
 
@@ -147,6 +183,7 @@ class GraphQLStreamingResponseBuilder:
         :return:
         """
         self.evaluation_order, self.root_relation = self._determine_relation_evaluation_order()
+        self.requested_sourcevalues = self._get_requested_sourcevalues()
 
         collected_rows = []
         for row in self.rows:
@@ -204,10 +241,12 @@ class GraphQLStreamingApi():
 
     def entrypoint(self):
         request_data = json.loads(request.data.decode('utf-8'))
-        sql, relations_hierarchy = GraphQL2SQL.graphql2sql(request_data['query'])
+        graphql2sql = GraphQL2SQL(request_data['query'])
+        sql = graphql2sql.sql()
         session = get_session()
         result_rows = session.execute(text(sql))
 
-        response_builder = GraphQLStreamingResponseBuilder(result_rows, relations_hierarchy)
+        response_builder = GraphQLStreamingResponseBuilder(result_rows, graphql2sql.relations_hierarchy,
+                                                           graphql2sql.selections)
 
         return Response(response_builder, mimetype='application/x-ndjson')
