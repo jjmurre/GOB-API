@@ -90,7 +90,8 @@ class GraphQLStreamingResponseBuilder:
             if FIELD.SOURCE_INFO in requested:
                 row[relation_key][FIELD.SOURCE_INFO] = self._create_broninfo(row[src_key])
 
-            del row[src_key]
+            if src_key in row:
+                del row[src_key]
 
     def _add_row_to_entity(self, row: dict, entity: dict):
         """Adds the data from a result row to entity
