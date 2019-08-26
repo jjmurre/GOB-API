@@ -84,14 +84,22 @@ class GraphQLStreamingResponseBuilder:
             src_key = '_src' + relation[0].upper() + relation[1:]
             relation_key = '_' + relation
 
-            if FIELD.SOURCE_VALUE in requested:
-                row[relation_key][FIELD.SOURCE_VALUE] = row[src_key][FIELD.SOURCE_VALUE]
+            if src_key in row and row[src_key]:
+                if row[relation_key] is None and len(requested) > 0:
+                    # In case the relation does not exist and we need to add sourcevalues.
+                    row[relation_key] = {}
 
-            if FIELD.SOURCE_INFO in requested:
-                row[relation_key][FIELD.SOURCE_INFO] = self._create_broninfo(row[src_key])
+                if FIELD.SOURCE_VALUE in requested:
+                    row[relation_key][FIELD.SOURCE_VALUE] = row[src_key][FIELD.SOURCE_VALUE]
 
-            if src_key in row:
-                del row[src_key]
+                if FIELD.SOURCE_INFO in requested:
+                    row[relation_key][FIELD.SOURCE_INFO] = self._create_broninfo(row[src_key])
+
+            self._delete_key(row, src_key)
+
+    def _delete_key(self, dct: dict, key: str):
+        if key in dct:
+            del dct[key]
 
     def _add_row_to_entity(self, row: dict, entity: dict):
         """Adds the data from a result row to entity

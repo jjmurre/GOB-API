@@ -70,6 +70,8 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
             'relAtionB': [FIELD.SOURCE_INFO],
             'relAtionC': [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO],
             'relAtionD': [],
+            'relAtionE': [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO],
+            'relAtionF': [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO],
         }
         row = {
             '_srcRelAtionA': {
@@ -88,6 +90,11 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
                 FIELD.SOURCE_VALUE: 'svD',
                 'someOtherField': 'DD',
             },
+            '_srcRelAtionE': {
+                FIELD.SOURCE_VALUE: 'svE',
+                'someOtherField': 'EE',
+            },
+            '_srcRelAtionF': None,
             '_relAtionA': {
                 'someField': 'AAA',
             },
@@ -100,6 +107,10 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
             '_relAtionD': {
                 'someField': 'DDD',
             },
+            '_relAtionE': None,
+            '_relAtionF': {
+                'someField': 'FFF',
+            }
         }
         builder._add_sourcevalues_to_row(row)
 
@@ -124,6 +135,15 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
             '_relAtionD': {
                 'someField': 'DDD',
             },
+            '_relAtionE': {
+                FIELD.SOURCE_VALUE: 'svE',
+                FIELD.SOURCE_INFO: {
+                    'someOtherField': 'EE',
+                }
+            },
+            '_relAtionF': {
+                'someField': 'FFF',
+            }
         }, row)
 
     def test_add_row_to_entity_empty(self):
