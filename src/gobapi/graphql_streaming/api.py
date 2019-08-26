@@ -84,14 +84,22 @@ class GraphQLStreamingResponseBuilder:
             src_key = '_src' + relation[0].upper() + relation[1:]
             relation_key = '_' + relation
 
-            if FIELD.SOURCE_VALUE in requested:
-                row[relation_key][FIELD.SOURCE_VALUE] = row[src_key][FIELD.SOURCE_VALUE]
+            if src_key in row and row[src_key]:
+                if row[relation_key] is None and len(requested) > 0:
+                    # In case the relation does not exist and we need to add sourcevalues.
+                    row[relation_key] = {}
 
-            if FIELD.SOURCE_INFO in requested:
-                row[relation_key][FIELD.SOURCE_INFO] = self._create_broninfo(row[src_key])
+                if FIELD.SOURCE_VALUE in requested:
+                    row[relation_key][FIELD.SOURCE_VALUE] = row[src_key][FIELD.SOURCE_VALUE]
 
-            if src_key in row:
-                del row[src_key]
+                if FIELD.SOURCE_INFO in requested:
+                    row[relation_key][FIELD.SOURCE_INFO] = self._create_broninfo(row[src_key])
+
+            self._delete_key(row, src_key)
+
+    def _delete_key(self, dct: dict, key: str):
+        if key in dct:
+            del dct[key]
 
     def _add_row_to_entity(self, row: dict, entity: dict):
         """Adds the data from a result row to entity
@@ -103,18 +111,14 @@ class GraphQLStreamingResponseBuilder:
 
         # Dict containing references to the relations contained in this row, so that when we are trying to insert
         # nested related objects in the entity, we don't have to look up the correct parent anymore.
-        row_relations = {}
+        row_relations = {'_root': entity}
         for relation_name in self.evaluation_order:
-            parent = self.relations_hierarchy[relation_name]
-
             row_relation = row['_' + relation_name]
 
-            if parent == self.root_relation:
-                insert_position = entity
-            elif parent in row_relations:
-                insert_position = row_relations[parent]
-            else:
-                insert_position = None
+            # Determine insert_position for relation_name, given row_relations
+            insert_position = self._get_insert_position(relation_name, row_relations)
+
+            if insert_position is None:
                 continue
 
             self._add_relation(insert_position, relation_name)
@@ -129,9 +133,21 @@ class GraphQLStreamingResponseBuilder:
 
             if item:
                 row_relations[relation_name] = item[0]['node']
-            else:
+            elif not self._is_empty_relation(row_relation):
                 insert_position[relation_name]['edges'].append(self._to_node(row_relation))
                 row_relations[relation_name] = row_relation
+
+    def _get_insert_position(self, relation_name: str, row_relations: dict):
+        relation_parent = self.relations_hierarchy[relation_name]
+        if relation_parent == self.root_relation:
+            return row_relations['_root']
+        elif relation_parent in row_relations:
+            return row_relations[relation_parent]
+        else:
+            return None
+
+    def _is_empty_relation(self, relation: dict):
+        return all([v is None for v in relation.values()])
 
     def _build_entity(self, collected_rows: list):
         """Builds entity iteratively out of the collected result rows.

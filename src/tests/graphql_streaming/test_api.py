@@ -70,6 +70,8 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
             'relAtionB': [FIELD.SOURCE_INFO],
             'relAtionC': [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO],
             'relAtionD': [],
+            'relAtionE': [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO],
+            'relAtionF': [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO],
         }
         row = {
             '_srcRelAtionA': {
@@ -88,6 +90,11 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
                 FIELD.SOURCE_VALUE: 'svD',
                 'someOtherField': 'DD',
             },
+            '_srcRelAtionE': {
+                FIELD.SOURCE_VALUE: 'svE',
+                'someOtherField': 'EE',
+            },
+            '_srcRelAtionF': None,
             '_relAtionA': {
                 'someField': 'AAA',
             },
@@ -100,6 +107,10 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
             '_relAtionD': {
                 'someField': 'DDD',
             },
+            '_relAtionE': None,
+            '_relAtionF': {
+                'someField': 'FFF',
+            }
         }
         builder._add_sourcevalues_to_row(row)
 
@@ -124,6 +135,15 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
             '_relAtionD': {
                 'someField': 'DDD',
             },
+            '_relAtionE': {
+                FIELD.SOURCE_VALUE: 'svE',
+                FIELD.SOURCE_INFO: {
+                    'someOtherField': 'EE',
+                }
+            },
+            '_relAtionF': {
+                'someField': 'FFF',
+            }
         }, row)
 
     def test_add_row_to_entity_empty(self):
@@ -246,7 +266,7 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
                                 'edges': [
                                     {
                                         'node': {'some_other': 'value', FIELD.GOBID: 'gobid2'},
-                                    }
+                                    },
                                 ]
                             }
                         }
@@ -285,6 +305,65 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
 
         builder._add_row_to_entity(row, entity)
         self.assertEqual(entity, expected_result)
+
+    def test_add_row_to_entity_empty_object(self):
+        builder = self.get_instance()
+        builder.evaluation_order = ['a', 'b']
+        builder.root_relation = 'rootrel'
+        builder.relations_hierarchy = {
+            'a': 'rootrel',
+            'b': 'a'
+        }
+
+        entity = {
+            'existing': 'value',
+            'a': {
+                'edges': [
+                    {
+                        'node': {
+                            FIELD.GOBID: 'gobid1',
+                            'some': 'value',
+                            'b': {
+                                'edges': [
+                                    {
+                                        'node': {'some_other': 'value', FIELD.GOBID: 'gobid2'},
+                                    },
+                                ]
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+        row = {
+            '_a': {'some': 'value', FIELD.GOBID: 'gobid1'},
+            '_b': {'some_other': None, FIELD.GOBID: None},
+        }
+
+        expected_result = {
+            'existing': 'value',
+            'a': {
+                'edges': [
+                    {
+                        'node': {
+                            'some': 'value',
+                            FIELD.GOBID: 'gobid1',
+                            'b': {
+                                'edges': [
+                                    {
+                                        'node': {'some_other': 'value', FIELD.GOBID: 'gobid2'},
+                                    },
+                                ]
+                            }
+                        },
+                    }
+                ]
+            },
+        }
+
+        builder._add_row_to_entity(row, entity)
+        self.assertEqual(entity, expected_result)
+
 
     def test_build_entity(self):
         builder = self.get_instance()
