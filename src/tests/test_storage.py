@@ -397,10 +397,10 @@ def test_entities_with_references(monkeypatch):
             'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
-            'reference': {'bronwaarde': '1', FIELD.REFERENCE_ID: '1', '_links': {'self': {'href': '/gob/catalog/collection/1/'}}, 'broninfo': {}},
+            'reference': {'bronwaarde': '1', FIELD.REFERENCE_ID: '1', '_links': {'self': {'href': '/gob/catalog/collection/1/'}}},
             'manyreference': [
-                {'bronwaarde': '1', FIELD.REFERENCE_ID: '1', '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}, 'broninfo': {}},
-                {'bronwaarde': '2', FIELD.REFERENCE_ID: '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}, 'broninfo': {}}
+                {'bronwaarde': '1', FIELD.REFERENCE_ID: '1', '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
+                {'bronwaarde': '2', FIELD.REFERENCE_ID: '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
             ]
         }
     }], 1))
@@ -423,10 +423,10 @@ def test_entities_without_reference_id(monkeypatch):
             'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
-            'reference': {FIELD.REFERENCE_ID: None, 'bronwaarde': '1', 'broninfo': {}},
+            'reference': {FIELD.REFERENCE_ID: None, 'bronwaarde': '1'},
             'manyreference': [
-                {FIELD.REFERENCE_ID: '1', 'bronwaarde': '1' , '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}, 'broninfo': {}},
-                {FIELD.REFERENCE_ID: '2', 'bronwaarde': '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}, 'broninfo': {}}
+                {FIELD.REFERENCE_ID: '1', 'bronwaarde': '1' , '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
+                {FIELD.REFERENCE_ID: '2', 'bronwaarde': '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
             ]
         }
     }], 1))
@@ -469,10 +469,10 @@ def test_reference_entities(monkeypatch):
             'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
-            'reference': {'bronwaarde': '1', FIELD.REFERENCE_ID: '1', '_links': {'self': {'href': '/gob/catalog/collection/1/'}}, 'broninfo': {}},
+            'reference': {'bronwaarde': '1', FIELD.REFERENCE_ID: '1', '_links': {'self': {'href': '/gob/catalog/collection/1/'}}},
             'manyreference': [
-                {'bronwaarde': '1', FIELD.REFERENCE_ID: '1', '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}, 'broninfo': {}},
-                {'bronwaarde': '2', FIELD.REFERENCE_ID: '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}, 'broninfo': {}}
+                {'bronwaarde': '1', FIELD.REFERENCE_ID: '1', '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
+                {'bronwaarde': '2', FIELD.REFERENCE_ID: '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
             ]
         }
     }], 1))
@@ -508,8 +508,7 @@ def test_entities_with_view(monkeypatch):
     assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') ==
            ([{'attribute': 'attribute', 'identificatie': 'identificatie',
               '_embedded': {'is_test': {FIELD.REFERENCE_ID: '1234',
-                                        '_links': {'self': {'href': '/gob/catalog/collection/1234/'}},
-                                        'broninfo': {}}}}], None))
+                                        '_links': {'self': {'href': '/gob/catalog/collection/1234/'}}}}}], None))
 
     # Reset the table columns
     MockTable.columns = [MockColumn('identificatie'), MockColumn('attribute'), MockColumn('meta')]
@@ -611,9 +610,7 @@ class TestStorage(TestCase):
             'bronwaarde': 'bronwaarde_val',
             'volgnummer': 'volgnummer_val',
             'id': 'id_val',
-            'broninfo': {
-                'otherfield': 'otherfield_val',
-            },
+            'otherfield': 'otherfield_val',
             '_links': {
                 'self': {
                     'href': '/gob/catalog/collection/id_val/'
