@@ -282,7 +282,8 @@ ON {on_clause}''')
         table_select = ''.join(self.joins)
         where = f"WHERE ({') AND ('.join(self.filter_conditions)})" if len(self.filter_conditions) > 0 else ""
         limit = self._get_limit_expression(arguments)
-        query = f"SELECT\n{select}\n{table_select}\n{where}\n{limit}"
+        order_by = f"ORDER BY {base_info['alias']}.{FIELD.GOBID}"
+        query = f"SELECT\n{select}\n{table_select}\n{where}\n{order_by}\n{limit}"
 
         return query
 
