@@ -84,6 +84,7 @@ class TestGraphQL2SQL(TestCase):
 SELECT cola_0._gobid, cola_0.identificatie
 FROM catalog_collectiona cola_0
 WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
+ORDER BY cola_0._gobid
 '''
         ),
         (
@@ -102,6 +103,7 @@ WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
 SELECT geocoll_0._gobid, geocoll_0.identificatie, ST_AsText(geocoll_0.geofield) geofield
 FROM catalog_collectionwithgeometry geocoll_0
 WHERE (geocoll_0._expiration_date IS NULL OR geocoll_0._expiration_date > NOW())
+ORDER BY geocoll_0._gobid
 '''
         ),
         (
@@ -120,6 +122,7 @@ SELECT cola_0._gobid, cola_0.identificatie
 FROM catalog_collectiona cola_0
 WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
 AND (cola_0.filterarg = 3) AND (cola_0.filterarg2 = 'strval')
+ORDER BY cola_0._gobid
 '''
         ),
         (
@@ -137,6 +140,7 @@ AND (cola_0.filterarg = 3) AND (cola_0.filterarg2 = 'strval')
 SELECT cola_0._gobid, cola_0.identificatie
 FROM catalog_collectiona cola_0
 WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
+ORDER BY cola_0._gobid
 LIMIT 20
 '''
         ),
@@ -154,6 +158,7 @@ LIMIT 20
 ''', '''
 SELECT cola_0._gobid, cola_0.identificatie
 FROM catalog_collectiona cola_0
+ORDER BY cola_0._gobid
 '''),
         (
 
@@ -202,6 +207,7 @@ FROM catalog_collectiona cola_0
             WHERE (colb_0.some_property = 'someval')
         ) rels
         ON rels.cola_0_id = cola_0._id
+        ORDER BY cola_0._gobid
          '''
 
         ),
@@ -250,6 +256,7 @@ FROM catalog_collectiona cola_0
             AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
         ) rels
         ON rels.cola_0_id = cola_0._id
+        ORDER BY cola_0._gobid
          '''
         ),
         (
@@ -291,6 +298,7 @@ FROM catalog_collectiona cola_0
         ) invrel_0
         ON invrel_0.colb_0_id = colb_0._id AND invrel_0.colb_0_volgnummer = colb_0.volgnummer
         WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ( ) )
+        ORDER BY colb_0._gobid
          '''
         ),
         (
@@ -336,6 +344,7 @@ LEFT JOIN (
 ON rels.colb_0_id = colb_0._id
 AND rels.colb_0_volgnummer = colb_0.volgnummer
 WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ())
+ORDER BY colb_0._gobid
          '''
         ),
     ]
