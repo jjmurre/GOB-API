@@ -1,6 +1,6 @@
 # GOB-API
 
-GOB API provides for a HAL JSON view on the GOB catalogs, collections and entities.
+GOB API provides for a HAL JSON and GraphQL view on the GOB catalogs, collections and entities.
 
 The root endpoint provides for all GOB catalogs.
 Every endpoint contains the links to explore the data in more detail.
@@ -16,17 +16,20 @@ Every endpoint contains the links to explore the data in more detail.
 ## Local
 
 Make sure ANTLR4 is installed.
+
 The name of the ANTLR-executable is system-dependent. Sometimes it is called
 ```antlr```, other times it is called ```antlr4```.
+
 The build script default is ```antlr4```. To change this, run
 
-    export ANTLR_CMD=antlr4
+    export ANTLR_CMD=<<any other value>>
 
 Run
 
+    cd src
     ./build.sh
     
-to build generate the project files.
+to build and generate the project files.
 
 Create a virtual environment:
 
@@ -41,13 +44,6 @@ Or activate the previously created virtual environment
 The API depends on a running database.
 To start a database instance follow the instructions in the GOB-Upload project.
 
-If GOB-Upload project has already been initialised then execute:
-
-```bash
-    cd ../GOB-Upload
-    docker-compose up database &
-```
-
 Start the API
 
 ```
@@ -55,27 +51,17 @@ Start the API
     python -m gobapi
 ```
 
-The API is exposed at http://127.0.0.1:5000/gob/
+The API is exposed at:
+- HAL JSON: http://127.0.0.1:8141/gob/
+- GraphQL: http://localhost:8141/gob/graphql/
+
+The ip address of the server is also reported at stdout when starting the API from the command line
 
 ### Tests
 
-Linting
 ```bash
     cd src
-    flake8
-```
-
-Unit tests
-```bash
-    cd src
-    pytest
-```
-
-Test coverage (100%)
-```bash
-    cd src
-    export COVERAGE_FILE=/tmp/.coverage
-    pytest --cov=api --cov-fail-under=100 tests/
+    sh test.sh
 ```
 
 ## Docker
@@ -84,6 +70,8 @@ Test coverage (100%)
     docker-compose build
     docker-compose up
 ```
+
+The API is exposed at the same address as for the local installation.
 
 ### Tests
 
