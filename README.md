@@ -55,7 +55,16 @@ The API is exposed at:
 - HAL JSON: http://127.0.0.1:8141/gob/
 - GraphQL: http://localhost:8141/gob/graphql/
 
-The ip address of the server is also reported at stdout when starting the API from the command line
+The IP address of the server is also reported at stdout when starting the API from the command line
+
+### Streaming output
+
+Instead of having the API compute the result and return it as a whole or in paged format,
+data can also be retrieved streaming. This not only limits the memory usage of the API
+but also allows for more easy processing of the data.
+
+- Streaming HAL JSON output can be obtained by using ?streaming=true or ?ndjson=true as URL parameter.
+- Streaming GraphQL output can be obtained by using the endpoint .../graphql/streaming
 
 ### Tests
 
