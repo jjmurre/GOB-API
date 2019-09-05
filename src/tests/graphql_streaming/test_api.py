@@ -53,16 +53,6 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
         builder = self.get_instance()
         self.assertEqual({'node': {'some': 'object'}}, builder._to_node({'some': 'object'}))
 
-    def test_create_broninfo(self):
-        src_values = {
-            FIELD.REFERENCE_ID: 'refid',
-            FIELD.SEQNR: 'seqnr',
-            FIELD.SOURCE_VALUE: 'srcvalue',
-            'otherfield': 'othervalue',
-        }
-        builder = self.get_instance()
-        self.assertEqual({'otherfield': 'othervalue'}, builder._create_broninfo(src_values))
-
     def test_add_sourcevalues_to_row(self):
         builder = self.get_instance()
         builder.requested_sourcevalues = {
@@ -76,23 +66,33 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
         row = {
             '_srcRelAtionA': {
                 FIELD.SOURCE_VALUE: 'svA',
-                'someOtherField': 'AA',
+                FIELD.SOURCE_INFO: {
+                    'someOtherField': 'AA',
+                }
             },
             '_srcRelAtionB': {
                 FIELD.SOURCE_VALUE: 'svB',
-                'someOtherField': 'BB',
+                FIELD.SOURCE_INFO: {
+                    'someOtherField': 'BB',
+                }
             },
             '_srcRelAtionC': {
                 FIELD.SOURCE_VALUE: 'svC',
-                'someOtherField': 'CC',
+                FIELD.SOURCE_INFO: {
+                    'someOtherField': 'CC',
+                }
             },
             '_srcRelAtionD': {
                 FIELD.SOURCE_VALUE: 'svD',
-                'someOtherField': 'DD',
+                FIELD.SOURCE_INFO: {
+                    'someOtherField': 'DD',
+                }
             },
             '_srcRelAtionE': {
                 FIELD.SOURCE_VALUE: 'svE',
-                'someOtherField': 'EE',
+                FIELD.SOURCE_INFO: {
+                    'someOtherField': 'EE',
+                }
             },
             '_srcRelAtionF': None,
             '_relAtionA': {
@@ -364,7 +364,6 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
         builder._add_row_to_entity(row, entity)
         self.assertEqual(entity, expected_result)
 
-
     def test_build_entity(self):
         builder = self.get_instance()
         collected_rows = [
@@ -452,7 +451,6 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
             'relationC': [FIELD.SOURCE_INFO],
             'relationD': [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO],
         }, builder._get_requested_sourcevalues())
-
 
     @patch("gobapi.graphql_streaming.api._dict_to_camelcase", lambda x: x)
     @patch("gobapi.graphql_streaming.api.stream_response", lambda x: 'streamed_' + x)

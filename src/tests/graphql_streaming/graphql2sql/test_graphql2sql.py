@@ -248,10 +248,10 @@ ORDER BY cola_0._gobid
                     '_gobid', colb_0._gobid,
                     'nested_identificatie', colb_0.nested_identificatie ) _some_nested_many_relation
             FROM catalog_collectiona cola_0
-            LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_some_nested_many_relation(item)
-            ON rel_some_nested_many_relation.item->>'id' IS NOT NULL
+            LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_some_nested_many_relation(item) ON TRUE
+            LEFT JOIN catalog_collectionb colb_0 ON rel_some_nested_many_relation.item->>'id' IS NOT NULL 
+            AND colb_0._id = rel_some_nested_many_relation.item->>'id'
             AND rel_some_nested_many_relation.item->>'volgnummer' IS NOT NULL
-            LEFT JOIN catalog_collectionb colb_0 ON colb_0._id = rel_some_nested_many_relation.item->>'id'
             AND colb_0.volgnummer = rel_some_nested_many_relation.item->>'volgnummer'
             AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
         ) rels
@@ -361,6 +361,7 @@ ORDER BY colb_0._gobid
 
     def test_graphql2sql(self, mock_model):
         mock_model.return_value = MockModel()
+        self.maxDiff = None
 
         for inp, outp in self.test_cases:
             graphql2sql = GraphQL2SQL(inp)
