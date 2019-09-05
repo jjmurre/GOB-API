@@ -69,9 +69,6 @@ class GraphQLStreamingResponseBuilder:
         if relation_name not in insert_position:
             insert_position[relation_name] = {"edges": []}
 
-    def _create_broninfo(self, src_values: dict):
-        return {k: v for k, v in src_values.items() if k not in [FIELD.REFERENCE_ID, FIELD.SEQNR, FIELD.SOURCE_VALUE]}
-
     def _add_sourcevalues_to_row(self, row: dict):
         """Merges the source values as returned from the query with the actual relations, so the source values
         (bronwaarde, broninfo dict) show up at the appropriate place in the output.
@@ -93,7 +90,7 @@ class GraphQLStreamingResponseBuilder:
                     row[relation_key][FIELD.SOURCE_VALUE] = row[src_key][FIELD.SOURCE_VALUE]
 
                 if FIELD.SOURCE_INFO in requested:
-                    row[relation_key][FIELD.SOURCE_INFO] = self._create_broninfo(row[src_key])
+                    row[relation_key][FIELD.SOURCE_INFO] = row[src_key][FIELD.SOURCE_INFO]
 
             self._delete_key(row, src_key)
 

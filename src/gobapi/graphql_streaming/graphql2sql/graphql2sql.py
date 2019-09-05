@@ -327,16 +327,15 @@ ON {on_clause}''')
         :return:
         """
         jsonb_join = f"LEFT JOIN jsonb_array_elements({src_relation_name}.{src_attr_name}) " \
-            f"rel_{src_attr_name}(item)" \
-            f" ON rel_{src_attr_name}.item->>'{FIELD.REFERENCE_ID}' IS NOT NULL"
+            f"rel_{src_attr_name}(item) ON TRUE"
 
         left_join = f"LEFT JOIN {dst_relation['tablename']} {dst_relation['alias']} " \
-            f"ON {dst_relation['alias']}.{FIELD.ID} = rel_{src_attr_name}.item->>'{FIELD.REFERENCE_ID}'"
+            f"ON rel_{src_attr_name}.item->>'{FIELD.REFERENCE_ID}' IS NOT NULL " \
+            f"AND {dst_relation['alias']}.{FIELD.ID} = rel_{src_attr_name}.item->>'{FIELD.REFERENCE_ID}'"
 
         if dst_relation['has_states']:
-            jsonb_join += f" AND rel_{src_attr_name}.item->>'{FIELD.SEQNR}' IS NOT NULL"
-            left_join += f" AND {dst_relation['alias']}.{FIELD.SEQNR} = " \
-                f"rel_{src_attr_name}.item->>'{FIELD.SEQNR}'"
+            left_join += f" AND rel_{src_attr_name}.item->>'{FIELD.SEQNR}' IS NOT NULL " \
+                f"AND {dst_relation['alias']}.{FIELD.SEQNR} = rel_{src_attr_name}.item->>'{FIELD.SEQNR}'"
 
         if filter_active:
             left_join += f" AND ({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
