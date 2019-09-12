@@ -24,19 +24,21 @@ class GraphQLVisitor(BaseVisitor):
         self.relationStack = []
         self.selects = {}
         self.relationParents = {}
+        self.relationAliases = {}
         self.arguments = {}
 
-    def pushRelationStack(self, relation: str):
+    def pushRelationStack(self, relation: str, alias: str):
         """Pushes relation to stack.
 
         :param relation:
         :return:
         """
-        self.relationParents[relation] = self.relationStack[-1] if len(self.relationStack) else None
-        self.relationStack.append(relation)
+        self.relationParents[alias] = self.relationStack[-1] if len(self.relationStack) else None
+        self.relationStack.append(alias)
+        self.relationAliases[alias] = relation
 
         if relation not in self.selects:
-            self.selects[relation] = {
+            self.selects[alias] = {
                 'fields': [],
                 'arguments': self.arguments,
             }
@@ -70,7 +72,7 @@ class GraphQLVisitor(BaseVisitor):
                 # Ignore pageInfo
                 pass
             else:
-                self.pushRelationStack(field_name)
+                self.pushRelationStack(field_name, alias)
                 self.visitSelectionSet(ctx.selectionSet())
                 self.popRelationStack()
         else:
@@ -140,6 +142,7 @@ class SqlGenerator:
         self.visitor = visitor
         self.selects = visitor.selects
         self.relation_parents = visitor.relationParents
+        self.relation_aliases = visitor.relationAliases
         self.relation_info = {}
         self.model = GOBModel()
 
@@ -209,8 +212,8 @@ class SqlGenerator:
 
         return self.relation_info[relation_name]
 
-    def _get_relation_info(self, relation_name: str):
-        return self.relation_info[relation_name]
+    def _get_relation_info(self, relation_alias: str):
+        return self.relation_info[relation_alias]
 
     def _select_expression(self, relation: dict, field: str):
         field_snake = self.to_snake(field)
@@ -226,8 +229,7 @@ class SqlGenerator:
         self._reset()
 
         # Relation without parent is main relation
-        base_collection = {k: v for k, v in self.relation_parents.items() if v is None}
-        base_collection = list(base_collection.keys())[0]
+        base_collection = [k for k, v in self.relation_parents.items() if v is None][0]
 
         self._collect_relation_info(base_collection, base_collection)
         base_info = self._get_relation_info(base_collection)
@@ -305,14 +307,14 @@ ON {on_clause}''')
 
     def _join_relations(self, relations: dict):
         self.relcnt = 0
-        for relation_name, select in relations.items():
+        for relation_alias, select in relations.items():
             arguments = self._get_arguments_with_defaults(select['arguments'])
             select_fields = [FIELD.GOBID] + select['fields']
 
-            if relation_name.startswith('inv'):
-                self._join_inverse_relation(relation_name, select_fields, arguments)
+            if relation_alias.startswith('inv'):
+                self._join_inverse_relation(relation_alias, select_fields, arguments)
             else:
-                self._join_relation(relation_name, select_fields, arguments)
+                self._join_relation(relation_alias, select_fields, arguments)
             self.relcnt += 1
 
     def _join_relation_many(self, src_relation_name: str, src_attr_name: str, dst_relation: dict, filter_active: bool,
@@ -326,16 +328,17 @@ ON {on_clause}''')
 
         :return:
         """
+        jsonb_alias = f"rel_{src_attr_name}{self.relcnt}"
         jsonb_join = f"LEFT JOIN jsonb_array_elements({src_relation_name}.{src_attr_name}) " \
-            f"rel_{src_attr_name}(item) ON TRUE"
+            f"{jsonb_alias}(item) ON TRUE"
 
         left_join = f"LEFT JOIN {dst_relation['tablename']} {dst_relation['alias']} " \
-            f"ON rel_{src_attr_name}.item->>'{FIELD.REFERENCE_ID}' IS NOT NULL " \
-            f"AND {dst_relation['alias']}.{FIELD.ID} = rel_{src_attr_name}.item->>'{FIELD.REFERENCE_ID}'"
+            f"ON {jsonb_alias}.item->>'{FIELD.REFERENCE_ID}' IS NOT NULL " \
+            f"AND {dst_relation['alias']}.{FIELD.ID} = {jsonb_alias}.item->>'{FIELD.REFERENCE_ID}'"
 
         if dst_relation['has_states']:
-            left_join += f" AND rel_{src_attr_name}.item->>'{FIELD.SEQNR}' IS NOT NULL " \
-                f"AND {dst_relation['alias']}.{FIELD.SEQNR} = rel_{src_attr_name}.item->>'{FIELD.SEQNR}'"
+            left_join += f" AND {jsonb_alias}.item->>'{FIELD.SEQNR}' IS NOT NULL " \
+                f"AND {dst_relation['alias']}.{FIELD.SEQNR} = {jsonb_alias}.item->>'{FIELD.SEQNR}'"
 
         if filter_active:
             left_join += f" AND ({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
@@ -343,7 +346,7 @@ ON {on_clause}''')
 
         if src_value_requested:
             src_alias = f"_src_{src_attr_name}"
-            self.subjoin_select_list.append(f"rel_{src_attr_name}.item {src_alias}")
+            self.subjoin_select_list.append(f"{jsonb_alias}.item {src_alias}")
             self.select_expressions.append(f"rels.{src_alias}")
 
         self.subjoins.append(jsonb_join)
@@ -387,7 +390,7 @@ ON {on_clause}''')
     def _join_relation(self, relation_name: str, attributes: list, arguments: dict):
         parent = self.relation_parents[relation_name]
         parent_info = self._get_relation_info(parent)
-        relation_attr_name = self.to_snake(relation_name)
+        relation_attr_name = self.to_snake(self.relation_aliases[relation_name])
 
         dst_catalog_name, dst_collection_name = self.model.get_catalog_collection_names_from_ref(
             parent_info['collection']['attributes'][relation_attr_name]['ref']
@@ -395,7 +398,7 @@ ON {on_clause}''')
 
         dst_info = self._collect_relation_info(relation_name, f'{dst_catalog_name}_{dst_collection_name}')
 
-        alias = f"_{relation_attr_name}"
+        alias = f"_{self.to_snake(relation_name)}"
         json_attrs = self._json_build_attrs(attributes, dst_info['alias'])
 
         is_many = self._is_many(parent_info['collection']['attributes'][relation_attr_name]['type'])
@@ -450,10 +453,10 @@ LEFT JOIN (
     SELECT
         {s}
     FROM {dst_relation['tablename']} {dst_relation['alias']}
-    LEFT JOIN jsonb_array_elements({dst_relation['alias']}.{dst_attr_name}) rel_{dst_attr_name}(item)
-    ON rel_{dst_attr_name}.item->>'id' IS NOT NULL
+    LEFT JOIN jsonb_array_elements({dst_relation['alias']}.{dst_attr_name}) rel_{dst_attr_name}{self.relcnt}(item)
+    ON rel_{dst_attr_name}{self.relcnt}.item->>'id' IS NOT NULL
     LEFT JOIN {src_relation['tablename']} {src_relation['alias']}
-    ON {src_relation['alias']}.{FIELD.ID} = rel_{dst_attr_name}.item->>'id'
+    ON {src_relation['alias']}.{FIELD.ID} = rel_{dst_attr_name}{self.relcnt}.item->>'id'
 ) {joinalias}
 ON {on_clause}''')
         self.select_expressions.append(f"{joinalias}.{alias}")

@@ -243,16 +243,16 @@ ORDER BY cola_0._gobid
         LEFT JOIN (
             SELECT 
                 cola_0._id cola_0_id,
-                rel_some_nested_many_relation.item _src_some_nested_many_relation,
+                rel_some_nested_many_relation0.item _src_some_nested_many_relation,
                 json_build_object (
                     '_gobid', colb_0._gobid,
                     'nested_identificatie', colb_0.nested_identificatie ) _some_nested_many_relation
             FROM catalog_collectiona cola_0
-            LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_some_nested_many_relation(item) ON TRUE
-            LEFT JOIN catalog_collectionb colb_0 ON rel_some_nested_many_relation.item->>'id' IS NOT NULL 
-            AND colb_0._id = rel_some_nested_many_relation.item->>'id'
-            AND rel_some_nested_many_relation.item->>'volgnummer' IS NOT NULL
-            AND colb_0.volgnummer = rel_some_nested_many_relation.item->>'volgnummer'
+            LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_some_nested_many_relation0(item) ON TRUE
+            LEFT JOIN catalog_collectionb colb_0 ON rel_some_nested_many_relation0.item->>'id' IS NOT NULL 
+            AND colb_0._id = rel_some_nested_many_relation0.item->>'id'
+            AND rel_some_nested_many_relation0.item->>'volgnummer' IS NOT NULL
+            AND colb_0.volgnummer = rel_some_nested_many_relation0.item->>'volgnummer'
             AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
         ) rels
         ON rels.cola_0_id = cola_0._id
@@ -292,9 +292,9 @@ ORDER BY cola_0._gobid
                     '_gobid', cola_0._gobid,
                     'identificatie', cola_0.identificatie ) _inv_some_nested_many_relation_catalog_collectiona
             FROM catalog_collectiona cola_0
-            LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_some_nested_many_relation(item)
-            ON rel_some_nested_many_relation.item->>'id' IS NOT NULL
-            LEFT JOIN catalog_collectionb colb_0 ON colb_0._id = rel_some_nested_many_relation.item->>'id'
+            LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_some_nested_many_relation0(item)
+            ON rel_some_nested_many_relation0.item->>'id' IS NOT NULL
+            LEFT JOIN catalog_collectionb colb_0 ON colb_0._id = rel_some_nested_many_relation0.item->>'id'
         ) invrel_0
         ON invrel_0.colb_0_id = colb_0._id AND invrel_0.colb_0_volgnummer = colb_0.volgnummer
         WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ( ) )
@@ -347,6 +347,53 @@ WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ())
 ORDER BY colb_0._gobid
          '''
         ),
+        (
+
+            '''
+{
+  catalogCollectiona(active: false) {
+    edges {
+      node {
+        identificatie
+
+        relationAlias: someNestedRelation(someProperty: "someval") {
+            edges {
+                node {
+                    nestedIdentificatie
+                }
+            }
+        }
+      }
+    }
+  }
+}''',
+            '''
+        SELECT
+            cola_0._gobid,
+            cola_0.identificatie,
+            rels._relation_alias
+        FROM catalog_collectiona cola_0
+        LEFT JOIN (
+            SELECT
+                cola_0._id cola_0_id,
+                json_build_object (
+                    '_gobid', colb_0._gobid,
+                    'nested_identificatie', colb_0.nested_identificatie ) _relation_alias 
+            FROM catalog_collectiona cola_0
+            LEFT JOIN catalog_collectionb colb_0
+            ON cola_0.some_nested_relation->>'id' IS NOT NULL
+            AND cola_0.some_nested_relation->>'id' = colb_0._id
+            AND cola_0.some_nested_relation->>'volgnummer' IS NOT NULL
+            AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer
+            AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
+            WHERE (colb_0.some_property = 'someval')
+        ) rels
+        ON rels.cola_0_id = cola_0._id
+        ORDER BY cola_0._gobid
+         '''
+
+        ),
+
     ]
 
     def normalise_whitespace(self, string: str):
