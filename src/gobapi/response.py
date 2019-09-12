@@ -77,18 +77,19 @@ def _error_response(error, msg):
     }), error, {'Content-Type': 'application/json'}
 
 
-def hal_response(data, links={}):
+def hal_response(data, links=None):
     """HAL JSON response
 
     Converts the specified data and links to a HAL JSON document
 
     :param data: any data object
-    :param links: any links to related data, eg next and previosu page
+    :param links: any links to related data, eg next and previous page
     :return:
     """
     self = request.path
     if len(request.args):
         self += f'?{urllib.parse.urlencode(request.args)}'
+    links = links or {}
     links['self'] = self
 
     response = _dict_to_camelcase({
