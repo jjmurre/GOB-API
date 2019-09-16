@@ -187,26 +187,18 @@ ORDER BY cola_0._gobid
         SELECT
             cola_0._gobid,
             cola_0.identificatie,
-            rels._src_some_nested_relation,
-            rels._some_nested_relation
+            cola_0.some_nested_relation _src_some_nested_relation,
+            json_build_object (
+                '_gobid', colb_0._gobid,
+                'nested_identificatie', colb_0.nested_identificatie ) _some_nested_relation
         FROM catalog_collectiona cola_0
-        LEFT JOIN (
-            SELECT
-                cola_0._id cola_0_id,
-                cola_0.some_nested_relation _src_some_nested_relation,
-                json_build_object (
-                    '_gobid', colb_0._gobid,
-                    'nested_identificatie', colb_0.nested_identificatie ) _some_nested_relation
-            FROM catalog_collectiona cola_0
-            LEFT JOIN catalog_collectionb colb_0
-            ON cola_0.some_nested_relation->>'id' IS NOT NULL
-            AND cola_0.some_nested_relation->>'id' = colb_0._id
-            AND cola_0.some_nested_relation->>'volgnummer' IS NOT NULL
-            AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer
-            AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
-            WHERE (colb_0.some_property = 'someval')
-        ) rels
-        ON rels.cola_0_id = cola_0._id
+        LEFT JOIN catalog_collectionb colb_0
+        ON cola_0.some_nested_relation->>'id' IS NOT NULL
+        AND cola_0.some_nested_relation->>'id' = colb_0._id
+        AND cola_0.some_nested_relation->>'volgnummer' IS NOT NULL
+        AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer
+        AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
+        WHERE (colb_0.some_property = 'someval')
         ORDER BY cola_0._gobid
          '''
 
@@ -237,25 +229,17 @@ ORDER BY cola_0._gobid
         SELECT
             cola_0._gobid,
             cola_0.identificatie,
-            rels._src_some_nested_many_relation,
-            rels._some_nested_many_relation
+            rel_some_nested_many_relation0.item _src_some_nested_many_relation,
+            json_build_object (
+                '_gobid', colb_0._gobid,
+                'nested_identificatie', colb_0.nested_identificatie ) _some_nested_many_relation
         FROM catalog_collectiona cola_0
-        LEFT JOIN (
-            SELECT 
-                cola_0._id cola_0_id,
-                rel_some_nested_many_relation0.item _src_some_nested_many_relation,
-                json_build_object (
-                    '_gobid', colb_0._gobid,
-                    'nested_identificatie', colb_0.nested_identificatie ) _some_nested_many_relation
-            FROM catalog_collectiona cola_0
-            LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_some_nested_many_relation0(item) ON TRUE
-            LEFT JOIN catalog_collectionb colb_0 ON rel_some_nested_many_relation0.item->>'id' IS NOT NULL 
-            AND colb_0._id = rel_some_nested_many_relation0.item->>'id'
-            AND rel_some_nested_many_relation0.item->>'volgnummer' IS NOT NULL
-            AND colb_0.volgnummer = rel_some_nested_many_relation0.item->>'volgnummer'
-            AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
-        ) rels
-        ON rels.cola_0_id = cola_0._id
+        LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_some_nested_many_relation0(item) ON TRUE
+        LEFT JOIN catalog_collectionb colb_0 ON rel_some_nested_many_relation0.item->>'id' IS NOT NULL
+        AND colb_0._id = rel_some_nested_many_relation0.item->>'id'
+        AND rel_some_nested_many_relation0.item->>'volgnummer' IS NOT NULL
+        AND colb_0.volgnummer = rel_some_nested_many_relation0.item->>'volgnummer'
+        AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
         ORDER BY cola_0._gobid
          '''
         ),
@@ -324,27 +308,18 @@ ORDER BY cola_0._gobid
 SELECT
     colb_0._gobid,
 	colb_0.identificatie,
-	rels._inv_some_nested_relation_catalog_collectiona
-FROM catalog_collectionb colb_0
-LEFT JOIN (
-	SELECT
-		colb_0._id colb_0_id,
-		colb_0.volgnummer colb_0_volgnummer,
-		json_build_object (
-		    '_gobid', cola_0._gobid,
-		    'identificatie' , cola_0.identificatie) _inv_some_nested_relation_catalog_collectiona
-		FROM catalog_collectionb colb_0
-		LEFT JOIN catalog_collectiona cola_0
-		ON cola_0.some_nested_relation->>'id' IS NOT NULL
-		AND cola_0.some_nested_relation->>'id' = colb_0._id
-		AND cola_0.some_nested_relation->>'volgnummer' IS NOT NULL
-		AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer
-		AND ( cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW ())
-	) rels
-ON rels.colb_0_id = colb_0._id
-AND rels.colb_0_volgnummer = colb_0.volgnummer
-WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ())
-ORDER BY colb_0._gobid
+    json_build_object (
+        '_gobid', cola_0._gobid,
+        'identificatie' , cola_0.identificatie) _inv_some_nested_relation_catalog_collectiona
+    FROM catalog_collectionb colb_0
+    LEFT JOIN catalog_collectiona cola_0
+    ON cola_0.some_nested_relation->>'id' IS NOT NULL
+    AND cola_0.some_nested_relation->>'id' = colb_0._id
+    AND cola_0.some_nested_relation->>'volgnummer' IS NOT NULL
+    AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer
+    AND ( cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW ())
+    WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ())
+    ORDER BY colb_0._gobid
          '''
         ),
         (
@@ -371,27 +346,19 @@ ORDER BY colb_0._gobid
         SELECT
             cola_0._gobid,
             cola_0.identificatie,
-            rels._relation_alias
+            json_build_object (
+                '_gobid', colb_0._gobid,
+                'nested_identificatie', colb_0.nested_identificatie ) _relation_alias
         FROM catalog_collectiona cola_0
-        LEFT JOIN (
-            SELECT
-                cola_0._id cola_0_id,
-                json_build_object (
-                    '_gobid', colb_0._gobid,
-                    'nested_identificatie', colb_0.nested_identificatie ) _relation_alias 
-            FROM catalog_collectiona cola_0
-            LEFT JOIN catalog_collectionb colb_0
-            ON cola_0.some_nested_relation->>'id' IS NOT NULL
-            AND cola_0.some_nested_relation->>'id' = colb_0._id
-            AND cola_0.some_nested_relation->>'volgnummer' IS NOT NULL
-            AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer
-            AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
-            WHERE (colb_0.some_property = 'someval')
-        ) rels
-        ON rels.cola_0_id = cola_0._id
+        LEFT JOIN catalog_collectionb colb_0
+        ON cola_0.some_nested_relation->>'id' IS NOT NULL
+        AND cola_0.some_nested_relation->>'id' = colb_0._id
+        AND cola_0.some_nested_relation->>'volgnummer' IS NOT NULL
+        AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer
+        AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
+        WHERE (colb_0.some_property = 'someval')
         ORDER BY cola_0._gobid
          '''
-
         ),
 
     ]

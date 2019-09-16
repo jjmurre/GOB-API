@@ -35,11 +35,11 @@ class TestGraphQLStreamingApi(TestCase):
 
 class TestGraphQLStreamingResponseBuilder(TestCase):
 
-    def get_instance(self, rows=['some', 'rows'], relations_hierarchy={'some': 'hierarchy'}, selections={}):
+    def get_instance(self, rows=['some', 'rows'], relations_hierarchy={'some': 'hierarchy'}, selections=None):
         self.rows = rows
         self.relations_hierarchy = relations_hierarchy
-        self.selections = selections
-        self.instance = GraphQLStreamingResponseBuilder(rows, relations_hierarchy, selections)
+        self.selections = selections or {}
+        self.instance = GraphQLStreamingResponseBuilder(rows, relations_hierarchy, self.selections)
         return self.instance
 
     def test_init(self):

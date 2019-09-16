@@ -46,7 +46,8 @@ class MockGOBModel:
 
 
 class MockState:
-    def __init__(self, kwargs={}):
+    def __init__(self, kwargs=None):
+        kwargs = kwargs or {}
         for key, value in kwargs.items():
             setattr(self, key, value)
 

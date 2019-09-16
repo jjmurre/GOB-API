@@ -157,7 +157,7 @@ def _get_convert_for_state(model, fields=[], private_attributes=False):
     return convert
 
 
-def _get_convert_for_model(catalog, collection, model, meta={}, private_attributes=False):
+def _get_convert_for_model(catalog, collection, model, meta=None, private_attributes=False):
     """Get the entity to dict convert function for GOBModels
 
     The model is used to extract only the public attributes of the entity.
@@ -190,6 +190,7 @@ def _get_convert_for_model(catalog, collection, model, meta={}, private_attribut
                                         for k, v in model['very_many_references'].items()})
 
         return hal_entity
+    meta = meta or {}
     # Get the attributes which are not a reference, exclude private_attributes unless specifically requested
     attributes = {k: v for k, v in model['fields'].items()
                   if k not in model['references'].keys()
@@ -200,7 +201,7 @@ def _get_convert_for_model(catalog, collection, model, meta={}, private_attribut
     return convert
 
 
-def _get_convert_for_table(table, filter={}):
+def _get_convert_for_table(table, filter=None):
     """Get the entity to dict convert function for database Tables or Views
 
     The table columns are used to extract only the public attributes of the entity.
@@ -220,6 +221,7 @@ def _get_convert_for_table(table, filter={}):
             }
         return hal_entity
 
+    filter = filter or {}
     # Get all metadata or reference fields and filter them from the columns returned by the database view
     metadata_column_list = [k for k in filter.keys()]
     columns = [c for c in table.columns
