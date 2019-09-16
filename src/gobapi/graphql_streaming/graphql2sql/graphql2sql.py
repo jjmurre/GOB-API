@@ -184,9 +184,6 @@ class SqlGenerator:
         self.joins = []
         self.filter_conditions = []
         self.relation_info = {}
-        self.subjoins = []
-        self.subjoin_select_list = []
-        self.subjoin_filter_conditions = []
 
     def _get_active(self, tablename: str):
         return f"{tablename}.{FIELD.EXPIRATION_DATE} IS NULL OR {tablename}.{FIELD.EXPIRATION_DATE} > NOW()"
@@ -253,35 +250,8 @@ class SqlGenerator:
 
         self._join_relations(self.selects)
 
-        if len(self.subjoins):
-            select_general = [f"\t{base_info['alias']}.{FIELD.ID} {base_info['alias']}_id"]
-
-            if base_info['has_states']:
-                select_general.append(f"\t{base_info['alias']}.{FIELD.SEQNR} {base_info['alias']}_{FIELD.SEQNR}")
-
-            join_selects_str = ",\n".join(select_general + self.subjoin_select_list)
-            joins_str = "\n".join(self.subjoins)
-
-            on_clause = f"rels.{base_info['alias']}_id = {base_info['alias']}.{FIELD.ID}"
-
-            if base_info['has_states']:
-                on_clause += f" AND rels.{base_info['alias']}_{FIELD.SEQNR} = {base_info['alias']}.{FIELD.SEQNR}"
-
-            where = f"WHERE ({') AND ('.join(self.subjoin_filter_conditions)})" \
-                if len(self.subjoin_filter_conditions) > 0 else ""
-
-            self.joins.append(f'''
-LEFT JOIN (
-    SELECT
-{join_selects_str}
-    FROM {base_info['tablename']} {base_info['alias']}
-{joins_str}
-{where}
-) rels
-ON {on_clause}''')
-
         select = ',\n'.join(self.select_expressions)
-        table_select = ''.join(self.joins)
+        table_select = '\n'.join(self.joins)
         where = f"WHERE ({') AND ('.join(self.filter_conditions)})" if len(self.filter_conditions) > 0 else ""
         limit = self._get_limit_expression(arguments)
         order_by = f"ORDER BY {base_info['alias']}.{FIELD.GOBID}"
@@ -346,11 +316,10 @@ ON {on_clause}''')
 
         if src_value_requested:
             src_alias = f"_src_{src_attr_name}"
-            self.subjoin_select_list.append(f"{jsonb_alias}.item {src_alias}")
-            self.select_expressions.append(f"rels.{src_alias}")
+            self.select_expressions.append(f"{jsonb_alias}.item {src_alias}")
 
-        self.subjoins.append(jsonb_join)
-        self.subjoins.append(left_join)
+        self.joins.append(jsonb_join)
+        self.joins.append(left_join)
 
     def _join_relation_single(self, src_relation_name: str, src_attr_name: str, dst_relation: dict,
                               filter_active: bool, src_value_requested: bool):
@@ -369,10 +338,9 @@ ON {on_clause}''')
 
         if src_value_requested:
             src_alias = f"_src_{src_attr_name}"
-            self.subjoin_select_list.append(f"{src_relation_name}.{src_attr_name} {src_alias}")
-            self.select_expressions.append(f"rels.{src_alias}")
+            self.select_expressions.append(f"{src_relation_name}.{src_attr_name} {src_alias}")
 
-        self.subjoins.append(join)
+        self.joins.append(join)
 
     def _json_build_attrs(self, attributes: list, relation_name: str):
         """Create the list of attributes to be used in json_build_object( ) for attributes in relation_name
@@ -410,13 +378,8 @@ ON {on_clause}''')
             self._join_relation_single(parent_info['alias'], relation_attr_name, dst_info, arguments['active'],
                                        self._is_srcvalue_requested(attributes))
 
-        subjoin_select = f"json_build_object({json_attrs}) {alias}"
-
-        filter_arguments = self._get_formatted_filter_arguments(arguments, dst_info['alias'])
-        self.subjoin_filter_conditions.extend(filter_arguments)
-
-        self.subjoin_select_list.append(subjoin_select)
-        self.select_expressions.append(f"rels.{alias}")
+        self.select_expressions.append(f"json_build_object({json_attrs}) {alias}")
+        self.filter_conditions.extend(self._get_formatted_filter_arguments(arguments, dst_info['alias']))
 
     def _join_inverse_relation_many(self, src_relation: dict, dst_relation: dict, dst_attr_name: str, attrs: str,
                                     alias: str):
@@ -436,9 +399,7 @@ ON {on_clause}''')
         if src_relation['has_states']:
             selects.append(f"\t{src_relation['alias']}.{FIELD.SEQNR} {src_relation['alias']}_volgnummer")
 
-        select = f"json_build_object({attrs}) {alias}"
-
-        selects.append(select)
+        selects.append(f"json_build_object({attrs}) {alias}")
 
         s = ",".join(selects)
 
@@ -477,8 +438,7 @@ ON {on_clause}''')
             join += f" AND ({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
                 f"OR {dst_relation['alias']}.{FIELD.EXPIRATION_DATE} > NOW())"
 
-        self.subjoins.append(join)
-        self.select_expressions.append(f"rels.{alias}")
+        self.joins.append(join)
 
     def _join_inverse_relation(self, relation_name: str, attributes: list, arguments: dict):
         parent = self.relation_parents[relation_name]
@@ -506,11 +466,7 @@ ON {on_clause}''')
             self.filter_conditions.extend(filter_arguments)
         else:
             self._join_inverse_relation_single(parent_info, dst_info, relation_attr_name, arguments['active'], alias)
-            self.subjoin_filter_conditions.extend(filter_arguments)
-
-        subjoin_select = f"json_build_object({json_attrs}) {alias}"
-
-        self.subjoin_select_list.append(subjoin_select)
+            self.select_expressions.append(f"json_build_object({json_attrs}) {alias}")
 
 
 class GraphQL2SQL:
