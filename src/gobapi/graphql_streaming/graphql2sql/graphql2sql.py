@@ -222,6 +222,12 @@ class SqlGenerator:
 
         return expression
 
+    def _join_filter_arguments(self, filter_arguments: list):
+        return f"({') AND ('.join(filter_arguments)})"
+
+    def _where_clause(self, filter_conditions: list):
+        return f"WHERE {self._join_filter_arguments(filter_conditions)}" if len(filter_conditions) else ""
+
     def sql(self):
         self._reset()
 
@@ -252,7 +258,7 @@ class SqlGenerator:
 
         select = ',\n'.join(self.select_expressions)
         table_select = '\n'.join(self.joins)
-        where = f"WHERE ({') AND ('.join(self.filter_conditions)})" if len(self.filter_conditions) > 0 else ""
+        where = self._where_clause(self.filter_conditions)
         limit = self._get_limit_expression(arguments)
         order_by = f"ORDER BY {base_info['alias']}.{FIELD.GOBID}"
         query = f"SELECT\n{select}\n{table_select}\n{where}\n{order_by}\n{limit}"
@@ -378,11 +384,12 @@ class SqlGenerator:
             self._join_relation_single(parent_info['alias'], relation_attr_name, dst_info, arguments['active'],
                                        self._is_srcvalue_requested(attributes))
 
-        self.select_expressions.append(f"json_build_object({json_attrs}) {alias}")
         self.filter_conditions.extend(self._get_formatted_filter_arguments(arguments, dst_info['alias']))
 
+        self.select_expressions.append(f"json_build_object({json_attrs}) {alias}")
+
     def _join_inverse_relation_many(self, src_relation: dict, dst_relation: dict, dst_attr_name: str, attrs: str,
-                                    alias: str):
+                                    alias: str, arguments: dict):
         """Creates an inverse join for dst_relation. Dst_relation has an attr dst_attr_name that has a many relation
         to src_relation.
 
@@ -409,6 +416,9 @@ class SqlGenerator:
             on_clause += f" AND {joinalias}.{src_relation['alias']}_volgnummer = " \
                 f"{src_relation['alias']}.{FIELD.SEQNR}"
 
+        filter_arguments = self._get_formatted_filter_arguments(arguments, dst_relation['alias'])
+        where_clause = self._where_clause(filter_arguments)
+
         self.joins.append(f'''
 LEFT JOIN (
     SELECT
@@ -418,12 +428,13 @@ LEFT JOIN (
     ON rel_{dst_attr_name}{self.relcnt}.item->>'id' IS NOT NULL
     LEFT JOIN {src_relation['tablename']} {src_relation['alias']}
     ON {src_relation['alias']}.{FIELD.ID} = rel_{dst_attr_name}{self.relcnt}.item->>'id'
+    {where_clause}
 ) {joinalias}
 ON {on_clause}''')
         self.select_expressions.append(f"{joinalias}.{alias}")
 
     def _join_inverse_relation_single(self, src_relation: dict, dst_relation: dict, dst_attr_name: str,
-                                      filter_active: bool, alias: str):
+                                      filter_active: bool, arguments: dict):
         join = f"LEFT JOIN {dst_relation['tablename']} {dst_relation['alias']} " \
             f"ON {dst_relation['alias']}.{dst_attr_name}->>'{FIELD.REFERENCE_ID}' IS NOT NULL " \
             f"AND {dst_relation['alias']}.{dst_attr_name}->>'{FIELD.REFERENCE_ID}' = " \
@@ -437,6 +448,9 @@ ON {on_clause}''')
         if filter_active:
             join += f" AND ({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
                 f"OR {dst_relation['alias']}.{FIELD.EXPIRATION_DATE} > NOW())"
+
+        filter_arguments = self._get_formatted_filter_arguments(arguments, dst_relation['alias'])
+        join += f" AND {self._join_filter_arguments(filter_arguments)}" if len(filter_arguments) else ""
 
         self.joins.append(join)
 
@@ -459,13 +473,11 @@ ON {on_clause}''')
 
         is_many = self._is_many(dst_info['collection']['attributes'][relation_attr_name]['type'])
 
-        filter_arguments = self._get_formatted_filter_arguments(arguments, dst_info['alias'])
-
         if is_many:
-            self._join_inverse_relation_many(parent_info, dst_info, relation_attr_name, json_attrs, alias)
-            self.filter_conditions.extend(filter_arguments)
+            self._join_inverse_relation_many(parent_info, dst_info, relation_attr_name, json_attrs, alias, arguments)
         else:
-            self._join_inverse_relation_single(parent_info, dst_info, relation_attr_name, arguments['active'], alias)
+            self._join_inverse_relation_single(parent_info, dst_info, relation_attr_name, arguments['active'],
+                                               arguments)
             self.select_expressions.append(f"json_build_object({json_attrs}) {alias}")
 
 

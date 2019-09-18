@@ -251,7 +251,7 @@ ORDER BY cola_0._gobid
       node {
         identificatie
 
-        invSomeNestedManyRelationCatalogCollectiona {
+        invSomeNestedManyRelationCatalogCollectiona(someProperty: "someval") {
             edges {
                 node {
                    identificatie
@@ -279,6 +279,7 @@ ORDER BY cola_0._gobid
             LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_some_nested_many_relation0(item)
             ON rel_some_nested_many_relation0.item->>'id' IS NOT NULL
             LEFT JOIN catalog_collectionb colb_0 ON colb_0._id = rel_some_nested_many_relation0.item->>'id'
+            WHERE (cola_0.some_property = 'someval')
         ) invrel_0
         ON invrel_0.colb_0_id = colb_0._id AND invrel_0.colb_0_volgnummer = colb_0.volgnummer
         WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ( ) )
@@ -293,7 +294,7 @@ ORDER BY cola_0._gobid
       node {
         identificatie
 
-        invSomeNestedRelationCatalogCollectiona {
+        invSomeNestedRelationCatalogCollectiona(someProperty: "someval") {
             edges {
                 node {
                    identificatie
@@ -318,7 +319,8 @@ SELECT
     AND cola_0.some_nested_relation->>'volgnummer' IS NOT NULL
     AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer
     AND ( cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW ())
-    WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ())
+    AND (cola_0.some_property = 'someval')
+    WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ()) 
     ORDER BY colb_0._gobid
          '''
         ),
