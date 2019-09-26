@@ -313,6 +313,13 @@ def get_entities(catalog, collection, offset, limit, view=None, reference_name=N
 
 
 def dump_entities(catalog, collection):
+    """
+    Get all entities in the given catalog collection
+
+    :param catalog:
+    :param collection:
+    :return: (all collection entities, the collection model)
+    """
     assert _Base
     session = get_session()
 

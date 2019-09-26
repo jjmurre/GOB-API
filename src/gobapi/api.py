@@ -159,6 +159,13 @@ def _reference_entities(src_catalog_name, src_collection_name, reference_name, s
 
 
 def _dump(catalog_name, collection_name):
+    """
+    Dump all entities in the requested format. Currently only csv
+
+    :param catalog_name:
+    :param collection_name:
+    :return: Streaming response of all entities in csv format with header
+    """
     format = request.args.get('format', "csv")
     assert format == "csv"
 
