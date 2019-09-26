@@ -19,10 +19,20 @@ def _add_ref(dst):
     dst['ref'] = dst.get('id')
     if dst.get('volgnummer') is not None:
         dst['ref'] = _names_join(dst['ref'], dst['volgnummer'])
+    return dst
 
 
 def _csv_line(values):
     return DELIMITER_CHAR.join(values) + "\n"
+
+
+def _csv_value(value):
+    if value is None:
+        return ""
+    elif isinstance(value, (int, float)):
+        return str(value)
+    else:
+        return f"{QUOTATION_CHAR}{value}{QUOTATION_CHAR}"
 
 
 def _csv_header(field_specs):
@@ -34,15 +44,6 @@ def _csv_header(field_specs):
         else:
             fields.append(_csv_value(field_name))
     return fields
-
-
-def _csv_value(value):
-    if value is None:
-        return ""
-    elif isinstance(value, (int, float)):
-        return str(value)
-    else:
-        return f"{QUOTATION_CHAR}{value}{QUOTATION_CHAR}"
 
 
 def _csv_reference_values(value, spec):
