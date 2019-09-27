@@ -18,7 +18,8 @@ from gobcore.views import GOBViews
 
 from gobapi.config import API_BASE_PATH
 from gobapi.response import hal_response, not_found, get_page_ref, ndjson_entities, stream_entities
-from gobapi.dump import csv_entities
+from gobapi.dump.csv import csv_entities
+from gobapi.dump.sql import sql_entities
 from gobapi.states import get_states
 from gobapi.storage import connect, get_entities, get_entity, query_entities, dump_entities, query_reference_entities
 
@@ -166,12 +167,14 @@ def _dump(catalog_name, collection_name):
     :param collection_name:
     :return: Streaming response of all entities in csv format with header
     """
-    format = request.args.get('format', "csv")
-    assert format == "csv"
+    format = request.args.get('format')
 
     entities, model = dump_entities(catalog_name, collection_name)
 
-    return Response(csv_entities(entities, model), mimetype='text/csv')
+    if format == "csv":
+        return Response(csv_entities(entities, model), mimetype='text/csv')
+    elif format == "sql":
+        return Response(sql_entities(catalog_name, collection_name, model), mimetype='application/sql')
 
 
 def _collection(catalog_name, collection_name):

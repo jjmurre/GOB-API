@@ -1,45 +1,13 @@
 """
 Dump GOB
 
-Initially only csv dumps of catalog collections in csv format are supported
+Dumps of catalog collections in csv format
 """
-from gobcore.typesystem import get_gob_type
+from gobapi.dump.config import DELIMITER_CHAR, QUOTATION_CHAR
+from gobapi.dump.config import UNIQUE_ID, REFERENCE_TYPES, REFERENCE_FIELDS
 
-# CSV definitions
-DELIMITER_CHAR = ";"
-QUOTATION_CHAR = '"'
-ESCAPE_CHAR = QUOTATION_CHAR
-
-# Reference types definitions and conversions
-REFERENCE_TYPES = ["GOB.Reference", "GOB.ManyReference"]
-REFERENCE_FIELDS = ['ref', 'id', 'volgnummer', 'bronwaarde']
-
-# Types and Fields to skip when dumping contents
-SKIP_TYPES = ["GOB.VeryManyReference"]
-SKIP_FIELDS = ["geometrie", "_hash", "_gobid", "_last_event"]
-
-
-def _names_join(*args):
-    """
-    Joins zero or more strings by underscores
-
-    :param args:
-    :return:
-    """
-    return "_".join(args)
-
-
-def _add_ref(dst):
-    """
-    Add a reference to a remote entity
-    For entities without state this is the id, for other entities it is the id + volgnummer
-    :param dst:
-    :return:
-    """
-    dst['ref'] = dst.get('id')
-    if dst.get('volgnummer') is not None:
-        dst['ref'] = _names_join(dst['ref'], dst['volgnummer'])
-    return dst
+from gobapi.dump.config import get_unique_reference, add_unique_reference
+from gobapi.dump.config import get_field_specifications, get_field_value, joined_names
 
 
 def _csv_line(values):
@@ -80,14 +48,14 @@ def _csv_reference_values(value, spec):
     values = []
     if spec['type'] == "GOB.Reference":
         dst = value or {}
-        _add_ref(dst)
+        add_unique_reference(dst)
         for field in REFERENCE_FIELDS:
             sub_value = dst.get(field, None)
             values.append(_csv_value(sub_value))
     else:  # GOB.ManyReference
         dsts = value or []
         for dst in dsts:
-            _add_ref(dst)
+            add_unique_reference(dst)
         for field in REFERENCE_FIELDS:
             sub_values = []
             for dst in dsts:
@@ -123,7 +91,7 @@ def _csv_header(field_specs):
     for field_name, field_spec in field_specs.items():
         if field_spec['type'] in REFERENCE_TYPES:
             for reference_field in REFERENCE_FIELDS:
-                fields.append(_csv_value(_names_join(field_name, reference_field)))
+                fields.append(_csv_value(joined_names(field_name, reference_field)))
         else:
             fields.append(_csv_value(field_name))
     return fields
@@ -138,9 +106,10 @@ def _csv_record(entity, field_specs):
     """
     fields = []
     for field_name, field_spec in field_specs.items():
-        gob_type = get_gob_type(field_spec['type'])
-        entity_value = getattr(entity, field_name, None)
-        value = gob_type.from_value(entity_value).to_value
+        if field_name == UNIQUE_ID:
+            value = get_unique_reference(entity, field_specs)
+        else:
+            value = get_field_value(entity, field_name, field_spec)
         fields.extend(_csv_values(value, field_spec))
     return fields
 
@@ -153,14 +122,13 @@ def csv_entities(entities, model):
     :param model:
     :return:
     """
-    field_specs = model['all_fields']
-    field_specs = {k: v for k, v in field_specs.items() if k not in SKIP_FIELDS and v['type'] not in SKIP_TYPES}
+    field_specifications = get_field_specifications(model)
 
-    header = _csv_header(field_specs)
+    header = _csv_header(field_specifications)
     for entity in entities:
         if header:
-            fields = _csv_header(field_specs)
+            fields = _csv_header(field_specifications)
             header = None
         else:
-            fields = _csv_record(entity, field_specs)
+            fields = _csv_record(entity, field_specifications)
         yield _csv_line(fields)
