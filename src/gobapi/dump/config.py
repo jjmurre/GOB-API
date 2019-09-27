@@ -14,7 +14,7 @@ REFERENCE_FIELDS = [UNIQUE_ID, SIMPLE_ID, FIELD.SEQNR, FIELD.SOURCE_VALUE]
 
 # Types and Fields to skip when dumping contents
 SKIP_TYPES = ["GOB.VeryManyReference"]
-SKIP_FIELDS = ["geometrie", "_hash", "_gobid", "_last_event"]
+SKIP_FIELDS = ["_hash", "_gobid", "_last_event"]
 
 # SQL constants
 SCHEMA = "analysis"
@@ -23,6 +23,7 @@ SQL_TYPE_CONVERSIONS = {
     "GOB.Date": "date",
     "GOB.DateTime": "timestamp without time zone",
     "GOB.Integer": "integer",
+    "GOB.Geo.Polygon": "geometry"
 }
 
 
