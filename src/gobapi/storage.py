@@ -59,7 +59,7 @@ def _get_table_and_model(catalog_name, collection_name, view=None):
     """Table and Model
 
     Utility method to retrieve the Table and Model for a specific collection.
-    When a view is provided use the and do not retun the GOBModel.
+    When a view is provided use the and do not return the GOBModel.
 
     :param collection_name:
     :param view:
@@ -310,6 +310,22 @@ def get_entities(catalog, collection, offset, limit, view=None, reference_name=N
 
     entities = [entity_convert(entity) for entity in page_entities]
     return entities, all_count
+
+
+def dump_entities(catalog, collection):
+    """
+    Get all entities in the given catalog collection
+
+    :param catalog:
+    :param collection:
+    :return: (all collection entities, the collection model)
+    """
+    assert _Base
+    session = get_session()
+
+    table, model = _get_table_and_model(catalog, collection)
+
+    return session.query(table), model
 
 
 def query_entities(catalog, collection, view):

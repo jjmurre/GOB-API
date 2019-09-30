@@ -18,8 +18,10 @@ from gobcore.views import GOBViews
 
 from gobapi.config import API_BASE_PATH
 from gobapi.response import hal_response, not_found, get_page_ref, ndjson_entities, stream_entities
+from gobapi.dump.csv import csv_entities
+from gobapi.dump.sql import sql_entities
 from gobapi.states import get_states
-from gobapi.storage import connect, get_entities, get_entity, query_entities, query_reference_entities
+from gobapi.storage import connect, get_entities, get_entity, query_entities, dump_entities, query_reference_entities
 
 from gobapi.graphql.schema import schema
 from gobapi.session import shutdown_session
@@ -155,6 +157,24 @@ def _reference_entities(src_catalog_name, src_collection_name, reference_name, s
                'next': get_page_ref(page + 1, num_pages),
                'previous': get_page_ref(page - 1, num_pages)
            }
+
+
+def _dump(catalog_name, collection_name):
+    """
+    Dump all entities in the requested format. Currently only csv
+
+    :param catalog_name:
+    :param collection_name:
+    :return: Streaming response of all entities in csv format with header
+    """
+    format = request.args.get('format')
+
+    entities, model = dump_entities(catalog_name, collection_name)
+
+    if format == "csv":
+        return Response(csv_entities(entities, model), mimetype='text/csv')
+    elif format == "sql":
+        return Response(sql_entities(catalog_name, collection_name, model), mimetype='application/sql')
 
 
 def _collection(catalog_name, collection_name):
@@ -337,6 +357,7 @@ def get_app():
         (f'{API_BASE_PATH}/', _catalogs),
         (f'{API_BASE_PATH}/<catalog_name>/', _catalog),
         (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/', _collection),
+        (f'{API_BASE_PATH}/dump/<catalog_name>/<collection_name>/', _dump),
         (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/<entity_id>/', _entity),
         (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/<entity_id>/<reference_path>/', _reference_collection),
 
