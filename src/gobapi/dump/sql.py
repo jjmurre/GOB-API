@@ -12,6 +12,21 @@ from gobapi.dump.config import SCHEMA, SQL_TYPE_CONVERSIONS
 from gobapi.dump.config import get_field_specifications, joined_names
 
 
+def _quote(name):
+    """
+    Quote all SQL identifiers (schema, table, column names)
+    to prevent weird errors with SQL keywords accidentally being used in identifiers.
+
+    Note that quotation marks may differ per database type.
+    Current escape char works for PostgreSQL
+
+    :param name:
+    :return:
+    """
+    QUOTE_CHAR = '"'
+    return f"{QUOTE_CHAR}{name}{QUOTE_CHAR}"
+
+
 def _create_schema(name):
     """
     Returns a SQL statement to create a schema with the given name
@@ -21,7 +36,7 @@ def _create_schema(name):
     """
     return f"""
 -- DROP SCHEMA {name} CASCADE;
-CREATE SCHEMA IF NOT EXISTS {name};
+CREATE SCHEMA IF NOT EXISTS {_quote(name)};
 """
 
 
@@ -39,14 +54,16 @@ def _create_table(schema, table, specs):
     for field_name, field_spec in specs.items():
         if field_spec['type'] in REFERENCE_TYPES:
             for reference_field in REFERENCE_FIELDS:
-                fields.append(f"{joined_names(field_name, reference_field)} {SQL_TYPE_CONVERSIONS['GOB.String']}")
+                name = joined_names(field_name, reference_field)
+                fields.append(f"{_quote(name)} {SQL_TYPE_CONVERSIONS['GOB.String']}")
         else:
-            fields.append(f"{field_name} {SQL_TYPE_CONVERSIONS[field_spec['type']]}")
+            fields.append(f"{_quote(field_name)} {SQL_TYPE_CONVERSIONS[field_spec['type']]}")
     fields = ",\n  ".join(fields)
+    table_name = _quote(f"{schema}.{table}")
     return f"""
-DROP TABLE IF EXISTS {schema}.{table} CASCADE;
--- TRUNCATE TABLE {schema}.{table};
-CREATE TABLE IF NOT EXISTS {schema}.{table}
+DROP TABLE IF EXISTS {table_name} CASCADE;
+-- TRUNCATE TABLE {table_name};
+CREATE TABLE IF NOT EXISTS {table_name}
 (
   {fields},
   PRIMARY KEY ({UNIQUE_ID})
@@ -64,8 +81,9 @@ def _import_csv(schema, table, collection):
     :param collection:
     :return:
     """
+    table_name = _quote(f"{schema}.{table}")
     return f"""
-\COPY {schema}.{table} FROM '{collection}.csv' DELIMITER '{DELIMITER_CHAR}' CSV HEADER;
+\COPY {table_name} FROM '{collection}.csv' DELIMITER '{DELIMITER_CHAR}' CSV HEADER;
 """
 
 

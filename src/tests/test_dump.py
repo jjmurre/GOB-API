@@ -111,11 +111,11 @@ class TestSQL(TestCase):
 
     def test_create_schema(self):
         result = dump.sql._create_schema('any_name')
-        self.assertTrue("CREATE SCHEMA IF NOT EXISTS any_name" in result)
+        self.assertTrue("CREATE SCHEMA IF NOT EXISTS \"any_name\"" in result)
 
     def test_create_table(self):
         result = dump.sql._create_table('any_schema', 'any_table', {})
-        self.assertTrue("CREATE TABLE IF NOT EXISTS any_schema.any_table" in result)
+        self.assertTrue("CREATE TABLE IF NOT EXISTS \"any_schema.any_table\"" in result)
 
         specs = {
             'a': {
@@ -123,7 +123,7 @@ class TestSQL(TestCase):
             }
         }
         result = dump.sql._create_table('any_schema', 'any_table', specs)
-        self.assertTrue("a character varying" in result)
+        self.assertTrue("\"a\" character varying" in result)
 
         specs = {
             'a': {
@@ -132,11 +132,11 @@ class TestSQL(TestCase):
         }
         result = dump.sql._create_table('any_schema', 'any_table', specs)
         for s in ['ref', 'id', 'volgnummer', 'bronwaarde']:
-            self.assertTrue(f"a_{s} character varying" in result)
+            self.assertTrue(f"\"a_{s}\" character varying" in result)
 
     def test_import_csv(self):
         result = dump.sql._import_csv('any_schema', 'any_table', 'any_collection')
-        self.assertTrue("\COPY any_schema.any_table FROM 'any_collection.csv'" in result)
+        self.assertTrue("\COPY \"any_schema.any_table\" FROM 'any_collection.csv'" in result)
 
     def test_sql_entities(self):
         model = {

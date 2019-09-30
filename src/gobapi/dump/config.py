@@ -20,10 +20,15 @@ SKIP_FIELDS = ["_hash", "_gobid", "_last_event"]
 SCHEMA = "analysis"
 SQL_TYPE_CONVERSIONS = {
     "GOB.String": "character varying",
+    "GOB.Character": "character varying",
     "GOB.Date": "date",
     "GOB.DateTime": "timestamp without time zone",
     "GOB.Integer": "integer",
-    "GOB.Geo.Polygon": "geometry"
+    "GOB.Decimal": "numeric",
+    "GOB.Boolean": "boolean",
+    "GOB.Geo.Geometry": "geometry",
+    "GOB.Geo.Polygon": "geometry",
+    "GOB.Geo.Point": "geometry"
 }
 
 
