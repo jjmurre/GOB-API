@@ -14,7 +14,7 @@ REFERENCE_FIELDS = [UNIQUE_ID, SIMPLE_ID, FIELD.SEQNR, FIELD.SOURCE_VALUE]
 
 # Types and Fields to skip when dumping contents
 SKIP_TYPES = ["GOB.VeryManyReference"]
-SKIP_FIELDS = ["_hash", "_gobid", "_last_event"]
+SKIP_FIELDS = ["_hash", "_gobid"]
 
 # SQL constants
 SCHEMA = "analysis"
