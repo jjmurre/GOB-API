@@ -7,7 +7,7 @@ from gobcore.model import GOBModel
 
 from gobapi.dump.config import DELIMITER_CHAR
 from gobapi.dump.config import UNIQUE_ID, REFERENCE_TYPES, REFERENCE_FIELDS
-from gobapi.dump.config import SCHEMA, SQL_TYPE_CONVERSIONS
+from gobapi.dump.config import SQL_TYPE_CONVERSIONS
 
 from gobapi.dump.config import get_field_specifications, joined_names
 
@@ -127,13 +127,13 @@ def sql_entities(catalog_name, collection_name, model):
     """
     field_specifications = get_field_specifications(model)
 
-    schema = SCHEMA
-    table = GOBModel().get_table_name(catalog_name, collection_name)
+    schema = catalog_name
+    table = collection_name
     catalog = GOBModel().get_catalog(catalog_name)
 
     return f"""
 -- Create schema
-{_create_schema("analysis")}
+{_create_schema(schema)}
 
 -- Create table
 {_create_table(catalog, schema, table, field_specifications)}
