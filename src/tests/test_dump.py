@@ -113,37 +113,50 @@ class TestSQL(TestCase):
         result = dump.sql._create_schema('any_name')
         self.assertTrue("CREATE SCHEMA IF NOT EXISTS \"any_name\"" in result)
 
-    def test_create_table(self):
-        result = dump.sql._create_table('any_schema', 'any_table', {})
-        self.assertTrue("CREATE TABLE IF NOT EXISTS \"any_schema.any_table\"" in result)
+    @patch('gobapi.dump.sql.get_field_order')
+    @patch('gobapi.dump.sql.get_field_specifications')
+    def test_create_table(self, mock_specs, mock_order):
+        catalogue = {
+            'description': 'Any description'
+        }
+        result = dump.sql._create_table(catalogue, 'any_schema', 'any_table', {})
+        self.assertTrue("CREATE TABLE IF NOT EXISTS \"any_schema\".\"any_table\"" in result)
 
-        specs = {
+        mock_specs.return_value = {
             'a': {
-                'type': 'GOB.String'
+                'type': 'GOB.String',
+                'description': 'Any description'
             }
         }
-        result = dump.sql._create_table('any_schema', 'any_table', specs)
+        mock_order.return_value = ['a']
+        result = dump.sql._create_table(catalogue, 'any_schema', 'any_table', {})
         self.assertTrue("\"a\" character varying" in result)
 
-        specs = {
+        mock_specs.return_value = {
             'a': {
-                'type': 'GOB.Reference'
+                'type': 'GOB.Reference',
+                'description': 'Any description'
             }
         }
-        result = dump.sql._create_table('any_schema', 'any_table', specs)
+        result = dump.sql._create_table(catalogue, 'any_schema', 'any_table', {})
+        print(result)
         for s in ['ref', 'id', 'volgnummer', 'bronwaarde']:
-            self.assertTrue(f"\"a_{s}\" character varying" in result)
+            self.assertTrue(f"\"a_{s}\"" in result)
+            self.assertTrue(f"character varying" in result)
 
     def test_import_csv(self):
         result = dump.sql._import_csv('any_schema', 'any_table', 'any_collection')
-        self.assertTrue("\COPY \"any_schema.any_table\" FROM 'any_collection.csv'" in result)
+        self.assertTrue("\COPY \"any_schema\".\"any_table\" FROM 'any_collection.csv'" in result)
 
-    def test_sql_entities(self):
-        model = {
+    @patch('gobapi.dump.sql.GOBModel', MagicMock())
+    @patch('gobapi.dump.sql.get_field_order', MagicMock())
+    @patch('gobapi.dump.sql.get_field_specifications')
+    def test_sql_entities(self, mock_specs):
+        mock_specs.return_value = {
             'entity_id': 'any_entity_id',
             'all_fields': {}
         }
-        result = dump.sql.sql_entities('any catalog', 'any collection', model)
+        result = dump.sql.sql_entities('any catalog', 'any collection', {})
         self.assertTrue("CREATE SCHEMA IF NOT EXISTS" in result)
         self.assertTrue("CREATE TABLE IF NOT EXISTS" in result)
         self.assertTrue("\COPY" in result)
@@ -175,13 +188,13 @@ class TestCSV(TestCase):
         self.assertEqual(result, '"{}"')
 
     def test_csv_header(self):
-        result = dump.csv._csv_header({})
+        result = dump.csv._csv_header({}, [])
         self.assertEqual(result, [])
 
-        result = dump.csv._csv_header({'name': {'type': 'any type'}})
+        result = dump.csv._csv_header({'name': {'type': 'any type'}}, ['name'])
         self.assertEqual(result, ['"name"'])
 
-        result = dump.csv._csv_header({'name': {'type': 'GOB.Reference'}})
+        result = dump.csv._csv_header({'name': {'type': 'GOB.Reference'}}, ['name'])
         self.assertEqual(result, ['"name_ref"', '"name_id"', '"name_volgnummer"', '"name_bronwaarde"'])
 
     def test_csv_reference_values(self):
@@ -223,19 +236,20 @@ class TestCSV(TestCase):
     def test_csv_record(self):
         entity = None
         specs = {}
-        result = dump.csv._csv_record(entity, specs)
+        result = dump.csv._csv_record(entity, specs, [])
         self.assertEqual(result, [])
 
         entity = MockEntity()
         specs = entity.specs()
 
-        result = dump.csv._csv_record(entity, specs)
+        result = dump.csv._csv_record(entity, specs, ['a', 'b'])
         self.assertEqual(result, ['"a"', '5'])
 
     def test_csv_entities(self):
         entities = []
         model = {
             'entity_id': 'any entity id',
+            'fields': {},
             'all_fields': {}
         }
         results = []
@@ -247,13 +261,14 @@ class TestCSV(TestCase):
         entities = [MockEntity(), MockEntity()]
         model = {
             'entity_id': 'a',
+            'fields': MockEntity.specs(),
             'all_fields': MockEntity.specs()
         }
         results = []
         for result in dump.csv.csv_entities(entities, model):
             results.append(result)
 
-        self.assertEqual(results, ['"a";"b";"ref"\n', '"a";5;"a"\n'])
+        self.assertEqual(results, ['"a";"b";"ref"\n', '"a";5;"a"\n', '"a";5;"a"\n'])
 
 
 class TestDumpApi(TestCase):
@@ -277,12 +292,12 @@ class TestDumpApi(TestCase):
     @patch('gobapi.api.request')
     def test_dump_other(self, mock_request):
         mock_request.args = {'format': 'any other format'}
-        result = api._dump("any catalog", "any collection")
-        self.assertIsNone(result)
+        msg, status = api._dump("any catalog", "any collection")
+        self.assertEqual(status, 400)
 
         mock_request.args = {}
-        result = api._dump("any catalog", "any collection")
-        self.assertIsNone(result)
+        msg, status = api._dump("any catalog", "any collection")
+        self.assertEqual(status, 400)
 
 
 class TestDumpStorage(TestCase):
@@ -293,3 +308,30 @@ class TestDumpStorage(TestCase):
     def test_dump_entities(self):
         result = storage.dump_entities("any catalog", "any collection")
         self.assertEqual(result, ('any table', 'any model'))
+
+class TestFieldOrder(TestCase):
+
+    def test_field_order(self):
+        model = {
+            'fields': {},
+            'all_fields': {}
+        }
+        order = dump.config.get_field_order(model)
+        self.assertEqual(order, ['ref'])
+
+        model = {
+            'fields': {
+                'geo': {'type': 'GOB.Geo.Geometry'},
+                'ref': {'type': 'GOB.Reference'},
+                'any': {'type': 'Any type'},
+            }
+        }
+        model['all_fields'] = {
+            **model['fields'],
+            'meta': {}
+        }
+        order = dump.config.get_field_order(model)
+        self.assertEqual(order, ['any', 'ref', 'geo', 'ref', 'meta'])
+
+
+
