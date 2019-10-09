@@ -54,16 +54,27 @@ def get_unique_reference(entity, specs):
 
 
 def get_field_order(model):
+    """
+    Return the fields of the given model in a standard order
+
+    :param model:
+    :return: list of field names
+    """
+    # Start with the regular model fields
     model_fields = [k for k in model['fields'].keys()]
 
+    # Split this in relations, geometries and other fields
     relation_fields = [k for k in model_fields if is_gob_reference_type(model['fields'][k]['type'])]
     geo_fields = [k for k in model_fields if is_gob_geo_type(model['fields'][k]['type'])]
     data_fields = [k for k in model_fields if k not in relation_fields and k not in geo_fields]
 
+    # Basic order is plain data fields, then all references, then geo fields amd then the unique id
     fields = data_fields + relation_fields + geo_fields + [UNIQUE_ID]
 
+    # Add all meta fields
     fields += [k for k in model['all_fields'].keys() if k not in fields]
 
+    # Finally filter the list for fields that should be skipped
     fields = [k for k in fields if k not in SKIP_FIELDS]
     return fields
 
