@@ -40,7 +40,23 @@ CREATE SCHEMA IF NOT EXISTS {_quote(name)};
 """
 
 
-def _create_table(schema, table, specs):
+def _create_field(name, type, description):
+    """
+    Create a database field
+
+    :param name:
+    :param type:
+    :param description:
+    :return: dict containing database field properties
+    """
+    return {
+        'name': _quote(name),
+        'type': SQL_TYPE_CONVERSIONS[type],
+        'description': description
+    }
+
+
+def _create_table(catalog, schema, table, specs):
     """
     Returns a SQL statement to create a table in a schema
     The table fields are constructed from the specs
@@ -55,19 +71,31 @@ def _create_table(schema, table, specs):
         if field_spec['type'] in REFERENCE_TYPES:
             for reference_field in REFERENCE_FIELDS:
                 name = joined_names(field_name, reference_field)
-                fields.append(f"{_quote(name)} {SQL_TYPE_CONVERSIONS['GOB.String']}")
+                fields.append(_create_field(name, 'GOB.String', f"{field_spec['description']} ({reference_field})"))
         else:
-            fields.append(f"{_quote(field_name)} {SQL_TYPE_CONVERSIONS[field_spec['type']]}")
-    fields = ",\n  ".join(fields)
-    table_name = _quote(f"{schema}.{table}")
+            fields.append(_create_field(field_name, field_spec['type'], field_spec['description']))
+
+    max_length = max([len(field['name']) for field in fields])
+
+    table_name = (f"{_quote(schema)}.{_quote(table)}")
+    table_fields = ",\n  ".join([f"{field['name']:{max_length}} {field['type']}" for field in fields])
+
+    comments = ";\n".join([
+        f"COMMENT ON COLUMN {table_name}.{field['name']:{max_length}} IS '{field['description']}'" for field in fields
+    ])
+
     return f"""
 DROP TABLE IF EXISTS {table_name} CASCADE;
 -- TRUNCATE TABLE {table_name};
 CREATE TABLE IF NOT EXISTS {table_name}
 (
-  {fields},
+  {table_fields},
   PRIMARY KEY ({UNIQUE_ID})
 );
+
+-- Table and Column comments
+COMMENT ON TABLE  {table_name} {'':{max_length}} IS '{catalog['description']}';
+{comments}
 """
 
 
@@ -81,7 +109,7 @@ def _import_csv(schema, table, collection):
     :param collection:
     :return:
     """
-    table_name = _quote(f"{schema}.{table}")
+    table_name = (f"{_quote(schema)}.{_quote(table)}")
     return f"""
 \COPY {table_name} FROM '{collection}.csv' DELIMITER '{DELIMITER_CHAR}' CSV HEADER;
 """
@@ -101,13 +129,14 @@ def sql_entities(catalog_name, collection_name, model):
 
     schema = SCHEMA
     table = GOBModel().get_table_name(catalog_name, collection_name)
+    catalog = GOBModel().get_catalog(catalog_name)
 
     return f"""
 -- Create schema
 {_create_schema("analysis")}
 
 -- Create table
-{_create_table(schema, table, field_specifications)}
+{_create_table(catalog, schema, table, field_specifications)}
 
 -- Import data from csv
 {_import_csv(schema, table, collection_name)}
