@@ -1,5 +1,6 @@
 from gobcore.typesystem import get_gob_type
 from gobcore.model.metadata import FIELD
+from gobcore.typesystem import is_gob_geo_type, is_gob_reference_type
 
 # CSV definitions
 DELIMITER_CHAR = ";"
@@ -17,7 +18,6 @@ SKIP_TYPES = ["GOB.VeryManyReference"]
 SKIP_FIELDS = ["_hash", "_gobid"]
 
 # SQL constants
-SCHEMA = "analysis"
 SQL_TYPE_CONVERSIONS = {
     "GOB.String": "character varying",
     "GOB.Character": "character varying",
@@ -51,6 +51,21 @@ def get_unique_reference(entity, specs):
         return joined_names(id, volgnummer)
     else:
         return id
+
+
+def get_field_order(model):
+    model_fields = [k for k in model['fields'].keys()]
+
+    relation_fields = [k for k in model_fields if is_gob_reference_type(model['fields'][k]['type'])]
+    geo_fields = [k for k in model_fields if is_gob_geo_type(model['fields'][k]['type'])]
+    data_fields = [k for k in model_fields if k not in relation_fields and k not in geo_fields]
+
+    fields = data_fields + relation_fields + geo_fields + [UNIQUE_ID]
+
+    fields += [k for k in model['all_fields'].keys() if k not in fields]
+
+    fields = [k for k in fields if k not in SKIP_FIELDS]
+    return fields
 
 
 def get_field_specifications(model):

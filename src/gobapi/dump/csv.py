@@ -7,7 +7,7 @@ from gobapi.dump.config import DELIMITER_CHAR, QUOTATION_CHAR
 from gobapi.dump.config import UNIQUE_ID, REFERENCE_TYPES, REFERENCE_FIELDS
 
 from gobapi.dump.config import get_unique_reference, add_unique_reference
-from gobapi.dump.config import get_field_specifications, get_field_value, joined_names
+from gobapi.dump.config import get_field_specifications, get_field_order, get_field_value, joined_names
 
 
 def _csv_line(values):
@@ -80,7 +80,7 @@ def _csv_values(value, spec):
         return [_csv_value(value)]
 
 
-def _csv_header(field_specs):
+def _csv_header(field_specs, field_order):
     """
     Returns the CSV header fields for the given type specifications
 
@@ -88,7 +88,8 @@ def _csv_header(field_specs):
     :return:
     """
     fields = []
-    for field_name, field_spec in field_specs.items():
+    for field_name in field_order:
+        field_spec = field_specs[field_name]
         if field_spec['type'] in REFERENCE_TYPES:
             for reference_field in REFERENCE_FIELDS:
                 fields.append(_csv_value(joined_names(field_name, reference_field)))
@@ -97,7 +98,7 @@ def _csv_header(field_specs):
     return fields
 
 
-def _csv_record(entity, field_specs):
+def _csv_record(entity, field_specs, field_order):
     """
     Returns the CSV record fields for the given entity and corresponding type specifications
     :param entity:
@@ -105,7 +106,8 @@ def _csv_record(entity, field_specs):
     :return:
     """
     fields = []
-    for field_name, field_spec in field_specs.items():
+    for field_name in field_order:
+        field_spec = field_specs[field_name]
         if field_name == UNIQUE_ID:
             value = get_unique_reference(entity, field_specs)
         else:
@@ -123,12 +125,12 @@ def csv_entities(entities, model):
     :return:
     """
     field_specifications = get_field_specifications(model)
+    field_order = get_field_order(model)
 
-    header = _csv_header(field_specifications)
+    header = _csv_header(field_specifications, field_order)
     for entity in entities:
         if header:
-            fields = _csv_header(field_specifications)
+            yield _csv_line(header)
             header = None
-            yield _csv_line(fields)
-        fields = _csv_record(entity, field_specifications)
+        fields = _csv_record(entity, field_specifications, field_order)
         yield _csv_line(fields)

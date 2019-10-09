@@ -9,7 +9,7 @@ from gobapi.dump.config import DELIMITER_CHAR
 from gobapi.dump.config import UNIQUE_ID, REFERENCE_TYPES, REFERENCE_FIELDS
 from gobapi.dump.config import SQL_TYPE_CONVERSIONS
 
-from gobapi.dump.config import get_field_specifications, joined_names
+from gobapi.dump.config import get_field_specifications, joined_names, get_field_order
 
 
 def _quote(name):
@@ -56,7 +56,7 @@ def _create_field(name, type, description):
     }
 
 
-def _create_table(catalog, schema, table, specs):
+def _create_table(catalog, schema, table, model):
     """
     Returns a SQL statement to create a table in a schema
     The table fields are constructed from the specs
@@ -66,8 +66,10 @@ def _create_table(catalog, schema, table, specs):
     :param specs:
     :return:
     """
+    specs = get_field_specifications(model)
     fields = []
-    for field_name, field_spec in specs.items():
+    for field_name in get_field_order(model):
+        field_spec = specs[field_name]
         if field_spec['type'] in REFERENCE_TYPES:
             for reference_field in REFERENCE_FIELDS:
                 name = joined_names(field_name, reference_field)
@@ -75,7 +77,8 @@ def _create_table(catalog, schema, table, specs):
         else:
             fields.append(_create_field(field_name, field_spec['type'], field_spec['description']))
 
-    max_length = max([len(field['name']) for field in fields])
+    field_lengths = [len(field['name']) for field in fields]
+    max_length = max(field_lengths) if field_lengths else 1
 
     table_name = (f"{_quote(schema)}.{_quote(table)}")
     table_fields = ",\n  ".join([f"{field['name']:{max_length}} {field['type']}" for field in fields])
@@ -125,8 +128,6 @@ def sql_entities(catalog_name, collection_name, model):
     :param model:
     :return:
     """
-    field_specifications = get_field_specifications(model)
-
     schema = catalog_name
     table = collection_name
     catalog = GOBModel().get_catalog(catalog_name)
@@ -136,7 +137,7 @@ def sql_entities(catalog_name, collection_name, model):
 {_create_schema(schema)}
 
 -- Create table
-{_create_table(catalog, schema, table, field_specifications)}
+{_create_table(catalog, schema, table, model)}
 
 -- Import data from csv
 {_import_csv(schema, table, collection_name)}
