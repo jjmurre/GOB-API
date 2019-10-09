@@ -129,6 +129,6 @@ def csv_entities(entities, model):
         if header:
             fields = _csv_header(field_specifications)
             header = None
-        else:
-            fields = _csv_record(entity, field_specifications)
+            yield _csv_line(fields)
+        fields = _csv_record(entity, field_specifications)
         yield _csv_line(fields)
