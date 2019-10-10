@@ -31,8 +31,10 @@ class MockSession:
         pass
 
     def query(self, any_query):
-        return any_query
+        return self
 
+    def yield_per(self, n):
+        return "any table"
 
 from gobapi.dump.config import get_unique_reference, add_unique_reference
 from gobapi.dump.config import get_field_specifications, get_field_value, joined_names
@@ -144,6 +146,19 @@ class TestSQL(TestCase):
             self.assertTrue(f"\"a_{s}\"" in result)
             self.assertTrue(f"character varying" in result)
 
+        mock_specs.return_value = {
+            'a': {
+                'type': 'GOB.JSON',
+                'fields': ['a', 'b'],
+                'description': 'Any description'
+            }
+        }
+        result = dump.sql._create_table(catalogue, 'any_schema', 'any_table', {})
+        print(result)
+        for s in ['a', 'b']:
+            self.assertTrue(f"\"a_{s}\"" in result)
+            self.assertTrue(f"character varying" in result)
+
     def test_import_csv(self):
         result = dump.sql._import_csv('any_schema', 'any_table', 'any_collection')
         self.assertTrue("\COPY \"any_schema\".\"any_table\" FROM 'any_collection.csv'" in result)
@@ -187,6 +202,9 @@ class TestCSV(TestCase):
         result = dump.csv._csv_value({})
         self.assertEqual(result, '"{}"')
 
+        result = dump.csv._csv_value("a\r\nb\nc")
+        self.assertEqual(result, '"a b c"')
+
     def test_csv_header(self):
         result = dump.csv._csv_header({}, [])
         self.assertEqual(result, [])
@@ -196,6 +214,9 @@ class TestCSV(TestCase):
 
         result = dump.csv._csv_header({'name': {'type': 'GOB.Reference'}}, ['name'])
         self.assertEqual(result, ['"name_ref"', '"name_id"', '"name_volgnummer"', '"name_bronwaarde"'])
+
+        result = dump.csv._csv_header({'name': {'type': 'GOB.JSON', 'fields': ['a', 'b']}}, ['name'])
+        self.assertEqual(result, ['"name_a"', '"name_b"'])
 
     def test_csv_reference_values(self):
         spec = {'type': 'GOB.Reference'}
@@ -233,6 +254,16 @@ class TestCSV(TestCase):
         result = dump.csv._csv_values(value, spec)
         self.assertEqual(result, dump.csv._csv_reference_values(value, spec))
 
+        value = {'a': 1, 'b': 'any value', 'c': 'some other value'}
+        spec = {'type': 'GOB.JSON', 'fields': ['a', 'b']}
+        result = dump.csv._csv_values(value, spec)
+        self.assertEqual(result, ['1', '"any value"'])
+
+        value = {'a': 1}
+        spec = {'type': 'GOB.JSON', 'fields': ['a', 'b']}
+        result = dump.csv._csv_values(value, spec)
+        self.assertEqual(result, ['1', ''])
+
     def test_csv_record(self):
         entity = None
         specs = {}
@@ -249,8 +280,16 @@ class TestCSV(TestCase):
         entities = []
         model = {
             'entity_id': 'any entity id',
-            'fields': {},
-            'all_fields': {}
+            'fields': {
+                'any entity id': {
+                    'type': 'any type'
+                }
+            },
+            'all_fields': {
+                'any entity id': {
+                    'type': 'any type'
+                }
+            }
         }
         results = []
         for result in dump.csv.csv_entities(entities, model):
@@ -313,17 +352,22 @@ class TestFieldOrder(TestCase):
 
     def test_field_order(self):
         model = {
+            'entity_id': 'Any entity id',
             'fields': {},
             'all_fields': {}
         }
         order = dump.config.get_field_order(model)
-        self.assertEqual(order, ['ref'])
+        self.assertEqual(order, ['Any entity id', 'ref'])
 
         model = {
+            'entity_id': 'any',
             'fields': {
                 'geo': {'type': 'GOB.Geo.Geometry'},
                 'ref': {'type': 'GOB.Reference'},
                 'any': {'type': 'Any type'},
+                'a': {'type': 'Any type'},
+                'volgnummer': {'type': 'Any type'},
+                'b': {'type': 'Any type'},
             }
         }
         model['all_fields'] = {
@@ -331,7 +375,7 @@ class TestFieldOrder(TestCase):
             'meta': {}
         }
         order = dump.config.get_field_order(model)
-        self.assertEqual(order, ['any', 'ref', 'geo', 'ref', 'meta'])
+        self.assertEqual(order, ['any', 'volgnummer', 'a', 'b', 'ref', 'geo', 'ref', 'meta'])
 
 
 
