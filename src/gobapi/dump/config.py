@@ -80,7 +80,7 @@ def get_field_order(model):
     fields += [k for k in model['all_fields'].keys() if k not in fields]
 
     # Finally filter the list for fields that should be skipped
-    fields = [k for k in fields if k not in SKIP_FIELDS]
+    fields = [k for k in fields if k not in SKIP_FIELDS and model['all_fields'][k]['type'] not in SKIP_TYPES]
     return fields
 
 

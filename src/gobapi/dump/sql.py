@@ -75,9 +75,9 @@ def _create_table(catalog, schema, table, model):
                 name = joined_names(field_name, reference_field)
                 fields.append(_create_field(name, 'GOB.String', f"{field_spec['description']} ({reference_field})"))
         elif field_spec['type'] == 'GOB.JSON':
-            for field in field_spec['fields']:
+            for field, spec in field_spec['attributes'].items():
                 name = joined_names(field_name, field)
-                fields.append(_create_field(name, 'GOB.String', f"{field_spec['description']} ({field})"))
+                fields.append(_create_field(name, spec['type'], f"{field_spec['description']} ({field})"))
         else:
             fields.append(_create_field(field_name, field_spec['type'], field_spec['description']))
 

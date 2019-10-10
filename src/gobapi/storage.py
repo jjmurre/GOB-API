@@ -325,7 +325,7 @@ def dump_entities(catalog, collection):
 
     table, model = _get_table_and_model(catalog, collection)
 
-    return session.query(table).yield_per(10000), model
+    return session.query(table).yield_per(1000), model
 
 
 def query_entities(catalog, collection, view):

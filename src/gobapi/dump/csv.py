@@ -82,7 +82,7 @@ def _csv_values(value, spec):
     if spec['type'] in REFERENCE_TYPES:
         return _csv_reference_values(value, spec)
     elif spec['type'] == 'GOB.JSON':
-        return [_csv_value(value.get(field)) for field in spec['fields']]
+        return [_csv_value(value.get(field)) for field in spec['attributes'].keys()]
     else:
         return [_csv_value(value)]
 
@@ -101,7 +101,7 @@ def _csv_header(field_specs, field_order):
             for reference_field in REFERENCE_FIELDS:
                 fields.append(_csv_value(joined_names(field_name, reference_field)))
         elif field_spec['type'] == 'GOB.JSON':
-            for field in field_spec['fields']:
+            for field in field_spec['attributes'].keys():
                 fields.append(_csv_value(joined_names(field_name, field)))
         else:
             fields.append(_csv_value(field_name))
