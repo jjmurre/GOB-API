@@ -30,6 +30,7 @@ SQL_TYPE_CONVERSIONS = {
     "GOB.Geo.Polygon": "geometry",
     "GOB.Geo.Point": "geometry"
 }
+SQL_QUOTATION_MARK = "'"
 
 
 def get_unique_reference(entity, specs):
@@ -126,6 +127,15 @@ def add_unique_reference(dst):
 
 
 def get_field_value(entity, field, spec):
+    """
+    Get the value of the given field in the given entity.
+
+    Use GOB type to correctly interpret the entity value
+    :param entity:
+    :param field:
+    :param spec:
+    :return:
+    """
     gob_type = get_gob_type(spec['type'])
     entity_value = getattr(entity, field, None)
     return gob_type.from_value(entity_value).to_value

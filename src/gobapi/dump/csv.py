@@ -38,6 +38,7 @@ def _csv_value(value):
         value = str(value)
         value_without_crlf = re.compile(r"\r?\n")
         value = value_without_crlf.sub(" ", value)
+        value = value.replace(QUOTATION_CHAR, 2 * QUOTATION_CHAR)
         return f"{QUOTATION_CHAR}{value}{QUOTATION_CHAR}"
 
 

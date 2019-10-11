@@ -119,20 +119,22 @@ class TestSQL(TestCase):
     @patch('gobapi.dump.sql.get_field_specifications')
     def test_create_table(self, mock_specs, mock_order):
         catalogue = {
-            'description': 'Any description'
+            'description': "Any 'catalogue' description"
         }
         result = dump.sql._create_table(catalogue, 'any_schema', 'any_table', {})
         self.assertTrue("CREATE TABLE IF NOT EXISTS \"any_schema\".\"any_table\"" in result)
+        self.assertTrue("Any ''catalogue'' description" in result)
 
         mock_specs.return_value = {
             'a': {
                 'type': 'GOB.String',
-                'description': 'Any description'
+                'description': "Any 'a' description"
             }
         }
         mock_order.return_value = ['a']
         result = dump.sql._create_table(catalogue, 'any_schema', 'any_table', {})
         self.assertTrue("\"a\" character varying" in result)
+        self.assertTrue("Any ''a'' description" in result)
 
         mock_specs.return_value = {
             'a': {
@@ -141,7 +143,6 @@ class TestSQL(TestCase):
             }
         }
         result = dump.sql._create_table(catalogue, 'any_schema', 'any_table', {})
-        print(result)
         for s in ['ref', 'id', 'volgnummer', 'bronwaarde']:
             self.assertTrue(f"\"a_{s}\"" in result)
             self.assertTrue(f"character varying" in result)
@@ -149,12 +150,11 @@ class TestSQL(TestCase):
         mock_specs.return_value = {
             'a': {
                 'type': 'GOB.JSON',
-                'fields': ['a', 'b'],
+                'attributes': {'a': {'type': 'GOB.String'}, 'b': {'type': 'GOB.String'}},
                 'description': 'Any description'
             }
         }
         result = dump.sql._create_table(catalogue, 'any_schema', 'any_table', {})
-        print(result)
         for s in ['a', 'b']:
             self.assertTrue(f"\"a_{s}\"" in result)
             self.assertTrue(f"character varying" in result)
@@ -205,6 +205,9 @@ class TestCSV(TestCase):
         result = dump.csv._csv_value("a\r\nb\nc")
         self.assertEqual(result, '"a b c"')
 
+        result = dump.csv._csv_value("a\"b\"")
+        self.assertEqual(result, '"a""b"""')
+
     def test_csv_header(self):
         result = dump.csv._csv_header({}, [])
         self.assertEqual(result, [])
@@ -215,7 +218,7 @@ class TestCSV(TestCase):
         result = dump.csv._csv_header({'name': {'type': 'GOB.Reference'}}, ['name'])
         self.assertEqual(result, ['"name_ref"', '"name_id"', '"name_volgnummer"', '"name_bronwaarde"'])
 
-        result = dump.csv._csv_header({'name': {'type': 'GOB.JSON', 'fields': ['a', 'b']}}, ['name'])
+        result = dump.csv._csv_header({'name': {'type': 'GOB.JSON', 'attributes': {'a': 'some a', 'b': 'some b'}}}, ['name'])
         self.assertEqual(result, ['"name_a"', '"name_b"'])
 
     def test_csv_reference_values(self):
@@ -255,12 +258,12 @@ class TestCSV(TestCase):
         self.assertEqual(result, dump.csv._csv_reference_values(value, spec))
 
         value = {'a': 1, 'b': 'any value', 'c': 'some other value'}
-        spec = {'type': 'GOB.JSON', 'fields': ['a', 'b']}
+        spec = {'type': 'GOB.JSON', 'attributes': {'a': 'some a', 'b': 'some b'}}
         result = dump.csv._csv_values(value, spec)
         self.assertEqual(result, ['1', '"any value"'])
 
         value = {'a': 1}
-        spec = {'type': 'GOB.JSON', 'fields': ['a', 'b']}
+        spec = {'type': 'GOB.JSON', 'attributes': {'a': 'some a', 'b': 'some b'}}
         result = dump.csv._csv_values(value, spec)
         self.assertEqual(result, ['1', ''])
 
@@ -352,12 +355,15 @@ class TestFieldOrder(TestCase):
 
     def test_field_order(self):
         model = {
-            'entity_id': 'Any entity id',
+            'entity_id': 'any entity id',
             'fields': {},
-            'all_fields': {}
+            'all_fields': {
+                'any entity id': {'type': 'any id type'},
+                'ref': {'type': 'any ref type'}
+            }
         }
         order = dump.config.get_field_order(model)
-        self.assertEqual(order, ['Any entity id', 'ref'])
+        self.assertEqual(order, ['any entity id', 'ref'])
 
         model = {
             'entity_id': 'any',
@@ -372,7 +378,7 @@ class TestFieldOrder(TestCase):
         }
         model['all_fields'] = {
             **model['fields'],
-            'meta': {}
+            'meta': {'type': 'any meta type'}
         }
         order = dump.config.get_field_order(model)
         self.assertEqual(order, ['any', 'volgnummer', 'a', 'b', 'ref', 'geo', 'ref', 'meta'])
