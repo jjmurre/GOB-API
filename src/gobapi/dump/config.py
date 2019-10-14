@@ -30,6 +30,7 @@ SQL_TYPE_CONVERSIONS = {
     "GOB.Geo.Polygon": "geometry",
     "GOB.Geo.Point": "geometry"
 }
+SQL_QUOTATION_MARK = "'"
 
 
 def get_unique_reference(entity, specs):
@@ -63,19 +64,24 @@ def get_field_order(model):
     # Start with the regular model fields
     model_fields = [k for k in model['fields'].keys()]
 
+    # Get id fields
+    id_fields = [model['entity_id']]
+    if FIELD.SEQNR in model_fields:
+        id_fields.append(FIELD.SEQNR)
+
     # Split this in relations, geometries and other fields
     relation_fields = [k for k in model_fields if is_gob_reference_type(model['fields'][k]['type'])]
     geo_fields = [k for k in model_fields if is_gob_geo_type(model['fields'][k]['type'])]
-    data_fields = [k for k in model_fields if k not in relation_fields and k not in geo_fields]
+    data_fields = [k for k in model_fields if k not in relation_fields + geo_fields + id_fields]
 
-    # Basic order is plain data fields, then all references, then geo fields amd then the unique id
-    fields = data_fields + relation_fields + geo_fields + [UNIQUE_ID]
+    # Basic order is identification, plain data fields, then all references, then geo fields and then the unique id
+    fields = id_fields + data_fields + relation_fields + geo_fields + [UNIQUE_ID]
 
     # Add all meta fields
     fields += [k for k in model['all_fields'].keys() if k not in fields]
 
     # Finally filter the list for fields that should be skipped
-    fields = [k for k in fields if k not in SKIP_FIELDS]
+    fields = [k for k in fields if k not in SKIP_FIELDS and model['all_fields'][k]['type'] not in SKIP_TYPES]
     return fields
 
 
@@ -121,6 +127,15 @@ def add_unique_reference(dst):
 
 
 def get_field_value(entity, field, spec):
+    """
+    Get the value of the given field in the given entity.
+
+    Use GOB type to correctly interpret the entity value
+    :param entity:
+    :param field:
+    :param spec:
+    :return:
+    """
     gob_type = get_gob_type(spec['type'])
     entity_value = getattr(entity, field, None)
     return gob_type.from_value(entity_value).to_value

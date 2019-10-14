@@ -7,7 +7,7 @@ from gobcore.model import GOBModel
 
 from gobapi.dump.config import DELIMITER_CHAR
 from gobapi.dump.config import UNIQUE_ID, REFERENCE_TYPES, REFERENCE_FIELDS
-from gobapi.dump.config import SQL_TYPE_CONVERSIONS
+from gobapi.dump.config import SQL_TYPE_CONVERSIONS, SQL_QUOTATION_MARK
 
 from gobapi.dump.config import get_field_specifications, joined_names, get_field_order
 
@@ -56,6 +56,15 @@ def _create_field(name, type, description):
     }
 
 
+def quote_sql_string(s):
+    """
+    Quote sql string by replacing sql quotation marks by 2 quotation marks, eg ' => ''
+    :param s:
+    :return:
+    """
+    return s.replace(SQL_QUOTATION_MARK, 2 * SQL_QUOTATION_MARK)
+
+
 def _create_table(catalog, schema, table, model):
     """
     Returns a SQL statement to create a table in a schema
@@ -67,15 +76,21 @@ def _create_table(catalog, schema, table, model):
     :return:
     """
     specs = get_field_specifications(model)
+    catalog_description = quote_sql_string(catalog['description'])
     fields = []
     for field_name in get_field_order(model):
         field_spec = specs[field_name]
+        field_description = quote_sql_string(field_spec['description'])
         if field_spec['type'] in REFERENCE_TYPES:
             for reference_field in REFERENCE_FIELDS:
                 name = joined_names(field_name, reference_field)
-                fields.append(_create_field(name, 'GOB.String', f"{field_spec['description']} ({reference_field})"))
+                fields.append(_create_field(name, 'GOB.String', f"{field_description} ({reference_field})"))
+        elif field_spec['type'] == 'GOB.JSON':
+            for field, spec in field_spec['attributes'].items():
+                name = joined_names(field_name, field)
+                fields.append(_create_field(name, spec['type'], f"{field_description} ({field})"))
         else:
-            fields.append(_create_field(field_name, field_spec['type'], field_spec['description']))
+            fields.append(_create_field(field_name, field_spec['type'], field_description))
 
     field_lengths = [len(field['name']) for field in fields]
     max_length = max(field_lengths) if field_lengths else 1
@@ -84,7 +99,8 @@ def _create_table(catalog, schema, table, model):
     table_fields = ",\n  ".join([f"{field['name']:{max_length}} {field['type']}" for field in fields])
 
     comments = ";\n".join([
-        f"COMMENT ON COLUMN {table_name}.{field['name']:{max_length}} IS '{field['description']}'" for field in fields
+        f"COMMENT ON COLUMN {table_name}.{field['name']:{max_length}} "
+        f"IS {SQL_QUOTATION_MARK}{field['description']}{SQL_QUOTATION_MARK}" for field in fields
     ])
 
     return f"""
@@ -97,7 +113,7 @@ CREATE TABLE IF NOT EXISTS {table_name}
 );
 
 -- Table and Column comments
-COMMENT ON TABLE  {table_name} {'':{max_length}} IS '{catalog['description']}';
+COMMENT ON TABLE  {table_name} {'':{max_length}} IS {SQL_QUOTATION_MARK}{catalog_description}{SQL_QUOTATION_MARK};
 {comments}
 """
 
