@@ -6,7 +6,7 @@ Dumps of catalog collections in sql format
 from gobcore.model import GOBModel
 
 from gobapi.dump.config import DELIMITER_CHAR
-from gobapi.dump.config import UNIQUE_ID, REFERENCE_TYPES, REFERENCE_FIELDS
+from gobapi.dump.config import UNIQUE_ID, REFERENCE_TYPES, get_reference_fields
 from gobapi.dump.config import SQL_TYPE_CONVERSIONS, SQL_QUOTATION_MARK
 
 from gobapi.dump.config import get_field_specifications, joined_names, get_field_order
@@ -82,7 +82,7 @@ def _create_table(catalog, schema, table, model):
         field_spec = specs[field_name]
         field_description = quote_sql_string(field_spec['description'])
         if field_spec['type'] in REFERENCE_TYPES:
-            for reference_field in REFERENCE_FIELDS:
+            for reference_field in get_reference_fields(field_spec):
                 name = joined_names(field_name, reference_field)
                 fields.append(_create_field(name, 'GOB.String', f"{field_description} ({reference_field})"))
         elif field_spec['type'] == 'GOB.JSON':

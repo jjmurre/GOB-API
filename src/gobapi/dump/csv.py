@@ -6,7 +6,7 @@ Dumps of catalog collections in csv format
 import re
 
 from gobapi.dump.config import DELIMITER_CHAR, QUOTATION_CHAR
-from gobapi.dump.config import UNIQUE_ID, REFERENCE_TYPES, REFERENCE_FIELDS
+from gobapi.dump.config import UNIQUE_ID, REFERENCE_TYPES, get_reference_fields
 
 from gobapi.dump.config import get_unique_reference, add_unique_reference
 from gobapi.dump.config import get_field_specifications, get_field_order, get_field_value, joined_names
@@ -55,14 +55,14 @@ def _csv_reference_values(value, spec):
     if spec['type'] == "GOB.Reference":
         dst = value or {}
         add_unique_reference(dst)
-        for field in REFERENCE_FIELDS:
+        for field in get_reference_fields(spec):
             sub_value = dst.get(field, None)
             values.append(_csv_value(sub_value))
     else:  # GOB.ManyReference
         dsts = value or []
         for dst in dsts:
             add_unique_reference(dst)
-        for field in REFERENCE_FIELDS:
+        for field in get_reference_fields(spec):
             sub_values = []
             for dst in dsts:
                 sub_value = dst.get(field, None)
@@ -99,7 +99,7 @@ def _csv_header(field_specs, field_order):
     for field_name in field_order:
         field_spec = field_specs[field_name]
         if field_spec['type'] in REFERENCE_TYPES:
-            for reference_field in REFERENCE_FIELDS:
+            for reference_field in get_reference_fields(field_spec):
                 fields.append(_csv_value(joined_names(field_name, reference_field)))
         elif field_spec['type'] == 'GOB.JSON':
             for field in field_spec['attributes'].keys():
