@@ -54,6 +54,7 @@ class TestConfig(TestCase):
     def test_reference_fields(self):
         MockModel.cat_col_has_states = True
         self.assertEqual(dump.config.get_reference_fields({'ref': 'a:b'}), dump.config.REFERENCE_FIELDS)
+        self.assertTrue(dump.config.FIELD.SEQNR in dump.config.get_reference_fields({'ref': 'a:b'}))
 
         MockModel.cat_col_has_states = False
         self.assertTrue(dump.config.FIELD.SEQNR not in dump.config.get_reference_fields({'ref': 'a:b'}))
