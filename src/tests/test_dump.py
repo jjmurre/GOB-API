@@ -36,11 +36,28 @@ class MockSession:
     def yield_per(self, n):
         return "any table"
 
+
+class MockModel:
+    cat_col_has_states = None
+
+    def has_states(self, cat, col):
+        return self.cat_col_has_states
+
+
 from gobapi.dump.config import get_unique_reference, add_unique_reference
 from gobapi.dump.config import get_field_specifications, get_field_value, joined_names
 
 
 class TestConfig(TestCase):
+
+    @patch('gobapi.dump.config.GOBModel', MockModel)
+    def test_reference_fields(self):
+        MockModel.cat_col_has_states = True
+        self.assertEqual(dump.config.get_reference_fields({'ref': 'a:b'}), dump.config.REFERENCE_FIELDS)
+        self.assertTrue(dump.config.FIELD.SEQNR in dump.config.get_reference_fields({'ref': 'a:b'}))
+
+        MockModel.cat_col_has_states = False
+        self.assertTrue(dump.config.FIELD.SEQNR not in dump.config.get_reference_fields({'ref': 'a:b'}))
 
     def test_joined_names(self):
         result = joined_names()
@@ -115,6 +132,7 @@ class TestSQL(TestCase):
         result = dump.sql._create_schema('any_name')
         self.assertTrue("CREATE SCHEMA IF NOT EXISTS \"any_name\"" in result)
 
+    @patch('gobapi.dump.sql.get_reference_fields', lambda x: dump.config.REFERENCE_FIELDS)
     @patch('gobapi.dump.sql.get_field_order')
     @patch('gobapi.dump.sql.get_field_specifications')
     def test_create_table(self, mock_specs, mock_order):
@@ -208,6 +226,7 @@ class TestCSV(TestCase):
         result = dump.csv._csv_value("a\"b\"")
         self.assertEqual(result, '"a""b"""')
 
+    @patch('gobapi.dump.csv.get_reference_fields', lambda x: dump.config.REFERENCE_FIELDS)
     def test_csv_header(self):
         result = dump.csv._csv_header({}, [])
         self.assertEqual(result, [])
@@ -221,6 +240,7 @@ class TestCSV(TestCase):
         result = dump.csv._csv_header({'name': {'type': 'GOB.JSON', 'attributes': {'a': 'some a', 'b': 'some b'}}}, ['name'])
         self.assertEqual(result, ['"name_a"', '"name_b"'])
 
+    @patch('gobapi.dump.csv.get_reference_fields', lambda x: dump.config.REFERENCE_FIELDS)
     def test_csv_reference_values(self):
         spec = {'type': 'GOB.Reference'}
         value = {}
@@ -247,13 +267,14 @@ class TestCSV(TestCase):
         result = dump.csv._csv_reference_values(values, spec)
         self.assertEqual(result, ['["any id","any id"]', '["any id","any id"]', '[,]', '["any bronwaarde","any bronwaarde"]'])
 
+    @patch('gobapi.dump.csv.get_reference_fields', lambda x: dump.config.REFERENCE_FIELDS)
     def test_csv_values(self):
         value = None
         result = dump.csv._csv_values(None, {'type': 'any type'})
         self.assertEqual(result, [dump.csv._csv_value(value)])
 
         value = {}
-        spec = {'type': 'GOB.Reference'}
+        spec = {'type': 'GOB.Reference', 'ref': 'any catalog:any collection'}
         result = dump.csv._csv_values(value, spec)
         self.assertEqual(result, dump.csv._csv_reference_values(value, spec))
 

@@ -1,4 +1,5 @@
 from gobcore.typesystem import get_gob_type
+from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
 from gobcore.typesystem import is_gob_geo_type, is_gob_reference_type
 
@@ -31,6 +32,21 @@ SQL_TYPE_CONVERSIONS = {
     "GOB.Geo.Point": "geometry"
 }
 SQL_QUOTATION_MARK = "'"
+
+
+def get_reference_fields(spec):
+    """
+    Get the reference fields for a given referenced (spec)
+
+    If the reference refers to an entity without states then do not include volgnummer
+    :param spec: type specification
+    :return: array with reference fields
+    """
+    catalog_name, collection_name = spec['ref'].split(':')
+    if GOBModel().has_states(catalog_name, collection_name):
+        return REFERENCE_FIELDS
+    else:
+        return [rf for rf in REFERENCE_FIELDS if rf != FIELD.SEQNR]
 
 
 def get_unique_reference(entity, specs):
