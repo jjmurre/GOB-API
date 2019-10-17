@@ -37,6 +37,7 @@ def _create_schema(name):
     return f"""
 -- DROP SCHEMA {name} CASCADE;
 CREATE SCHEMA IF NOT EXISTS {_quote(name)};
+COMMIT;
 """
 
 
@@ -65,20 +66,22 @@ def quote_sql_string(s):
     return s.replace(SQL_QUOTATION_MARK, 2 * SQL_QUOTATION_MARK)
 
 
-def _create_table(catalog, schema, table, model):
+def _create_table(schema, catalog_name, collection_name, model):
     """
     Returns a SQL statement to create a table in a schema
     The table fields are constructed from the specs
 
     :param schema:
-    :param table:
+    :param collection_name:
     :param specs:
     :return:
     """
     specs = get_field_specifications(model)
+    order = get_field_order(model)
+    catalog = GOBModel().get_catalog(catalog_name)
     catalog_description = quote_sql_string(catalog['description'])
     fields = []
-    for field_name in get_field_order(model):
+    for field_name in order:
         field_spec = specs[field_name]
         field_description = quote_sql_string(field_spec['description'])
         if field_spec['type'] in REFERENCE_TYPES:
@@ -95,7 +98,7 @@ def _create_table(catalog, schema, table, model):
     field_lengths = [len(field['name']) for field in fields]
     max_length = max(field_lengths) if field_lengths else 1
 
-    table_name = (f"{_quote(schema)}.{_quote(table)}")
+    table_name = (f"{_quote(schema)}.{_quote(collection_name)}")
     table_fields = ",\n  ".join([f"{field['name']:{max_length}} {field['type']}" for field in fields])
 
     comments = ";\n".join([
@@ -103,14 +106,17 @@ def _create_table(catalog, schema, table, model):
         f"IS {SQL_QUOTATION_MARK}{field['description']}{SQL_QUOTATION_MARK}" for field in fields
     ])
 
+    primary_key = f",PRIMARY KEY ({UNIQUE_ID})" if UNIQUE_ID in order else ""
+
     return f"""
 DROP TABLE IF EXISTS {table_name} CASCADE;
 -- TRUNCATE TABLE {table_name};
 CREATE TABLE IF NOT EXISTS {table_name}
 (
-  {table_fields},
-  PRIMARY KEY ({UNIQUE_ID})
+  {table_fields}
+  {primary_key}
 );
+COMMIT;
 
 -- Table and Column comments
 COMMENT ON TABLE  {table_name} {'':{max_length}} IS {SQL_QUOTATION_MARK}{catalog_description}{SQL_QUOTATION_MARK};
@@ -118,20 +124,18 @@ COMMENT ON TABLE  {table_name} {'':{max_length}} IS {SQL_QUOTATION_MARK}{catalog
 """
 
 
-def _import_csv(schema, table, collection):
+def _import_csv(schema, collection_name, csv_file):
     """
     Returns a SQL statement to import a collection into a table
 
     :param schema:
-    :param table:
+    :param collection_name:
     :param specs:
-    :param collection:
+    :param csv_file:
     :return:
     """
-    table_name = (f"{_quote(schema)}.{_quote(table)}")
-    return f"""
-\COPY {table_name} FROM '{collection}.csv' DELIMITER '{DELIMITER_CHAR}' CSV HEADER;
-"""
+    table_name = (f"{_quote(schema)}.{_quote(collection_name)}")
+    return f"\COPY {table_name} FROM '{csv_file}' DELIMITER '{DELIMITER_CHAR}' CSV HEADER;"
 
 
 def sql_entities(catalog_name, collection_name, model):
@@ -145,16 +149,14 @@ def sql_entities(catalog_name, collection_name, model):
     :return:
     """
     schema = catalog_name
-    table = collection_name
-    catalog = GOBModel().get_catalog(catalog_name)
 
     return f"""
 -- Create schema
 {_create_schema(schema)}
 
 -- Create table
-{_create_table(catalog, schema, table, model)}
+{_create_table(schema, catalog_name, collection_name, model)}
 
 -- Import data from csv
-{_import_csv(schema, table, collection_name)}
+{_import_csv(schema, collection_name, f"{collection_name}.csv")}
 """

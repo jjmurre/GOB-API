@@ -325,6 +325,10 @@ def dump_entities(catalog, collection):
 
     table, model = _get_table_and_model(catalog, collection)
 
+    # Register the meta data in the model
+    model['catalog'] = catalog
+    model['collection'] = collection
+
     return session.query(table).yield_per(1000), model
 
 

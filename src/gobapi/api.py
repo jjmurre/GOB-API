@@ -9,6 +9,8 @@ The only public method is get_app() which returns a Flask application object.
 The API can be started by get_app().run()
 
 """
+import json
+
 from flask_graphql import GraphQLView
 from flask import Flask, request, Response
 from flask_cors import CORS
@@ -20,7 +22,7 @@ from gobapi.config import API_BASE_PATH
 from gobapi.response import hal_response, not_found, get_page_ref, ndjson_entities, stream_entities
 from gobapi.dump.csv import csv_entities
 from gobapi.dump.sql import sql_entities
-from gobapi.dump.meta import meta_info
+from gobapi.dump.to_db import dump_to_db
 
 from gobapi.states import get_states
 from gobapi.storage import connect, get_entities, get_entity, query_entities, dump_entities, query_reference_entities
@@ -169,18 +171,25 @@ def _dump(catalog_name, collection_name):
     :param collection_name:
     :return: Streaming response of all entities in csv format with header
     """
-    format = request.args.get('format')
+    method = request.method
 
-    entities, model = dump_entities(catalog_name, collection_name)
+    if method == 'GET':
+        format = request.args.get('format')
+        entities, model = dump_entities(catalog_name, collection_name)
 
-    if format == "csv":
-        return Response(csv_entities(entities, model), mimetype='text/csv')
-    elif format == "sql":
-        return Response(sql_entities(catalog_name, collection_name, model), mimetype='application/sql')
-    elif format == "meta":
-        return Response(meta_info(catalog_name, collection_name, model), mimetype='text/plain')
-    else:
-        return f"Unrecognised format parameter '{format}'" if format else "Format parameter not set", 400
+        if format == "csv":
+            return Response(csv_entities(entities, model), mimetype='text/plain')
+        elif format == "sql":
+            return Response(sql_entities(catalog_name, collection_name, model), mimetype='text/plain')
+        else:
+            return f"Unrecognised format parameter '{format}'" if format else "Format parameter not set", 400
+    elif method == 'POST':
+        content_type = request.content_type
+        if content_type == 'application/json':
+            config = json.loads(request.data)
+            return Response(dump_to_db(catalog_name, collection_name, config), mimetype='text/plain')
+        else:
+            return f"Unrecognised content type '{content_type}'", 400
 
 
 def _collection(catalog_name, collection_name):
@@ -363,8 +372,6 @@ def get_app():
         (f'{API_BASE_PATH}/', _catalogs),
         (f'{API_BASE_PATH}/<catalog_name>/', _catalog),
         (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/', _collection),
-        (f'{API_BASE_PATH}/dump/<catalog_name>/<collection_name>/', _dump),
-        (f'{API_BASE_PATH}/dump/<catalog_name>/', lambda catalog_name: _dump(catalog_name, None)),
         (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/<entity_id>/', _entity),
         (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/<entity_id>/<reference_path>/', _reference_collection),
 
@@ -382,6 +389,9 @@ def get_app():
 
     graphql_streaming = GraphQLStreamingApi()
     app.route(rule=f'{API_BASE_PATH}/graphql/streaming/', methods=['POST'])(graphql_streaming.entrypoint)
+
+    # Add dump endpoints
+    app.route(rule=f'{API_BASE_PATH}/dump/<catalog_name>/<collection_name>/', methods=['GET', 'POST'])(_dump)
 
     app.teardown_appcontext(shutdown_session)
 
