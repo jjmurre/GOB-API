@@ -90,4 +90,4 @@ class CSVStream():
         :param kwargs:
         :return:
         """
-        assert False, "Not implemented"
+        raise NotImplementedError

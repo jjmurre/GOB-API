@@ -178,9 +178,9 @@ def _dump(catalog_name, collection_name):
         entities, model = dump_entities(catalog_name, collection_name)
 
         if format == "csv":
-            return Response(csv_entities(entities, model), mimetype='text/plain')
+            return Response(csv_entities(entities, model), mimetype='text/csv')
         elif format == "sql":
-            return Response(sql_entities(catalog_name, collection_name, model), mimetype='text/plain')
+            return Response(sql_entities(catalog_name, collection_name, model), mimetype='application/sql')
         else:
             return f"Unrecognised format parameter '{format}'" if format else "Format parameter not set", 400
     elif method == 'POST':

@@ -529,7 +529,7 @@ class TestCSVStream(TestCase):
 
     def test_readline(self):
         stream = CSVStream(iter([]), 1)
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(NotImplementedError):
             stream.readline()
 
 class MockStream():
