@@ -1,6 +1,6 @@
 # API
 
-The GOB-API offfers access to GOB collections.
+The GOB-API offers access to GOB collections.
 
 ## Example
 
