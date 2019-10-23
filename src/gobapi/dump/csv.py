@@ -6,9 +6,9 @@ Dumps of catalog collections in csv format
 import re
 
 from gobapi.dump.config import DELIMITER_CHAR, QUOTATION_CHAR
-from gobapi.dump.config import UNIQUE_ID, REFERENCE_TYPES, get_reference_fields
+from gobapi.dump.config import REFERENCE_TYPES, get_reference_fields
 
-from gobapi.dump.config import get_unique_reference, add_unique_reference
+from gobapi.dump.config import get_unique_reference, add_unique_reference, is_unique_id
 from gobapi.dump.config import get_field_specifications, get_field_order, get_field_value, joined_names
 
 
@@ -119,8 +119,8 @@ def _csv_record(entity, field_specs, field_order):
     fields = []
     for field_name in field_order:
         field_spec = field_specs[field_name]
-        if field_name == UNIQUE_ID:
-            value = get_unique_reference(entity, field_specs)
+        if is_unique_id(field_name):
+            value = get_unique_reference(entity, field_name, field_specs)
         else:
             value = get_field_value(entity, field_name, field_spec)
         fields.extend(_csv_values(value, field_spec))
