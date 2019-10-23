@@ -18,12 +18,12 @@ def _dump_to_db(schema, catalog_name, collection_name, entities, model, config):
 
     engine = config['engine']
 
-    yield f"Create schema if not exists\n"
+    yield f"Create schema {schema} if not exists\n"
     create_schema = _create_schema(schema)
     result = engine.execute(create_schema)
     result.close()
 
-    yield f"Create table\n"
+    yield f"Create table {collection_name}\n"
     create_table = _create_table(schema, catalog_name, collection_name, model)
     result = engine.execute(create_table)
     result.close()
@@ -41,7 +41,7 @@ def _dump_to_db(schema, catalog_name, collection_name, entities, model, config):
                 file=stream,
                 size=40960
             )
-            yield f"{stream.total_count}\n"
+            yield f"{collection_name}: {stream.total_count:,}\n"
             if stream.total_count >= commit:
                 connection.commit()
                 commit += COMMIT_PER
