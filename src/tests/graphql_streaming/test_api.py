@@ -364,6 +364,69 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
         builder._add_row_to_entity(row, entity)
         self.assertEqual(entity, expected_result)
 
+    def test_add_row_to_entity_double_without_gobid(self):
+        builder = self.get_instance()
+        builder.evaluation_order = ['a', 'b']
+        builder.root_relation = 'rootrel'
+        builder.relations_hierarchy = {
+            'a': 'rootrel',
+            'b': 'a'
+        }
+
+        entity = {
+            'existing': 'value',
+            'a': {
+                'edges': [
+                    {
+                        'node': {
+                            FIELD.GOBID: 'gobid1',
+                            'some': 'value',
+                            'b': {
+                                'edges': [
+                                    {
+                                        'node': {'some_other': 'value', FIELD.GOBID: 'gobid2'},
+                                    },
+                                ]
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+        row = {
+            '_a': {'some': 'value', FIELD.GOBID: 'gobid1'},
+            '_b': {'some_other': 'val', FIELD.GOBID: None},
+        }
+
+        expected_result = {
+            'existing': 'value',
+            'a': {
+                'edges': [
+                    {
+                        'node': {
+                            'some': 'value',
+                            FIELD.GOBID: 'gobid1',
+                            'b': {
+                                'edges': [
+                                    {
+                                        'node': {'some_other': 'value', FIELD.GOBID: 'gobid2'},
+                                    },
+                                    {
+                                        'node': {'some_other': 'val', FIELD.GOBID: None},
+                                    },
+                                ]
+                            }
+                        },
+                    }
+                ]
+            },
+        }
+
+        # Add twice. Rows should only appear once
+        builder._add_row_to_entity(row, entity)
+        builder._add_row_to_entity(row, entity)
+        self.assertEqual(entity, expected_result)
+
     def test_build_entity(self):
         builder = self.get_instance()
         collected_rows = [

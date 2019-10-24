@@ -64,7 +64,7 @@ def dump_to_db(catalog_name, collection_name, config):
         yield from _dump_to_db(schema, catalog_name, collection_name, entities, model, config)
 
         # Then process all relations in the given collection
-        for relation in [k for k in model['references'].keys()] + [k for k in model['very_many_references'].keys()]:
+        for relation in [k for k in model['references'].keys()]:
             yield f"Export {catalog_name} {collection_name} {relation}\n"
 
             relation_name = get_relation_name(GOBModel(), catalog_name, collection_name, relation)
