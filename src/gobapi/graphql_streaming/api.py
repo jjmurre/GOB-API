@@ -128,10 +128,14 @@ class GraphQLStreamingResponseBuilder:
             item = [rel for rel in insert_position[relation_name]['edges']
                     if row_relation[FIELD.GOBID] is not None and rel['node'][FIELD.GOBID] == row_relation[FIELD.GOBID]]
 
+            add_node = self._to_node(row_relation)
+
             if item:
                 row_relations[relation_name] = item[0]['node']
-            elif not self._is_empty_relation(row_relation):
-                insert_position[relation_name]['edges'].append(self._to_node(row_relation))
+            elif not self._is_empty_relation(row_relation) and add_node not in insert_position[relation_name]['edges']:
+                # Only insert if node does not yet exist (possible when bronwaarde/broninfo object only, without
+                # gobid)
+                insert_position[relation_name]['edges'].append(add_node)
                 row_relations[relation_name] = row_relation
 
     def _get_insert_position(self, relation_name: str, row_relations: dict):
