@@ -558,7 +558,8 @@ class TestToDB(TestCase):
         }
         model = {
             'references': {
-                'ref': 'any ref'
+                'ref': 'any ref',
+                'vmref': 'any very many ref'
             },
             'very_many_references': {
                 'vmref': 'any very many ref'
