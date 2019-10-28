@@ -67,10 +67,17 @@ def get_reference_fields(spec):
     Get the reference fields for a given referenced (spec)
 
     If the reference refers to an entity without states then do not include volgnummer
+
+    For references without an existing destination relation, only include bronwaarde
     :param spec: type specification
     :return: array with reference fields
     """
     catalog_name, collection_name = spec['ref'].split(':')
+
+    if GOBModel().get_collection(catalog_name, collection_name) is None:
+        # Relation does not exist yet, only use SOURCE_VALUE
+        return [FIELD.SOURCE_VALUE]
+
     if GOBModel().has_states(catalog_name, collection_name):
         return REFERENCE_FIELDS
     else:

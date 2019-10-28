@@ -65,9 +65,15 @@ def dump_to_db(catalog_name, collection_name, config):
 
         # Then process all relations in the given collection
         for relation in [k for k in model['references'].keys()]:
+            relation_name = get_relation_name(GOBModel(), catalog_name, collection_name, relation)
+
+            if not relation_name:
+                # relation_name is None when relation does not exist (yet)
+                yield f"Skipping unmapped {catalog_name} {collection_name} {relation}\n"
+                continue
+
             yield f"Export {catalog_name} {collection_name} {relation}\n"
 
-            relation_name = get_relation_name(GOBModel(), catalog_name, collection_name, relation)
             entities, model = dump_entities("rel", relation_name)
             yield from _dump_to_db(schema, "rel", relation_name, entities, model, config)
 
