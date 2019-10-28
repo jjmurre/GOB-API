@@ -41,9 +41,13 @@ class MockSession:
 
 class MockModel:
     cat_col_has_states = None
+    collection = {'cat': 'col'}
 
     def has_states(self, cat, col):
         return self.cat_col_has_states
+
+    def get_collection(self, cat, col):
+        return self.collection
 
 
 from gobapi.dump.config import get_unique_reference, add_unique_reference
@@ -60,6 +64,9 @@ class TestConfig(TestCase):
 
         MockModel.cat_col_has_states = False
         self.assertTrue(dump.config.FIELD.SEQNR not in dump.config.get_reference_fields({'ref': 'a:b'}))
+
+        MockModel.collection = None
+        self.assertEqual([dump.config.FIELD.SOURCE_VALUE], dump.config.get_reference_fields({'ref': 'a:b'}))
 
     def test_joined_names(self):
         result = joined_names()
@@ -139,7 +146,6 @@ class TestConfig(TestCase):
                 'type': 'GOB.String'
             }
         }
-        print(result)
         self.assertEqual(result, expect)
 
     def test_get_field_specifications(self):
@@ -532,6 +538,7 @@ class TestCSVStream(TestCase):
         with self.assertRaises(NotImplementedError):
             stream.readline()
 
+
 class MockStream():
 
     def __init__(self, *args):
@@ -544,6 +551,7 @@ class MockStream():
         self._has_items = False
 
     total_count = 10
+
 
 class TestToDB(TestCase):
 
@@ -573,6 +581,30 @@ class TestToDB(TestCase):
         mock_dump.side_effect = lambda *args: 1 / 0
         results = "".join([result for result in dump_to_db('any catalog name', 'any collection name', config)])
         self.assertTrue("ERROR: Export failed" in results)
+
+    @patch('gobapi.dump.to_db.create_engine', MagicMock())
+    @patch('gobapi.dump.to_db.URL', MagicMock())
+    @patch('gobapi.dump.to_db.get_relation_name', lambda *args: None)
+    @patch('gobapi.dump.to_db._dump_to_db')
+    @patch('gobapi.dump.to_db.dump_entities')
+    def test_dump_non_existent_relation(self, mock_entities, mock_dump):
+        config = {
+            'db': {},
+        }
+        model = {
+            'references': {
+                'ref': 'any ref',
+                'vmref': 'any very many ref'
+            },
+            'very_many_references': {
+                'vmref': 'any very many ref'
+            }
+        }
+        mock_entities.return_value = 'any entities', model
+        mock_dump.return_value = iter([])
+        results = [result for result in dump_to_db('any catalog name', 'any collection name', config)]
+        self.assertEqual(mock_dump.call_count, 1)
+        self.assertEqual(2, len([line for line in results if line.startswith('Skipping unmapped')]))
 
     @patch('gobapi.dump.to_db._create_schema', MagicMock())
     @patch('gobapi.dump.to_db._create_table', MagicMock())
