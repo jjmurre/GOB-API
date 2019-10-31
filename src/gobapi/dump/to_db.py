@@ -32,7 +32,7 @@ def _dump_to_db(schema, catalog_name, collection_name, entities, model, config):
     stream = CSVStream(csv_entities(entities, model), STREAM_PER)
 
     with connection.cursor() as cursor:
-        yield "Export data\n"
+        yield "Export data"
         commit = COMMIT_PER
         while stream.has_items():
             stream.reset_count()
@@ -46,12 +46,12 @@ def _dump_to_db(schema, catalog_name, collection_name, entities, model, config):
                 connection.commit()
                 commit += COMMIT_PER
 
-                yield f"{collection_name}: {stream.total_count:,}\n"
+                yield f"\n{collection_name}: {stream.total_count:,}"
             else:
                 # Let client know we're still working.
                 yield "."
 
-    yield(f"Exported {stream.total_count} rows\n")
+    yield(f"\nExported {stream.total_count} rows\n")
     connection.commit()
     connection.close()
 

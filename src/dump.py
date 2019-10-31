@@ -46,7 +46,7 @@ def dump_catalog(dump_api, catalog_name, collection_name):
         lastline = line.decode()
         print(lastline)
 
-    if not re.match(r'Exported \d* rows', lastline):
+    if not re.match(r'Export completed', lastline):
         print('ERROR: Remote job did not finish')
 
 
