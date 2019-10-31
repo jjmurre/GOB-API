@@ -651,4 +651,4 @@ class TestToDB(TestCase):
                                                     config)]
         self.assertEqual(mock_connection.commit.call_count, 1)
         mock_connection.close.assert_called()
-        self.assertTrue("Export data\n.Exported" in "".join(results))
+        self.assertTrue("Export data.\nExported" in "".join(results))
