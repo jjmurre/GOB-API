@@ -10,8 +10,8 @@ from gobapi.dump.sql import _create_schema, _create_table
 from gobapi.dump.csv import csv_entities
 from gobapi.dump.csv_stream import CSVStream
 
-STREAM_PER = 5000             # Stream per STREAM_PER lines
-COMMIT_PER = 10 * STREAM_PER  # Commit once per COMMIT_PER lines
+STREAM_PER = 100             # Stream per STREAM_PER lines
+COMMIT_PER = 100 * STREAM_PER  # Commit once per COMMIT_PER lines
 
 
 def _dump_to_db(schema, catalog_name, collection_name, entities, model, config):
@@ -41,10 +41,15 @@ def _dump_to_db(schema, catalog_name, collection_name, entities, model, config):
                 file=stream,
                 size=40960
             )
-            yield f"{collection_name}: {stream.total_count:,}\n"
+
             if stream.total_count >= commit:
                 connection.commit()
                 commit += COMMIT_PER
+
+                yield f"{collection_name}: {stream.total_count:,}\n"
+            else:
+                # Let client know we're still working.
+                yield "."
 
     yield(f"Exported {stream.total_count} rows\n")
     connection.commit()
