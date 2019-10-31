@@ -628,3 +628,27 @@ class TestToDB(TestCase):
                                                     config)]
         self.assertEqual(mock_connection.commit.call_count, 2)
         mock_connection.close.assert_called()
+
+    @patch('gobapi.dump.to_db._create_schema', MagicMock())
+    @patch('gobapi.dump.to_db._create_table', MagicMock())
+    @patch('gobapi.dump.to_db.CSVStream', MockStream)
+    @patch('gobapi.dump.to_db.COMMIT_PER', 11)
+    def test_dump_to_db_dots(self):
+        mock_engine = MagicMock()
+        mock_connection = MagicMock()
+        config = {
+            'engine': mock_engine
+        }
+        model = {
+            'catalog': 'any catalog'
+        }
+        mock_engine.raw_connection.return_value = mock_connection
+        results = [result for result in _dump_to_db("any schema",
+                                                    "any catalog name",
+                                                    "any collection name",
+                                                    iter([]),
+                                                    model,
+                                                    config)]
+        self.assertEqual(mock_connection.commit.call_count, 1)
+        mock_connection.close.assert_called()
+        self.assertTrue("Export data\n.Exported" in "".join(results))

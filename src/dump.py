@@ -7,6 +7,7 @@ import os
 import json
 import requests
 import argparse
+import re
 
 config = {
     "ANALYSE_DATABASE_USER": None,
@@ -40,8 +41,13 @@ def dump_catalog(dump_api, catalog_name, collection_name):
         "Content-Type": "application/json"
     }
     result = requests.post(url=url, data=data, headers=headers, stream=True)
+    lastline = ""
     for line in result.iter_lines(chunk_size=1):
-        print(line.decode())
+        lastline = line.decode()
+        print(lastline)
+
+    if not re.match(r'Exported \d* rows', lastline):
+        print('ERROR: Remote job did not finish')
 
 
 if __name__ == '__main__':
