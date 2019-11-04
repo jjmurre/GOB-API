@@ -120,8 +120,8 @@ def test_resolve_attribute_missing_relation():
 def test_add_bronwaardes_to_results(monkeypatch):
     class Obj:
         __tablename__ = "src_table"
-        ref = [{'bronwaarde': 'sourceval', 'id': 5, 'someotherval': 'value'},
-               {'bronwaarde': 'sourceval_missing_relation', 'someothervalue': 'val'}]
+        ref = [{'bronwaarde': 'sourceval', 'id': 5, 'broninfo': {'someotherval': 'value'}},
+               {'bronwaarde': 'sourceval_missing_relation', 'broninfo': {'someothervalue': 'val'}}]
 
     src_attr = 'ref'
 
@@ -150,13 +150,13 @@ def test_add_bronwaardes_to_results(monkeypatch):
     result = model_table_type()
     results = [result]
     obj = Obj()
-    obj.__setattr__('ref', {'bronwaarde': 'sourceval', 'otherkey': 'otherval'})
+    obj.__setattr__('ref', {'bronwaarde': 'sourceval', 'broninfo': {'otherkey': 'otherval'}})
     res = add_bronwaardes_to_results(src_attr, model_table_type, obj, results)
     assert len(res) == 1
     assert getattr(res[0], 'bronwaarde') == 'sourceval'
     assert getattr(res[0], 'broninfo') == {'otherkey': 'otherval'}
 
-    # Case 4. Objects have been matched on geometry. Bronwaarde should be geometrie
+    # Case 3. Objects have been matched on geometry. Bronwaarde should be geometrie
     result = model_table_type()
     results = [result]
     obj = Obj()
@@ -165,16 +165,16 @@ def test_add_bronwaardes_to_results(monkeypatch):
     assert len(res) == 1
     assert getattr(res[0], 'bronwaarde') == 'geometrie'
 
-    # Case 5. Result has states
+    # Case 4. Result has states
     result = model_table_type()
     result.__setattr__('property', 'propval')
     result.__setattr__('__has_states__', True)
     results = [result]
     obj = Obj()
     obj.__setattr__('ref', [
-        {'bronwaarde': 'sourceval', 'otherkey': 'otherval'},
-        {'bronwaarde': 'sourceval2', 'otherkey': 'matchingobject', 'id': 5, 'volgnummer': 3},
-        {'bronwaarde': 'sourceval3', 'otherkey': 'nonmatchingobject', 'id': 5, 'volgnummer': 2},
+        {'bronwaarde': 'sourceval', 'broninfo': {'otherkey': 'otherval'}},
+        {'bronwaarde': 'sourceval2', 'broninfo': {'otherkey': 'matchingobject'}, 'id': 5, 'volgnummer': 3},
+        {'bronwaarde': 'sourceval3', 'broninfo': {'otherkey': 'nonmatchingobject'}, 'id': 5, 'volgnummer': 2},
     ])
     res = add_bronwaardes_to_results(src_attr, model_table_type, obj, results)
     assert len(res) == 3

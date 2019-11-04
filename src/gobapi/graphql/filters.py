@@ -122,12 +122,8 @@ def set_result_values(result, source_item: dict):
     :param source_item:
     :return:
     """
-    reference_root_fields = [FIELD.REFERENCE_ID, FIELD.SEQNR, FIELD.SOURCE_VALUE]
-
     setattr(result, FIELD.SOURCE_VALUE, source_item[FIELD.SOURCE_VALUE])
-    setattr(result, FIELD.SOURCE_INFO, {
-        k: v for k, v in source_item.items() if k not in reference_root_fields
-    })
+    setattr(result, FIELD.SOURCE_INFO, source_item.get(FIELD.SOURCE_INFO))
 
 
 def create_bronwaarde_result_objects(source_values: list, model):
