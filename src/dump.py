@@ -43,21 +43,25 @@ def dump_catalog(dump_api, catalog_name, collection_name):
     }
 
     start_request = time.time()
-    result = requests.post(url=url, data=data, headers=headers, stream=True)
+    try:
+        result = requests.post(url=url, data=data, headers=headers, stream=True)
 
-    lastline = ""
-    start_line = time.time()
-    for line in result.iter_lines(chunk_size=1):
-        lastline = line.decode()
-        end_line = time.time()
-        print(f"{lastline} ({(end_line - start_line):.2f} / {(end_line - start_request):.2f} secs)")
+        lastline = ""
         start_line = time.time()
+        for line in result.iter_lines(chunk_size=1):
+            lastline = line.decode()
+            end_line = time.time()
+            print(f"{lastline} ({(end_line - start_line):.2f} / {(end_line - start_request):.2f} secs)")
+            start_line = time.time()
 
-    end_request = time.time()
-
-    print(f"Elapsed time: {(end_request - start_request):.2f} secs")
-    if not re.match(r'Export completed', lastline):
-        print(f'ERROR: Export {catalog_name}-{collection_name} completed with errors')
+        end_request = time.time()
+    except Exception as e:
+        print(f'ERROR: Export {catalog_name}-{collection_name} failed: {str(e)}')
+    else:
+        if not re.match(r'Export completed', lastline):
+            print(f'ERROR: Export {catalog_name}-{collection_name} completed with errors')
+    finally:
+        print(f"Elapsed time: {(end_request - start_request):.2f} secs")
 
 
 if __name__ == '__main__':
