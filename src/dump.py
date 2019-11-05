@@ -56,7 +56,7 @@ def dump_catalog(dump_api, catalog_name, collection_name):
     end_request = time.time()
 
     print(f"Elapsed time: {(end_request - start_request):.2f} secs")
-    if not re.match(r'Exsport completed', lastline):
+    if not re.match(r'Export completed', lastline):
         print(f'ERROR: Export {catalog_name}-{collection_name} completed with errors')
 
 
