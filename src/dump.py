@@ -53,14 +53,13 @@ def dump_catalog(dump_api, catalog_name, collection_name):
             end_line = time.time()
             print(f"{lastline} ({(end_line - start_line):.2f} / {(end_line - start_request):.2f} secs)")
             start_line = time.time()
-
-        end_request = time.time()
     except Exception as e:
         print(f'ERROR: Export {catalog_name}-{collection_name} failed: {str(e)}')
     else:
         if not re.match(r'Export completed', lastline):
             print(f'ERROR: Export {catalog_name}-{collection_name} completed with errors')
     finally:
+        end_request = time.time()
         print(f"Elapsed time: {(end_request - start_request):.2f} secs")
 
 
