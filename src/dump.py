@@ -8,6 +8,7 @@ import json
 import requests
 import argparse
 import re
+import time
 
 config = {
     "ANALYSE_DATABASE_USER": None,
@@ -40,14 +41,27 @@ def dump_catalog(dump_api, catalog_name, collection_name):
     headers = {
         "Content-Type": "application/json"
     }
-    result = requests.post(url=url, data=data, headers=headers, stream=True)
-    lastline = ""
-    for line in result.iter_lines(chunk_size=1):
-        lastline = line.decode()
-        print(lastline)
 
-    if not re.match(r'Export completed', lastline):
-        print('ERROR: Remote job did not finish')
+    start_request = time.time()
+    try:
+        result = requests.post(url=url, data=data, headers=headers, stream=True)
+
+        lastline = ""
+        start_line = time.time()
+        for line in result.iter_lines(chunk_size=1):
+            lastline = line.decode()
+            end_line = time.time()
+            print(f"{lastline} ({(end_line - start_line):.2f} / {(end_line - start_request):.2f} secs)")
+            start_line = time.time()
+
+        end_request = time.time()
+    except Exception as e:
+        print(f'ERROR: Export {catalog_name}-{collection_name} failed: {str(e)}')
+    else:
+        if not re.match(r'Export completed', lastline):
+            print(f'ERROR: Export {catalog_name}-{collection_name} completed with errors')
+    finally:
+        print(f"Elapsed time: {(end_request - start_request):.2f} secs")
 
 
 if __name__ == '__main__':

@@ -10,8 +10,9 @@ from gobapi.dump.sql import _create_schema, _create_table
 from gobapi.dump.csv import csv_entities
 from gobapi.dump.csv_stream import CSVStream
 
-STREAM_PER = 100             # Stream per STREAM_PER lines
+STREAM_PER = 100               # Stream per STREAM_PER lines
 COMMIT_PER = 100 * STREAM_PER  # Commit once per COMMIT_PER lines
+BUFFER_PER = 4096              # Copy read buffer size
 
 
 def _dump_to_db(schema, catalog_name, collection_name, entities, model, config):
@@ -39,7 +40,7 @@ def _dump_to_db(schema, catalog_name, collection_name, entities, model, config):
             cursor.copy_expert(
                 sql=f"COPY {schema}.{collection_name} FROM STDIN DELIMITER ';' CSV HEADER;",
                 file=stream,
-                size=40960
+                size=BUFFER_PER
             )
 
             if stream.total_count >= commit:
