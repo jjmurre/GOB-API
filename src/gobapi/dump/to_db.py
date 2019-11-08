@@ -1,3 +1,5 @@
+import re
+
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
 
@@ -6,13 +8,39 @@ from gobapi.storage import dump_entities
 from gobcore.model import GOBModel
 from gobcore.model.relations import get_relation_name
 
-from gobapi.dump.sql import _create_schema, _create_table
+from gobapi.dump.config import get_field_specifications
+from gobapi.dump.sql import _create_schema, _create_table, _rename_table, _create_index
 from gobapi.dump.csv import csv_entities
 from gobapi.dump.csv_stream import CSVStream
 
 STREAM_PER = 100               # Stream per STREAM_PER lines
 COMMIT_PER = 100 * STREAM_PER  # Commit once per COMMIT_PER lines
 BUFFER_PER = 4096              # Copy read buffer size
+
+
+def _create_indexes(engine, schema, collection_name, model):
+    """
+    Create default indexes for the given collection
+
+    :param engine:
+    :param schema:
+    :param collection_name:
+    :param model:
+    :return:
+    """
+    indexes = []
+    for field, spec in get_field_specifications(model).items():
+        if field == model['entity_id'] or re.compile(r"(^|.+_)ref$").match(field):
+            indexes.append({'field': field})  # Plain entity id, full entity id (ref) or rel. foreign key (eg dst_ref)
+        elif "GOB.Geo" in spec['type']:
+            indexes.append({'field': field, 'method': "gist"})  # Spatial index
+        elif spec['type'] == "GOB.Reference":
+            indexes.append({'field': f"{field}_ref"})           # Foreign key index
+
+    for index in indexes:
+        yield f"Create index on {index['field']}\n"
+        result = engine.execute(_create_index(schema, collection_name, **index))
+        result.close()
 
 
 def _dump_to_db(schema, catalog_name, collection_name, entities, model, config):
@@ -24,8 +52,11 @@ def _dump_to_db(schema, catalog_name, collection_name, entities, model, config):
     result = engine.execute(create_schema)
     result.close()
 
+    # Collect new data in temporary table
+    tmp_collection_name = f"tmp_{collection_name}"
+
     yield f"Create table {collection_name}\n"
-    create_table = _create_table(schema, catalog_name, collection_name, model)
+    create_table = _create_table(schema, catalog_name, tmp_collection_name, model)
     result = engine.execute(create_table)
     result.close()
 
@@ -38,7 +69,7 @@ def _dump_to_db(schema, catalog_name, collection_name, entities, model, config):
         while stream.has_items():
             stream.reset_count()
             cursor.copy_expert(
-                sql=f"COPY {schema}.{collection_name} FROM STDIN DELIMITER ';' CSV HEADER;",
+                sql=f"COPY {schema}.{tmp_collection_name} FROM STDIN DELIMITER ';' CSV HEADER;",
                 file=stream,
                 size=BUFFER_PER
             )
@@ -54,6 +85,15 @@ def _dump_to_db(schema, catalog_name, collection_name, entities, model, config):
 
     yield(f"\nExported {stream.total_count} rows\n")
     connection.commit()
+
+    yield f"Finalize table {collection_name}\n"
+    rename_table = _rename_table(schema, current_name=tmp_collection_name, new_name=collection_name)
+    result = engine.execute(rename_table)
+    result.close()
+
+    yield "Create default indexes\n"
+    yield from _create_indexes(engine, schema, collection_name, model)
+
     connection.close()
 
 

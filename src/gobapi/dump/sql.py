@@ -66,6 +66,39 @@ def quote_sql_string(s):
     return s.replace(SQL_QUOTATION_MARK, 2 * SQL_QUOTATION_MARK)
 
 
+def _rename_table(schema, current_name, new_name):
+    """
+    Rename table with the given current_name in the given schema to new_name in the same schema
+
+    :param schema:
+    :param current_name:
+    :param new_name:
+    :return:
+    """
+    current_table = (f"{_quote(schema)}.{_quote(current_name)}")
+    new_table = (f"{_quote(schema)}.{_quote(new_name)}")
+    return f"""
+DROP  TABLE IF EXISTS {new_table}     CASCADE;
+ALTER TABLE IF EXISTS {current_table} RENAME TO {new_name}
+"""
+
+
+def _create_index(schema, collection_name, field, method="btree"):
+    """
+    Create an index for the table with the given collection_name in the given schema on the given field.
+
+    :param schema:
+    :param collection_name:
+    :param field:
+    :param method:
+    :return:
+    """
+    table = (f"{_quote(schema)}.{_quote(collection_name)}")
+    return f"""
+CREATE INDEX {collection_name}_{field} ON {table} USING {method} ({field})
+"""
+
+
 def _create_table(schema, catalog_name, collection_name, model):
     """
     Returns a SQL statement to create a table in a schema

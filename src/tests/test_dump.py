@@ -5,7 +5,7 @@ from flask import Response
 
 from gobapi import dump, api, storage
 from gobapi.dump.csv_stream import CSVStream
-from gobapi.dump.to_db import dump_to_db, _dump_to_db
+from gobapi.dump.to_db import dump_to_db, _dump_to_db, _create_indexes
 
 
 class MockEntity:
@@ -607,6 +607,7 @@ class TestToDB(TestCase):
         self.assertEqual(2, len([line for line in results if line.startswith('Skipping unmapped')]))
 
     @patch('gobapi.dump.to_db._create_schema', MagicMock())
+    @patch('gobapi.dump.to_db._create_indexes', MagicMock())
     @patch('gobapi.dump.to_db._create_table', MagicMock())
     @patch('gobapi.dump.to_db.CSVStream', MockStream)
     @patch('gobapi.dump.to_db.COMMIT_PER', 1)
@@ -630,6 +631,7 @@ class TestToDB(TestCase):
         mock_connection.close.assert_called()
 
     @patch('gobapi.dump.to_db._create_schema', MagicMock())
+    @patch('gobapi.dump.to_db._create_indexes', MagicMock())
     @patch('gobapi.dump.to_db._create_table', MagicMock())
     @patch('gobapi.dump.to_db.CSVStream', MockStream)
     @patch('gobapi.dump.to_db.COMMIT_PER', 11)
@@ -652,3 +654,34 @@ class TestToDB(TestCase):
         self.assertEqual(mock_connection.commit.call_count, 1)
         mock_connection.close.assert_called()
         self.assertTrue("Export data.\nExported" in "".join(results))
+
+    @patch('gobapi.dump.to_db.get_field_specifications')
+    def test_create_indexes(self, mock_specs):
+        mock_engine = MagicMock()
+        model = {
+            'entity_id': "any id"
+        }
+
+        specs = {
+            model['entity_id']: "any id value",
+            'ref': "any ref",
+            'dst_ref': "any dst ref",
+            'dst_reference': {
+                'type': "should be skipped"
+            },
+            '_ref': {
+                'type': "should be skipped"
+            },
+            'fk': {
+                'type': "GOB.Reference"
+            },
+            'any geo': {
+                'type': "GOB.Geo.whatever"
+            }
+        }
+        mock_specs.return_value = specs
+
+        results = _create_indexes(mock_engine, "any schema", "any collection", model)
+        for result in results:
+            print(result)
+        self.assertEqual(mock_engine.execute.call_count, len(specs.keys()) - 2)
