@@ -8,7 +8,7 @@ from gobapi.storage import dump_entities
 from gobcore.model import GOBModel
 from gobcore.model.relations import get_relation_name
 
-from gobapi.dump.config import get_field_specifications
+from gobapi.dump.config import get_field_specifications, get_reference_fields
 from gobapi.dump.sql import _create_schema, _create_table, _rename_table, _create_index
 from gobapi.dump.csv import csv_entities
 from gobapi.dump.csv_stream import CSVStream
@@ -34,7 +34,7 @@ def _create_indexes(engine, schema, collection_name, model):
             indexes.append({'field': field})  # Plain entity id, full entity id (ref) or rel. foreign key (eg dst_ref)
         elif "GOB.Geo" in spec['type']:
             indexes.append({'field': field, 'method': "gist"})  # Spatial index
-        elif spec['type'] == "GOB.Reference":
+        elif spec['type'] == "GOB.Reference" and "ref" in get_reference_fields(spec):
             indexes.append({'field': f"{field}_ref"})           # Foreign key index
 
     for index in indexes:

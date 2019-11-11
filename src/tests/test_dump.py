@@ -655,8 +655,9 @@ class TestToDB(TestCase):
         mock_connection.close.assert_called()
         self.assertTrue("Export data.\nExported" in "".join(results))
 
+    @patch('gobapi.dump.to_db.get_reference_fields')
     @patch('gobapi.dump.to_db.get_field_specifications')
-    def test_create_indexes(self, mock_specs):
+    def test_create_indexes(self, mock_specs, mock_get_reference_fields):
         mock_engine = MagicMock()
         model = {
             'entity_id': "any id"
@@ -680,8 +681,18 @@ class TestToDB(TestCase):
             }
         }
         mock_specs.return_value = specs
+        mock_get_reference_fields.return_value = ["ref"]
 
         results = _create_indexes(mock_engine, "any schema", "any collection", model)
         for result in results:
             print(result)
         self.assertEqual(mock_engine.execute.call_count, len(specs.keys()) - 2)
+
+        # Do not create indexes for references to non-existing collections
+        mock_get_reference_fields.return_value = []
+        mock_engine.execute.reset_mock()
+
+        results = _create_indexes(mock_engine, "any schema", "any collection", model)
+        for result in results:
+            print(result)
+        self.assertEqual(mock_engine.execute.call_count, len(specs.keys()) - 3)
