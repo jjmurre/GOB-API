@@ -8,7 +8,7 @@ from gobapi.storage import dump_entities
 from gobcore.model import GOBModel
 from gobcore.model.relations import get_relation_name
 
-from gobapi.dump.config import get_field_specifications, get_reference_fields
+from gobapi.dump.config import get_field_specifications, get_reference_fields, SKIP_RELATIONS
 from gobapi.dump.sql import _create_schema, _create_table, _rename_table, _create_index
 from gobapi.dump.csv import csv_entities
 from gobapi.dump.csv_stream import CSVStream
@@ -113,9 +113,9 @@ def dump_to_db(catalog_name, collection_name, config):
         for relation in [k for k in model['references'].keys()]:
             relation_name = get_relation_name(GOBModel(), catalog_name, collection_name, relation)
 
-            if not relation_name:
+            if not relation_name or relation_name in SKIP_RELATIONS:
                 # relation_name is None when relation does not exist (yet)
-                yield f"Skipping unmapped {catalog_name} {collection_name} {relation}\n"
+                yield f"Skipping {catalog_name} {collection_name} {relation}\n"
                 continue
 
             yield f"Export {catalog_name} {collection_name} {relation}\n"
