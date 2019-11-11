@@ -555,9 +555,10 @@ class MockStream():
 
 class TestToDB(TestCase):
 
+    @patch('gobapi.dump.to_db.SKIP_RELATIONS', ["skip me"])
     @patch('gobapi.dump.to_db.create_engine', MagicMock())
     @patch('gobapi.dump.to_db.URL', MagicMock())
-    @patch('gobapi.dump.to_db.get_relation_name', lambda *args: 'any relation name')
+    @patch('gobapi.dump.to_db.get_relation_name', lambda m, cat, col, rel: rel)
     @patch('gobapi.dump.to_db._dump_to_db')
     @patch('gobapi.dump.to_db.dump_entities')
     def test_dump(self, mock_entities, mock_dump):
@@ -567,7 +568,8 @@ class TestToDB(TestCase):
         model = {
             'references': {
                 'ref': 'any ref',
-                'vmref': 'any very many ref'
+                'vmref': 'any very many ref',
+                'skip me': 'skip this ref'
             },
             'very_many_references': {
                 'vmref': 'any very many ref'
@@ -604,7 +606,7 @@ class TestToDB(TestCase):
         mock_dump.return_value = iter([])
         results = [result for result in dump_to_db('any catalog name', 'any collection name', config)]
         self.assertEqual(mock_dump.call_count, 1)
-        self.assertEqual(2, len([line for line in results if line.startswith('Skipping unmapped')]))
+        self.assertEqual(2, len([line for line in results if line.startswith('Skipping')]))
 
     @patch('gobapi.dump.to_db._create_schema', MagicMock())
     @patch('gobapi.dump.to_db._create_indexes', MagicMock())
@@ -655,8 +657,9 @@ class TestToDB(TestCase):
         mock_connection.close.assert_called()
         self.assertTrue("Export data.\nExported" in "".join(results))
 
+    @patch('gobapi.dump.to_db.get_reference_fields')
     @patch('gobapi.dump.to_db.get_field_specifications')
-    def test_create_indexes(self, mock_specs):
+    def test_create_indexes(self, mock_specs, mock_get_reference_fields):
         mock_engine = MagicMock()
         model = {
             'entity_id': "any id"
@@ -680,8 +683,18 @@ class TestToDB(TestCase):
             }
         }
         mock_specs.return_value = specs
+        mock_get_reference_fields.return_value = ["ref"]
 
         results = _create_indexes(mock_engine, "any schema", "any collection", model)
         for result in results:
             print(result)
         self.assertEqual(mock_engine.execute.call_count, len(specs.keys()) - 2)
+
+        # Do not create indexes for references to non-existing collections
+        mock_get_reference_fields.return_value = []
+        mock_engine.execute.reset_mock()
+
+        results = _create_indexes(mock_engine, "any schema", "any collection", model)
+        for result in results:
+            print(result)
+        self.assertEqual(mock_engine.execute.call_count, len(specs.keys()) - 3)

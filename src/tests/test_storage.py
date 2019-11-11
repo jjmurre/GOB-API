@@ -11,7 +11,7 @@ import sqlalchemy_filters
 
 from unittest import mock, TestCase
 
-from gobapi.storage import _get_convert_for_state, filter_deleted, connect, _format_reference
+from gobapi.storage import _get_convert_for_state, filter_deleted, connect, _format_reference, _get_table
 from gobcore.model.metadata import FIELD
 
 class MockEntity:
@@ -617,3 +617,14 @@ class TestStorage(TestCase):
                 }
             }
         }, res)
+
+    def test_get_table(self):
+        names = ["any"]
+        self.assertEqual(_get_table(names, names[0]), names[0])
+
+        names = ["any", "any1", "any123", "any", "any"]
+        for name in names:
+            self.assertEqual(_get_table(names, name), name)
+
+        names = ["any"]
+        self.assertEqual(_get_table(names, "any123"), "any")

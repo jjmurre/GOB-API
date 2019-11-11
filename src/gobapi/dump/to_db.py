@@ -8,7 +8,7 @@ from gobapi.storage import dump_entities
 from gobcore.model import GOBModel
 from gobcore.model.relations import get_relation_name
 
-from gobapi.dump.config import get_field_specifications
+from gobapi.dump.config import get_field_specifications, get_reference_fields, SKIP_RELATIONS
 from gobapi.dump.sql import _create_schema, _create_table, _rename_table, _create_index
 from gobapi.dump.csv import csv_entities
 from gobapi.dump.csv_stream import CSVStream
@@ -34,7 +34,7 @@ def _create_indexes(engine, schema, collection_name, model):
             indexes.append({'field': field})  # Plain entity id, full entity id (ref) or rel. foreign key (eg dst_ref)
         elif "GOB.Geo" in spec['type']:
             indexes.append({'field': field, 'method': "gist"})  # Spatial index
-        elif spec['type'] == "GOB.Reference":
+        elif spec['type'] == "GOB.Reference" and "ref" in get_reference_fields(spec):
             indexes.append({'field': f"{field}_ref"})           # Foreign key index
 
     for index in indexes:
@@ -113,9 +113,9 @@ def dump_to_db(catalog_name, collection_name, config):
         for relation in [k for k in model['references'].keys()]:
             relation_name = get_relation_name(GOBModel(), catalog_name, collection_name, relation)
 
-            if not relation_name:
+            if not relation_name or relation_name in SKIP_RELATIONS:
                 # relation_name is None when relation does not exist (yet)
-                yield f"Skipping unmapped {catalog_name} {collection_name} {relation}\n"
+                yield f"Skipping {catalog_name} {collection_name} {relation}\n"
                 continue
 
             yield f"Export {catalog_name} {collection_name} {relation}\n"

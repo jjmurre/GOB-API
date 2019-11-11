@@ -26,6 +26,8 @@ REL_FIELDS = [f"src_{field}" for field in REL_INFO_FIELDS] +\
 SKIP_TYPES = ["GOB.VeryManyReference"]
 SKIP_FIELDS = ["_hash", "_gobid"]
 
+SKIP_RELATIONS = ["brk_tng_brk_sdl_is_gebaseerd_op_stukdeel"]
+
 # SQL constants
 SQL_TYPE_CONVERSIONS = {
     "GOB.String": "character varying",

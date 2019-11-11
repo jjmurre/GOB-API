@@ -55,6 +55,22 @@ def connect():
     set_session(session)
 
 
+def _get_table(table_names, table_name):
+    """
+    Return the name of the table as it exists in the database.
+    The name can possibly be truncated, like in PostgreSQL to 63 characters
+
+    :param table_names:
+    :param table_name:
+    :return:
+    """
+    match = sorted([t for t in table_names if t == table_name[:len(t)]],
+                   key=lambda s: -len(s))[0]  # take longest match
+    if match != table_name:
+        print(f"Warning: table\n'{table_name}' is truncated to\n'{match}' in the database")
+    return match
+
+
 def _get_table_and_model(catalog_name, collection_name, view=None):
     """Table and Model
 
@@ -68,8 +84,8 @@ def _get_table_and_model(catalog_name, collection_name, view=None):
     if view:
         return Table(view, metadata, autoload=True), None
     else:
-        return getattr(_Base.classes, GOBModel().get_table_name(catalog_name, collection_name)), \
-                       GOBModel().get_collection(catalog_name, collection_name)
+        table_name = _get_table(dir(_Base.classes), GOBModel().get_table_name(catalog_name, collection_name))
+        return getattr(_Base.classes, table_name), GOBModel().get_collection(catalog_name, collection_name)
 
 
 def _create_reference_link(reference, catalog, collection):
