@@ -318,9 +318,7 @@ class SqlGenerator:
                 f"AND {dst_relation['alias']}.{FIELD.SEQNR} = {jsonb_alias}.item->>'{FIELD.SEQNR}'"
 
         if filter_active:
-            left_join += f" AND (({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
-                f"OR {dst_relation['alias']}.{FIELD.EXPIRATION_DATE} > NOW()) " \
-                f"AND {dst_relation['alias']}.{FIELD.DATE_DELETED} IS NULL)"
+            left_join += f" AND ({self._get_active(dst_relation['alias'])})"
 
         if src_value_requested:
             src_alias = f"_src_{src_attr_name}"
@@ -341,9 +339,7 @@ class SqlGenerator:
                 f"= {dst_relation['alias']}.{FIELD.SEQNR}"
 
         if filter_active:
-            join += f" AND (({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
-                f"OR {dst_relation['alias']}.{FIELD.EXPIRATION_DATE} > NOW()) "\
-                f"AND {dst_relation['alias']}.{FIELD.DATE_DELETED} IS NULL)"
+            join += f" AND ({self._get_active(dst_relation['alias'])})"
 
         if src_value_requested:
             src_alias = f"_src_{src_attr_name}"
@@ -449,9 +445,7 @@ ON {on_clause}''')
                 f"= {src_relation['alias']}.{FIELD.SEQNR}"
 
         if filter_active:
-            join += f" AND (({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
-                f"OR {dst_relation['alias']}.{FIELD.EXPIRATION_DATE} > NOW()) " \
-                f"AND {dst_relation['alias']}.{FIELD.DATE_DELETED} IS NULL)"
+            join += f" AND ({self._get_active(dst_relation['alias'])})"
 
         filter_arguments = self._get_formatted_filter_arguments(arguments, dst_relation['alias'])
         join += f" AND {self._join_filter_arguments(filter_arguments)}" if len(filter_arguments) else ""
