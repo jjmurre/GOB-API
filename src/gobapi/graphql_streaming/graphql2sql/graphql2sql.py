@@ -186,7 +186,8 @@ class SqlGenerator:
         self.relation_info = {}
 
     def _get_active(self, tablename: str):
-        return f"{tablename}.{FIELD.EXPIRATION_DATE} IS NULL OR {tablename}.{FIELD.EXPIRATION_DATE} > NOW()"
+        return f"({tablename}.{FIELD.EXPIRATION_DATE} IS NULL OR {tablename}.{FIELD.EXPIRATION_DATE} > NOW())" \
+               f"AND {tablename}.{FIELD.DATE_DELETED} IS NULL"
 
     def _collect_relation_info(self, relation_name: str, schema_collection_name: str):
         catalog_name, collection_name = self.to_snake(schema_collection_name).split('_')
@@ -317,8 +318,9 @@ class SqlGenerator:
                 f"AND {dst_relation['alias']}.{FIELD.SEQNR} = {jsonb_alias}.item->>'{FIELD.SEQNR}'"
 
         if filter_active:
-            left_join += f" AND ({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
-                f"OR {dst_relation['alias']}.{FIELD.EXPIRATION_DATE} > NOW())"
+            left_join += f" AND (({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
+                f"OR {dst_relation['alias']}.{FIELD.EXPIRATION_DATE} > NOW()) " \
+                f"AND {dst_relation['alias']}.{FIELD.DATE_DELETED} IS NULL)"
 
         if src_value_requested:
             src_alias = f"_src_{src_attr_name}"
@@ -339,8 +341,9 @@ class SqlGenerator:
                 f"= {dst_relation['alias']}.{FIELD.SEQNR}"
 
         if filter_active:
-            join += f" AND ({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
-                f"OR {dst_relation['alias']}.{FIELD.EXPIRATION_DATE} > NOW())"
+            join += f" AND (({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
+                f"OR {dst_relation['alias']}.{FIELD.EXPIRATION_DATE} > NOW()) "\
+                f"AND {dst_relation['alias']}.{FIELD.DATE_DELETED} IS NULL)"
 
         if src_value_requested:
             src_alias = f"_src_{src_attr_name}"
@@ -446,8 +449,9 @@ ON {on_clause}''')
                 f"= {src_relation['alias']}.{FIELD.SEQNR}"
 
         if filter_active:
-            join += f" AND ({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
-                f"OR {dst_relation['alias']}.{FIELD.EXPIRATION_DATE} > NOW())"
+            join += f" AND (({dst_relation['alias']}.{FIELD.EXPIRATION_DATE} IS NULL " \
+                f"OR {dst_relation['alias']}.{FIELD.EXPIRATION_DATE} > NOW()) " \
+                f"AND {dst_relation['alias']}.{FIELD.DATE_DELETED} IS NULL)"
 
         filter_arguments = self._get_formatted_filter_arguments(arguments, dst_relation['alias'])
         join += f" AND {self._join_filter_arguments(filter_arguments)}" if len(filter_arguments) else ""

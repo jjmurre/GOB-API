@@ -83,7 +83,7 @@ class TestGraphQL2SQL(TestCase):
 ''', '''
 SELECT cola_0._gobid, cola_0.identificatie
 FROM catalog_collectiona cola_0
-WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
+WHERE ((cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW()) AND cola_0._date_deleted IS NULL)
 ORDER BY cola_0._gobid
 '''
         ),
@@ -102,7 +102,7 @@ ORDER BY cola_0._gobid
 ''', '''
 SELECT geocoll_0._gobid, geocoll_0.identificatie, ST_AsText(geocoll_0.geofield) geofield
 FROM catalog_collectionwithgeometry geocoll_0
-WHERE (geocoll_0._expiration_date IS NULL OR geocoll_0._expiration_date > NOW())
+WHERE ((geocoll_0._expiration_date IS NULL OR geocoll_0._expiration_date > NOW()) AND geocoll_0._date_deleted IS NULL)
 ORDER BY geocoll_0._gobid
 '''
         ),
@@ -120,7 +120,7 @@ ORDER BY geocoll_0._gobid
 ''', '''
 SELECT cola_0._gobid, cola_0.identificatie
 FROM catalog_collectiona cola_0
-WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
+WHERE ((cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW()) AND cola_0._date_deleted IS NULL)
 AND (cola_0.filterarg = 3) AND (cola_0.filterarg2 = 'strval')
 ORDER BY cola_0._gobid
 '''
@@ -139,7 +139,7 @@ ORDER BY cola_0._gobid
 ''', '''
 SELECT cola_0._gobid, cola_0.identificatie
 FROM catalog_collectiona cola_0
-WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW())
+WHERE ((cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW()) AND cola_0._date_deleted IS NULL)
 ORDER BY cola_0._gobid
 LIMIT 20
 '''
@@ -197,7 +197,7 @@ ORDER BY cola_0._gobid
         AND cola_0.some_nested_relation->>'id' = colb_0._id
         AND cola_0.some_nested_relation->>'volgnummer' IS NOT NULL
         AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer
-        AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
+        AND ((colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL)
         WHERE (colb_0.some_property = 'someval')
         ORDER BY cola_0._gobid
          '''
@@ -239,7 +239,7 @@ ORDER BY cola_0._gobid
         AND colb_0._id = rel_some_nested_many_relation0.item->>'id'
         AND rel_some_nested_many_relation0.item->>'volgnummer' IS NOT NULL
         AND colb_0.volgnummer = rel_some_nested_many_relation0.item->>'volgnummer'
-        AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
+        AND ((colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL)
         ORDER BY cola_0._gobid
          '''
         ),
@@ -282,7 +282,7 @@ ORDER BY cola_0._gobid
             WHERE (cola_0.some_property = 'someval')
         ) invrel_0
         ON invrel_0.colb_0_id = colb_0._id AND invrel_0.colb_0_volgnummer = colb_0.volgnummer
-        WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ( ) )
+        WHERE ((colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL)
         ORDER BY colb_0._gobid
          '''
         ),
@@ -318,9 +318,9 @@ SELECT
     AND cola_0.some_nested_relation->>'id' = colb_0._id
     AND cola_0.some_nested_relation->>'volgnummer' IS NOT NULL
     AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer
-    AND ( cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW ())
+    AND ((cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW ()) AND cola_0._date_deleted IS NULL)
     AND (cola_0.some_property = 'someval')
-    WHERE ( colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW ()) 
+    WHERE ((colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL)
     ORDER BY colb_0._gobid
          '''
         ),
@@ -357,7 +357,7 @@ SELECT
         AND cola_0.some_nested_relation->>'id' = colb_0._id
         AND cola_0.some_nested_relation->>'volgnummer' IS NOT NULL
         AND cola_0.some_nested_relation->>'volgnummer' = colb_0.volgnummer
-        AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
+        AND ((colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL)
         WHERE (colb_0.some_property = 'someval')
         ORDER BY cola_0._gobid
          '''
