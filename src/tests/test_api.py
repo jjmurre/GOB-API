@@ -78,6 +78,9 @@ class MockGOBModel:
         global collection
         return collection
 
+    def get_collections(self, catalog_name):
+        return {}
+
 
 def mock_entities(catalog, collection, offset, limit, view=None, reference_name=None, src_id=None):
     global entities
@@ -162,8 +165,19 @@ def test_catalogs(monkeypatch):
     from gobapi.api import _catalogs
     assert(_catalogs() == (({'_embedded': {'catalogs':[] }}, None), 200, {'Content-Type': 'application/json'}))
 
-    catalogs = {'catalog': {'description': 'catalog'}}
-    assert(_catalogs() == (({'_embedded': {'catalogs': [{'_links': {'self': {'href': '/gob/catalog/'}}, 'name': 'catalog', 'description': 'catalog'}]}}, None), 200, {'Content-Type': 'application/json'}))
+    catalogs = {'catalog': {'description': 'catalog', 'abbreviation': 'cat'}}
+    assert(_catalogs() == (
+        (
+            {
+                '_embedded': {
+                    'catalogs': [
+                        {
+                            '_links': {'self': {'href': '/gob/catalog/'}},
+                            'name': 'catalog',
+                            'abbreviation': 'cat',
+                            'description': 'catalog'
+                        }
+                    ]}}, None), 200, {'Content-Type': 'application/json'}))
 
 
 def test_catalog(monkeypatch):
@@ -176,9 +190,22 @@ def test_catalog(monkeypatch):
 
     catalog = {
         'description': 'description',
+        'abbreviation': 'abbr',
+        'version': 'v1',
         'collections': {}
     }
-    assert(_catalog('catalog_name') == (({'_embedded': {'collections': []}, 'description': 'description'}, None), 200, {'Content-Type': 'application/json'}))
+    assert(_catalog('catalog_name') == (
+        (
+            {
+                '_embedded': {
+                    'collections': []
+                },
+                'name': 'catalog_name',
+                'abbreviation': 'abbr',
+                'description': 'description',
+                'version': 'v1',
+                'collections': []
+            }, None), 200, {'Content-Type': 'application/json'}))
 
 
 def test_entities(monkeypatch):

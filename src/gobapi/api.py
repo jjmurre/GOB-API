@@ -43,6 +43,7 @@ def _catalogs():
                 {
                     'name': catalog_name,
                     'abbreviation': catalog['abbreviation'],
+                    'description': catalog['description'],
                     '_links': {
                         'self': {
                             'href': f'{API_BASE_PATH}/{catalog_name}/'
