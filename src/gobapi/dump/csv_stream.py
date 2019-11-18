@@ -1,3 +1,6 @@
+import itertools
+
+
 class CSVStream():
     """
     A class to stream data in 'faked' multiple files
@@ -47,10 +50,13 @@ class CSVStream():
         """
         Tells if the stream has any items to be read
 
-        As long as nothing has been read or the last read line was not None, the answer is positive.
-        :return: True if any items are expected to be available to be read
+        :return: True if any items are available to be read
         """
-        return self.last_line is not None
+        peek_line = next(self.lines, None)
+        if peek_line:
+            # Put back the peeked line
+            self.lines = itertools.chain([peek_line], self.lines)
+        return peek_line is not None
 
     def read(self, size=DEFAULT_READ_SIZE):
         """
