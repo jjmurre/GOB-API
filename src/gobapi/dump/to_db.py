@@ -101,27 +101,27 @@ def dump_to_db(catalog_name, collection_name, config):
     engine = create_engine(URL(**config['db']))
     config['engine'] = engine
 
-    yield f"Export {catalog_name} {collection_name}\n"
-    schema = catalog_name
+    schema = config.get("schema", catalog_name)
+    yield f"Export {catalog_name} {collection_name} in schema {schema}\n"
 
     try:
-        # Start with catalog - collection
         entities, model = dump_entities(catalog_name, collection_name)
         yield from _dump_to_db(schema, catalog_name, collection_name, entities, model, config)
 
-        # Then process all relations in the given collection
-        for relation in [k for k in model['references'].keys()]:
-            relation_name = get_relation_name(GOBModel(), catalog_name, collection_name, relation)
+        if config.get("include_relations", True):
+            # Then process all relations in the given collection
+            for relation in [k for k in model['references'].keys()]:
+                relation_name = get_relation_name(GOBModel(), catalog_name, collection_name, relation)
 
-            if not relation_name or relation_name in SKIP_RELATIONS:
-                # relation_name is None when relation does not exist (yet)
-                yield f"Skipping {catalog_name} {collection_name} {relation}\n"
-                continue
+                if not relation_name or relation_name in SKIP_RELATIONS:
+                    # relation_name is None when relation does not exist (yet)
+                    yield f"Skipping {catalog_name} {collection_name} {relation}\n"
+                    continue
 
-            yield f"Export {catalog_name} {collection_name} {relation}\n"
+                yield f"Export {catalog_name} {collection_name} {relation}\n"
 
-            entities, model = dump_entities("rel", relation_name)
-            yield from _dump_to_db(schema, "rel", relation_name, entities, model, config)
+                entities, model = dump_entities("rel", relation_name)
+                yield from _dump_to_db(schema, "rel", relation_name, entities, model, config)
 
         yield "Export completed\n"
     except Exception as e:
