@@ -42,6 +42,7 @@ def _catalogs():
             'catalogs': [
                 {
                     'name': catalog_name,
+                    'abbreviation': catalog['abbreviation'],
                     'description': catalog['description'],
                     '_links': {
                         'self': {
@@ -64,17 +65,22 @@ def _catalog(catalog_name):
     catalog = GOBModel().get_catalog(catalog_name)
     if catalog:
         result = {
+            'name': catalog_name,
+            'abbreviation': catalog['abbreviation'],
             'description': catalog['description'],
+            'version': catalog['version'],
+            'collections': [a for a in catalog['collections'].keys()],
             '_embedded': {
                 'collections': [
                     {
                         'name': collection_name,
+                        'abbreviation': collection['abbreviation'],
                         '_links': {
                             'self': {
                                 'href': f'/gob/{catalog_name}/{collection_name}/'
                             }
                         }
-                    } for collection_name in GOBModel().get_collection_names(catalog_name)
+                    } for collection_name, collection in GOBModel().get_collections(catalog_name).items()
                 ]
             }
         }

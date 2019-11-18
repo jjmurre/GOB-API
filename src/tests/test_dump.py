@@ -580,6 +580,13 @@ class TestToDB(TestCase):
         results = [result for result in dump_to_db('any catalog name', 'any collection name', config)]
         self.assertEqual(mock_dump.call_count, 3)
 
+        mock_dump.reset_mock()
+        config['include_relations'] = False
+        config['schema'] = 'any schema'
+        results = [result for result in dump_to_db('any catalog name', 'any collection name', config)]
+        self.assertEqual(mock_dump.call_count, 1)
+        mock_dump.assert_called_with('any schema', 'any catalog name', 'any collection name', ANY, ANY, config)
+
         mock_dump.side_effect = lambda *args: 1 / 0
         results = "".join([result for result in dump_to_db('any catalog name', 'any collection name', config)])
         self.assertTrue("ERROR: Export failed" in results)
