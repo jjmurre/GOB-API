@@ -247,11 +247,11 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
 
     def test_add_row_to_entity_add(self):
         builder = self.get_instance()
-        builder.evaluation_order = ['a', 'b']
+        builder.evaluation_order = ['a', 'bb']
         builder.root_relation = 'rootrel'
         builder.relations_hierarchy = {
             'a': 'rootrel',
-            'b': 'a'
+            'bb': 'a'
         }
 
         entity = {
@@ -262,7 +262,7 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
                         'node': {
                             FIELD.GOBID: 'gobid1',
                             'some': 'value',
-                            'b': {
+                            'bb': {
                                 'edges': [
                                     {
                                         'node': {'some_other': 'value', FIELD.GOBID: 'gobid2'},
@@ -276,7 +276,7 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
         }
         row = {
             '_a': {'some': 'value', FIELD.GOBID: 'gobid1'},
-            '_b': {'some_other': 'third value', FIELD.GOBID: 'gobid3'},
+            '_b': {'some_other': 'third value', FIELD.GOBID: 'gobid3'}, # _b is 'truncated' relation name for bb
         }
 
         expected_result = {
@@ -287,7 +287,7 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
                         'node': {
                             'some': 'value',
                             FIELD.GOBID: 'gobid1',
-                            'b': {
+                            'bb': {
                                 'edges': [
                                     {
                                         'node': {'some_other': 'value', FIELD.GOBID: 'gobid2'},
@@ -305,6 +305,15 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
 
         builder._add_row_to_entity(row, entity)
         self.assertEqual(entity, expected_result)
+
+    def test_add_row_to_entity_keyerror_on_relation_from_row(self):
+        builder = self.get_instance()
+        builder.evaluation_order = ['a']
+        entity = {'some': 'entity'}
+        row = {}
+
+        with self.assertRaises(KeyError):
+            builder._add_row_to_entity(row, entity)
 
     def test_add_row_to_entity_empty_object(self):
         builder = self.get_instance()

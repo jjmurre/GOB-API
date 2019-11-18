@@ -6,6 +6,7 @@ from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLVisitor import GraphQLV
 
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
+from gobcore.model.relations import get_relation_name
 from gobcore.typesystem import gob_types, is_gob_geo_type
 
 
@@ -130,6 +131,7 @@ class SqlGenerator:
     """SqlGenerator generates SQL from the the GraphQLVisitor output.
 
     """
+    CURSOR_ID = "cursor"
 
     # Attributes to ignore in the query on attributes.
     srcvalues_attributes = [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO]
@@ -182,12 +184,8 @@ class SqlGenerator:
     def _reset(self):
         self.select_expressions = []
         self.joins = []
-        self.filter_conditions = []
         self.relation_info = {}
-
-    def _get_active(self, tablename: str):
-        return f"({tablename}.{FIELD.EXPIRATION_DATE} IS NULL OR {tablename}.{FIELD.EXPIRATION_DATE} > NOW())" \
-               f"AND {tablename}.{FIELD.DATE_DELETED} IS NULL"
+        self.where_filter = []
 
     def _collect_relation_info(self, relation_name: str, schema_collection_name: str):
         catalog_name, collection_name = self.to_snake(schema_collection_name).split('_')
@@ -214,6 +212,9 @@ class SqlGenerator:
         return self.relation_info[relation_alias]
 
     def _select_expression(self, relation: dict, field: str):
+        if field == self.CURSOR_ID:
+            return f"{relation['alias']}.{FIELD.GOBID} AS {self.CURSOR_ID}"
+
         field_snake = self.to_snake(field)
         expression = f"{relation['alias']}.{field_snake}"
 
@@ -223,11 +224,41 @@ class SqlGenerator:
 
         return expression
 
-    def _join_filter_arguments(self, filter_arguments: list):
-        return f"({') AND ('.join(filter_arguments)})"
+    def _current_filter_expression(self, table_id: str = None):
+        table = f"{table_id}." if table_id else ""
 
-    def _where_clause(self, filter_conditions: list):
-        return f"WHERE {self._join_filter_arguments(filter_conditions)}" if len(filter_conditions) else ""
+        return f"({table}{FIELD.EXPIRATION_DATE} IS NULL OR {table}{FIELD.EXPIRATION_DATE} > NOW())"
+
+    def _build_from_table(self, arguments: dict, table_name: str, table_alias: str):
+        """Builds from table expression for base relation with :table_name: and :arguments:
+
+        :param arguments:
+        :param table_name:
+        :return:
+        """
+        conditions = []
+
+        if arguments['active']:
+            conditions.append(self._current_filter_expression())
+
+        if 'after' in arguments:
+            conditions.append(f"{FIELD.GOBID} > {arguments['after']}")
+
+        # Add non-keyword filter arguments
+        filter_args = self._get_filter_arguments(arguments)
+        conditions.extend([f"{k} = {v}" for k, v in filter_args.items()])
+        conditions.append(f"{FIELD.DATE_DELETED} IS NULL")
+
+        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        limit = f"LIMIT {arguments['first']}" if 'first' in arguments else ""
+
+        return f"""FROM (
+    SELECT *
+    FROM {table_name}
+    {where}
+    ORDER BY {FIELD.GOBID}
+    {limit}
+) {table_alias}"""
 
     def sql(self):
         self._reset()
@@ -245,13 +276,7 @@ class SqlGenerator:
 
         arguments = self._get_arguments_with_defaults(self.selects[base_collection]['arguments'])
 
-        self.joins.append(f"FROM {base_info['tablename']} {base_info['alias']}")
-
-        if arguments['active']:
-            self.filter_conditions.append(self._get_active(base_info['alias']))
-
-        filter_args = self._get_formatted_filter_arguments(arguments, base_info['alias'])
-        self.filter_conditions.extend(filter_args)
+        self.joins.append(self._build_from_table(arguments, base_info['tablename'], base_info['alias']))
 
         del self.selects[base_collection]
 
@@ -259,10 +284,12 @@ class SqlGenerator:
 
         select = ',\n'.join(self.select_expressions)
         table_select = '\n'.join(self.joins)
-        where = self._where_clause(self.filter_conditions)
-        limit = self._get_limit_expression(arguments)
         order_by = f"ORDER BY {base_info['alias']}.{FIELD.GOBID}"
-        query = f"SELECT\n{select}\n{table_select}\n{where}\n{order_by}\n{limit}"
+        where = "\nAND ".join(self.where_filter)
+
+        if where:
+            where = "WHERE " + where
+        query = f"SELECT\n{select}\n{table_select}\n{where}\n{order_by}"
 
         return query
 
@@ -273,11 +300,6 @@ class SqlGenerator:
         for k, v in filter_args.items():
             result.append(f"{base_alias}.{k} = {v}")
         return result
-
-    def _get_limit_expression(self, arguments: dict):
-        if 'first' in arguments:
-            return f"LIMIT {arguments['first']}"
-        return ""
 
     def _is_many(self, gobtype: str):
         return gobtype == f"GOB.{gob_types.ManyReference.name}"
@@ -294,58 +316,131 @@ class SqlGenerator:
                 self._join_relation(relation_alias, select_fields, arguments)
             self.relcnt += 1
 
-    def _join_relation_many(self, src_relation_name: str, src_attr_name: str, dst_relation: dict, filter_active: bool,
-                            src_value_requested: bool):
-        """Joins relation src_relation with
+    def _add_srcvalue_selection(self, src_relation: dict, src_attr_name: str, is_many: bool):
+        """Add _src_* selection to query. Returns the field containing the bronwaarde for this row as string so that
+        the remainder of the query can match on this bronwaarde.
 
-        :param src_relation_name:
+        :param src_relation:
         :param src_attr_name:
-        :param dst_relation: Expected keys: tablename, alias, has_states
-        :param filter_active:
-
+        :param is_many:
         :return:
         """
-        jsonb_alias = f"rel_{src_attr_name}{self.relcnt}"
-        jsonb_join = f"LEFT JOIN jsonb_array_elements({src_relation_name}.{src_attr_name}) " \
-            f"{jsonb_alias}(item) ON TRUE"
+        src_alias = f"_src_{src_attr_name}"
+        jsonb_alias = f"rel_bw_{self.relcnt}"
 
-        left_join = f"LEFT JOIN {dst_relation['tablename']} {dst_relation['alias']} " \
-            f"ON {jsonb_alias}.item->>'{FIELD.REFERENCE_ID}' IS NOT NULL " \
-            f"AND {dst_relation['alias']}.{FIELD.ID} = {jsonb_alias}.item->>'{FIELD.REFERENCE_ID}'"
+        if is_many:
+            src_values_join = f"LEFT JOIN jsonb_array_elements({src_relation['alias']}.{src_attr_name}) " \
+                f"{jsonb_alias}(item) ON {jsonb_alias}.item->>'{FIELD.SOURCE_VALUE}' IS NOT NULL"
 
-        if dst_relation['has_states']:
-            left_join += f" AND {jsonb_alias}.item->>'{FIELD.SEQNR}' IS NOT NULL " \
-                f"AND {dst_relation['alias']}.{FIELD.SEQNR} = {jsonb_alias}.item->>'{FIELD.SEQNR}'"
+            match_src_value = f"{jsonb_alias}.item->>'{FIELD.SOURCE_VALUE}'"
 
-        if filter_active:
-            left_join += f" AND ({self._get_active(dst_relation['alias'])})"
-
-        if src_value_requested:
-            src_alias = f"_src_{src_attr_name}"
+            self.joins.append(src_values_join)
             self.select_expressions.append(f"{jsonb_alias}.item {src_alias}")
+        else:
+            match_src_value = f"{src_relation['alias']}.{src_attr_name}->>'{FIELD.SOURCE_VALUE}'"
+            self.select_expressions.append(f"{src_relation['alias']}.{src_attr_name} {src_alias}")
 
-        self.joins.append(jsonb_join)
-        self.joins.append(left_join)
+        return match_src_value
 
-    def _join_relation_single(self, src_relation_name: str, src_attr_name: str, dst_relation: dict,
-                              filter_active: bool, src_value_requested: bool):
-        join = f"LEFT JOIN {dst_relation['tablename']} {dst_relation['alias']} " \
-            f"ON {src_relation_name}.{src_attr_name}->>'{FIELD.REFERENCE_ID}' IS NOT NULL " \
-            f"AND {src_relation_name}.{src_attr_name}->>'{FIELD.REFERENCE_ID}' = {dst_relation['alias']}.{FIELD.ID}"
+    def _join_relation_table(self, src_relation: dict, relation_name: str, rel_table_alias: str, arguments: dict,
+                             src_value_requested: bool, src_attr_name: str, is_many: bool, is_inverse: bool):
+        """Generates the SQL for the relation table join
+
+        :param src_relation:
+        :param relation_name:
+        :param rel_table_alias:
+        :param arguments:
+        :param src_value_requested:
+        :param src_attr_name:
+        :param is_many:
+        :param is_inverse:
+        :return:
+        """
+        rel_left = 'src' if not is_inverse else 'dst'
+        relation_table = f"mv_{relation_name}"
+
+        def join_filters(table_alias: str):
+            filters = [
+                f"{table_alias}.{rel_left}_id = {src_relation['alias']}.{FIELD.ID}"
+            ]
+
+            if not is_inverse and src_value_requested:
+                match_src_value_with = self._add_srcvalue_selection(src_relation, src_attr_name, is_many)
+                filters.append(f"{table_alias}.{FIELD.SOURCE_VALUE} = {match_src_value_with}")
+
+            if src_relation['has_states']:
+                filters.append(f"{table_alias}.{rel_left}_volgnummer = {src_relation['alias']}.{FIELD.SEQNR}")
+
+            return " AND ".join(filters)
+
+        if arguments.get('first'):
+            join_relation_table = f"""
+LEFT JOIN {relation_table} {rel_table_alias} ON {rel_table_alias}.{FIELD.GOBID} IN (
+    SELECT {FIELD.GOBID}
+    FROM {relation_table} rel
+    WHERE {join_filters('rel')}
+    LIMIT {arguments['first']}
+)
+"""
+        else:
+            join_relation_table = f"LEFT JOIN {relation_table} {rel_table_alias} " \
+                                  f"ON {join_filters(rel_table_alias)}"
+
+        return join_relation_table
+
+    def _join_dst_table(self, dst_relation: dict, rel_table_alias: str, arguments: dict, is_inverse: bool):
+        """Generates the SQL for the destination table join part of a relation:
+        A -> B -> C, where A is the src_relation, B the relation_table join and C the dst_relation
+
+        :param dst_relation:
+        :param rel_table_alias:
+        :param arguments:
+        :param is_inverse:
+        :return:
+        """
+        filter_args = self._get_formatted_filter_arguments(arguments, dst_relation['alias'])
+        rel_right = 'dst' if not is_inverse else 'src'
+
+        join_dst_table = f"LEFT JOIN {dst_relation['tablename']} {dst_relation['alias']} " \
+                         f"ON {rel_table_alias}.{rel_right}_id = {dst_relation['alias']}.{FIELD.ID}"
 
         if dst_relation['has_states']:
-            join += f" AND {src_relation_name}.{src_attr_name}->>'{FIELD.SEQNR}' IS NOT NULL " \
-                f"AND {src_relation_name}.{src_attr_name}->>'{FIELD.SEQNR}' " \
-                f"= {dst_relation['alias']}.{FIELD.SEQNR}"
+            join_dst_table += f" AND {rel_table_alias}.{rel_right}_volgnummer = {dst_relation['alias']}.{FIELD.SEQNR}"
 
-        if filter_active:
-            join += f" AND ({self._get_active(dst_relation['alias'])})"
+        if filter_args:
+            join_dst_table += f" AND ({') AND ('.join(filter_args)})"
 
-        if src_value_requested:
-            src_alias = f"_src_{src_attr_name}"
-            self.select_expressions.append(f"{src_relation_name}.{src_attr_name} {src_alias}")
+        return join_dst_table
 
-        self.joins.append(join)
+    def _add_relation_joins(self, src_relation: dict, dst_relation: dict, relation_name: str, arguments: dict,
+                            src_value_requested: bool=False, src_attr_name: str=None,
+                            is_many: bool=False, is_inverse=False):
+        """Joins dst_relation to src_relation using relation_table
+
+        :param src_relation: The main relation
+        :param dst_relation: The relation to join
+        :param relation_name:
+        :param arguments: A dict with arguments passed in GraphQL to this relation
+        :param src_value_requested: boolean. Only applicable if is_inverse == False
+        :param src_attr_name: The name of the attribute in the src relation. Only applicable if is_inverse == False
+        :param is_many: boolean. Only applicable if is_inverse == False
+        :param is_inverse: boolean value indicating if src_relation is the owner of the relation (is_inverse = False),
+        or that the relation is owned by dst_relation (is_inverse = True).
+        :return:
+        """
+        rel_table_alias = f"rel_{self.relcnt}"
+
+        join_relation_table = self._join_relation_table(src_relation, relation_name, rel_table_alias, arguments,
+                                                        src_value_requested, src_attr_name, is_many, is_inverse)
+        join_dst_table = self._join_dst_table(dst_relation, rel_table_alias, arguments, is_inverse)
+
+        if arguments['active']:
+            self.where_filter.append(self._current_filter_expression(dst_relation['alias']))
+
+        self.where_filter.append(f"{dst_relation['alias']}.{FIELD.DATE_DELETED} IS NULL")
+
+        self.joins.append(join_relation_table)
+        self.joins.append(join_dst_table)
 
     def _json_build_attrs(self, attributes: list, relation_name: str):
         """Create the list of attributes to be used in json_build_object( ) for attributes in relation_name
@@ -374,83 +469,17 @@ class SqlGenerator:
         alias = f"_{self.to_snake(relation_name)}"
         json_attrs = self._json_build_attrs(attributes, dst_info['alias'])
 
-        is_many = self._is_many(parent_info['collection']['attributes'][relation_attr_name]['type'])
+        relation_name = get_relation_name(
+            self.model,
+            parent_info['catalog_name'],
+            parent_info['collection_name'],
+            relation_attr_name
+        )
 
-        if is_many:
-            self._join_relation_many(parent_info['alias'], relation_attr_name, dst_info, arguments['active'],
-                                     self._is_srcvalue_requested(attributes))
-        else:
-            self._join_relation_single(parent_info['alias'], relation_attr_name, dst_info, arguments['active'],
-                                       self._is_srcvalue_requested(attributes))
-
-        self.filter_conditions.extend(self._get_formatted_filter_arguments(arguments, dst_info['alias']))
-
+        self._add_relation_joins(parent_info, dst_info, relation_name, arguments,
+                                 self._is_srcvalue_requested(attributes), relation_attr_name,
+                                 self._is_many(parent_info['collection']['attributes'][relation_attr_name]['type']))
         self.select_expressions.append(f"json_build_object({json_attrs}) {alias}")
-
-    def _join_inverse_relation_many(self, src_relation: dict, dst_relation: dict, dst_attr_name: str, attrs: str,
-                                    alias: str, arguments: dict):
-        """Creates an inverse join for dst_relation. Dst_relation has an attr dst_attr_name that has a many relation
-        to src_relation.
-
-        :param src_relation:
-        :param dst_relation:
-        :param dst_attr_name:
-        :param attrs:
-        :param alias:
-        :return:
-        """
-        joinalias = f"invrel_{self.relcnt}"
-        selects = [f"{src_relation['alias']}.{FIELD.ID} {src_relation['alias']}{FIELD.ID}"]
-
-        if src_relation['has_states']:
-            selects.append(f"\t{src_relation['alias']}.{FIELD.SEQNR} {src_relation['alias']}_volgnummer")
-
-        selects.append(f"json_build_object({attrs}) {alias}")
-
-        s = ",".join(selects)
-
-        on_clause = f"{joinalias}.{src_relation['alias']}{FIELD.ID} = {src_relation['alias']}.{FIELD.ID}"
-
-        if src_relation['has_states']:
-            on_clause += f" AND {joinalias}.{src_relation['alias']}_volgnummer = " \
-                f"{src_relation['alias']}.{FIELD.SEQNR}"
-
-        filter_arguments = self._get_formatted_filter_arguments(arguments, dst_relation['alias'])
-        where_clause = self._where_clause(filter_arguments)
-
-        self.joins.append(f'''
-LEFT JOIN (
-    SELECT
-        {s}
-    FROM {dst_relation['tablename']} {dst_relation['alias']}
-    LEFT JOIN jsonb_array_elements({dst_relation['alias']}.{dst_attr_name}) rel_{dst_attr_name}{self.relcnt}(item)
-    ON rel_{dst_attr_name}{self.relcnt}.item->>'id' IS NOT NULL
-    LEFT JOIN {src_relation['tablename']} {src_relation['alias']}
-    ON {src_relation['alias']}.{FIELD.ID} = rel_{dst_attr_name}{self.relcnt}.item->>'id'
-    {where_clause}
-) {joinalias}
-ON {on_clause}''')
-        self.select_expressions.append(f"{joinalias}.{alias}")
-
-    def _join_inverse_relation_single(self, src_relation: dict, dst_relation: dict, dst_attr_name: str,
-                                      filter_active: bool, arguments: dict):
-        join = f"LEFT JOIN {dst_relation['tablename']} {dst_relation['alias']} " \
-            f"ON {dst_relation['alias']}.{dst_attr_name}->>'{FIELD.REFERENCE_ID}' IS NOT NULL " \
-            f"AND {dst_relation['alias']}.{dst_attr_name}->>'{FIELD.REFERENCE_ID}' = " \
-            f"{src_relation['alias']}.{FIELD.ID}"
-
-        if src_relation['has_states']:
-            join += f" AND {dst_relation['alias']}.{dst_attr_name}->>'{FIELD.SEQNR}' IS NOT NULL " \
-                f"AND {dst_relation['alias']}.{dst_attr_name}->>'{FIELD.SEQNR}' " \
-                f"= {src_relation['alias']}.{FIELD.SEQNR}"
-
-        if filter_active:
-            join += f" AND ({self._get_active(dst_relation['alias'])})"
-
-        filter_arguments = self._get_formatted_filter_arguments(arguments, dst_relation['alias'])
-        join += f" AND {self._join_filter_arguments(filter_arguments)}" if len(filter_arguments) else ""
-
-        self.joins.append(join)
 
     def _join_inverse_relation(self, relation_name: str, attributes: list, arguments: dict):
         parent = self.relation_parents[relation_name]
@@ -469,14 +498,15 @@ ON {on_clause}''')
         json_attrs = self._json_build_attrs(attributes, dst_info['alias'])
         alias = f"_inv_{relation_attr_name}_{dst_info['catalog_name']}_{dst_info['collection_name']}"
 
-        is_many = self._is_many(dst_info['collection']['attributes'][relation_attr_name]['type'])
+        relation_name = get_relation_name(
+            self.model,
+            dst_info['catalog_name'],
+            dst_info['collection_name'],
+            relation_attr_name
+        )
 
-        if is_many:
-            self._join_inverse_relation_many(parent_info, dst_info, relation_attr_name, json_attrs, alias, arguments)
-        else:
-            self._join_inverse_relation_single(parent_info, dst_info, relation_attr_name, arguments['active'],
-                                               arguments)
-            self.select_expressions.append(f"json_build_object({json_attrs}) {alias}")
+        self._add_relation_joins(parent_info, dst_info, relation_name, arguments, is_inverse=True)
+        self.select_expressions.append(f"json_build_object({json_attrs}) {alias}")
 
 
 class GraphQL2SQL:
