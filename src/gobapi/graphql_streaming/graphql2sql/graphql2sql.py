@@ -344,7 +344,7 @@ class SqlGenerator:
 
     def _join_relation_table(self, src_relation: dict, relation_name: str, rel_table_alias: str, arguments: dict,
                              src_value_requested: bool, src_attr_name: str, is_many: bool, is_inverse: bool):
-        """Generates the SQL for the relation table join
+        """Generates the SQL for the relation table join, see _add_relation_joins
 
         :param src_relation:
         :param relation_name:
@@ -390,7 +390,8 @@ LEFT JOIN {relation_table} {rel_table_alias} ON {rel_table_alias}.{FIELD.GOBID} 
 
     def _join_dst_table(self, dst_relation: dict, rel_table_alias: str, arguments: dict, is_inverse: bool):
         """Generates the SQL for the destination table join part of a relation:
-        A -> B -> C, where A is the src_relation, B the relation_table join and C the dst_relation
+        A -> B -> C, where A is the src_relation, B the relation_table join and C the dst_relation. See
+        _add_relation_joins
 
         :param dst_relation:
         :param rel_table_alias:
@@ -416,6 +417,22 @@ LEFT JOIN {relation_table} {rel_table_alias} ON {rel_table_alias}.{FIELD.GOBID} 
                             src_value_requested: bool=False, src_attr_name: str=None,
                             is_many: bool=False, is_inverse=False):
         """Joins dst_relation to src_relation using relation_table
+
+        Resulting SQL will create a join of the form A -> B -> C, where
+        A is the src_relation
+        B is the relation_table, and
+        C is the dst_relation
+
+        If A contains the attribute pointing to C, A is the owner of the relation, and A will be referred to as 'src'
+        in the relation_table B. Otherwise, C is the owner of the relation and C will be referred to as 'src' in the
+        relation_table B.
+
+        In case the dst_relation C is the owner of the relation (C has a relation defined to A), this join is said to
+        be 'inversed'. Inversed relations never have a requested src_value (bronwaarde), as the src_value is always
+        part of the 'owner' of the relation. This is also true for the src_attr_name, as the src_attr_name is always
+        defined on the owning side of the relation. That same way, is_many is also only necessary to define for the
+        when src_relation A is the owning side of the relation, as is_many is only important when src_value is
+        requested (and we will have to unpack the json containing the src_value)
 
         :param src_relation: The main relation
         :param dst_relation: The relation to join
