@@ -512,9 +512,9 @@ class TestCSVStream(TestCase):
         stream = CSVStream(iter([]), 1)
         self.assertFalse(stream.has_items())
 
-    def test_only_header(self):
+    def test_only_header_no_items(self):
         stream = CSVStream(iter(["a"]), 1)
-        self.assertTrue(stream.has_items())
+        self.assertFalse(stream.has_items())
         result = stream.read()
         self.assertEqual(result, "a")
 
