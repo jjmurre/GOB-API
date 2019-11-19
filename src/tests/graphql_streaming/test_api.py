@@ -53,6 +53,32 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
         builder = self.get_instance()
         self.assertEqual({'node': {'some': 'object'}}, builder._to_node({'some': 'object'}))
 
+    def test_relation_from_row(self):
+        row = {
+            '_rel_attribute': MagicMock(),
+            '_other_rel_attribute': MagicMock(),
+            '_very_long_rel_attribute_th': MagicMock(),  # Relation name shortened by the database
+            'not_a_relation_attribute': MagicMock(),
+        }
+
+        testcases = [
+            ('rel_attribute', row['_rel_attribute']),
+            ('other_rel_attribute', row['_other_rel_attribute']),
+            ('very_long_rel_attribute_that_could_be_shortened_by_the_database', row['_very_long_rel_attribute_th']),
+        ]
+
+        builder = self.get_instance()
+
+        for relation_name, result_relation in testcases:
+            self.assertEqual(result_relation, builder._relation_from_row(row, relation_name))
+
+        with self.assertRaises(KeyError):
+            # Regular attribute
+            builder._relation_from_row(row, 'not_a_relation_attribute')
+
+        with self.assertRaises(KeyError):
+            builder._relation_from_row(row, 'non_existent_attribute')
+
     def test_add_sourcevalues_to_row(self):
         builder = self.get_instance()
         builder.requested_sourcevalues = {
@@ -247,11 +273,11 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
 
     def test_add_row_to_entity_add(self):
         builder = self.get_instance()
-        builder.evaluation_order = ['a', 'b']
+        builder.evaluation_order = ['a', 'bb']
         builder.root_relation = 'rootrel'
         builder.relations_hierarchy = {
             'a': 'rootrel',
-            'b': 'a'
+            'bb': 'a'
         }
 
         entity = {
@@ -262,7 +288,7 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
                         'node': {
                             FIELD.GOBID: 'gobid1',
                             'some': 'value',
-                            'b': {
+                            'bb': {
                                 'edges': [
                                     {
                                         'node': {'some_other': 'value', FIELD.GOBID: 'gobid2'},
@@ -276,7 +302,7 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
         }
         row = {
             '_a': {'some': 'value', FIELD.GOBID: 'gobid1'},
-            '_b': {'some_other': 'third value', FIELD.GOBID: 'gobid3'},
+            '_b': {'some_other': 'third value', FIELD.GOBID: 'gobid3'}, # _b is 'truncated' relation name for bb
         }
 
         expected_result = {
@@ -287,7 +313,7 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
                         'node': {
                             'some': 'value',
                             FIELD.GOBID: 'gobid1',
-                            'b': {
+                            'bb': {
                                 'edges': [
                                     {
                                         'node': {'some_other': 'value', FIELD.GOBID: 'gobid2'},
@@ -305,6 +331,15 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
 
         builder._add_row_to_entity(row, entity)
         self.assertEqual(entity, expected_result)
+
+    def test_add_row_to_entity_keyerror_on_relation_from_row(self):
+        builder = self.get_instance()
+        builder.evaluation_order = ['a']
+        entity = {'some': 'entity'}
+        row = {}
+
+        with self.assertRaises(KeyError):
+            builder._add_row_to_entity(row, entity)
 
     def test_add_row_to_entity_empty_object(self):
         builder = self.get_instance()

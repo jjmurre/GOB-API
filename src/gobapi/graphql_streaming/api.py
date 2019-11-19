@@ -98,6 +98,23 @@ class GraphQLStreamingResponseBuilder:
         if key in dct:
             del dct[key]
 
+    def _relation_from_row(self, row: dict, relation_name: str):
+        """Returns relation from row. Tries shortening relation_name when original relation_name is not found, as
+        the database may truncate identifiers.
+
+        :param relation_name:
+        :return:
+        """
+        row_relation_name = '_' + relation_name
+
+        while len(row_relation_name):
+            try:
+                return row[row_relation_name]
+            except KeyError:
+                row_relation_name = row_relation_name[:-1]
+
+        raise KeyError(f"Relation {relation_name} (or truncated version) not found in row")
+
     def _add_row_to_entity(self, row: dict, entity: dict):
         """Adds the data from a result row to entity
 
@@ -110,7 +127,7 @@ class GraphQLStreamingResponseBuilder:
         # nested related objects in the entity, we don't have to look up the correct parent anymore.
         row_relations = {'_root': entity}
         for relation_name in self.evaluation_order:
-            row_relation = row['_' + relation_name]
+            row_relation = self._relation_from_row(row, relation_name)
 
             # Determine insert_position for relation_name, given row_relations
             insert_position = self._get_insert_position(relation_name, row_relations)
