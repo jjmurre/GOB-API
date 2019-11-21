@@ -47,6 +47,9 @@ class MockGOBViews:
     def get_views(self, catalog, collection):
         return self.views
 
+    def get_view(self, catalog, collection, view_name):
+        return self.views.get(view_name)
+
 mockRequest = MockRequest()
 
 catalogs = []
@@ -281,7 +284,9 @@ def test_entity_with_view(monkeypatch):
     assert(_entity('catalog', 'collection', '1') == 'catalog.collection?view=enhanced not found')
 
     MockGOBViews.views = {
-        'enhanced': {}
+        'enhanced': {
+            'name': 'the_view_name'
+        }
     }
     assert(_entity('catalog', 'collection', '1') == 'catalog.collection:1 not found')
 
@@ -350,7 +355,9 @@ def test_collection_with_view(monkeypatch):
     assert(_collection('catalog', 'collection') == 'catalog.collection?view=enhanced not found')
 
     MockGOBViews.views = {
-        'enhanced': {}
+        'enhanced': {
+            'name': 'the_view_name'
+        }
     }
     # Views always show 1 page extra because count is slow on large views
     assert(_collection('catalog', 'collection') == (
