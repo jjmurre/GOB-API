@@ -218,10 +218,10 @@ def _collection(catalog_name, collection_name):
         ndjson = request.args.get('ndjson', None) == "true"
 
         # If a view is requested and doesn't exist return a 404
-        if view and view not in GOBViews().get_views(catalog_name, collection_name):
+        if view and not GOBViews().get_view(catalog_name, collection_name, view):
             return not_found(f'{catalog_name}.{collection_name}?view={view} not found')
 
-        view_name = f"{catalog_name}_{collection_name}_{view}" if view else None
+        view_name = GOBViews().get_view(catalog_name, collection_name, view)['name'] if view else None
 
         if stream:
             entities, convert = query_entities(catalog_name, collection_name, view_name)
@@ -251,10 +251,10 @@ def _entity(catalog_name, collection_name, entity_id, view=None):
         view = request.args.get('view', None)
 
         # If a view is requested and doesn't exist return a 404
-        if view and view not in GOBViews().get_views(catalog_name, collection_name):
+        if view and not GOBViews().get_view(catalog_name, collection_name, view):
             return not_found(f'{catalog_name}.{collection_name}?view={view} not found')
 
-        view_name = f"{catalog_name}_{collection_name}_{view}" if view else None
+        view_name = GOBViews().get_view(catalog_name, collection_name, view)['name'] if view else None
 
         result = get_entity(catalog_name, collection_name, entity_id, view_name)
         return hal_response(result) if result is not None else not_found(
