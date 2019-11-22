@@ -1,4 +1,5 @@
 import datetime
+import json
 from unittest import TestCase
 from unittest.mock import patch, MagicMock
 
@@ -198,11 +199,11 @@ def test_resolve_secure_attribute(monkeypatch):
     rel = Model("src_id", "1")
     setattr(rel, "src_volgnummer", "1")
 
-    m = Model("field", {
+    m = Model("field", json.dumps({
         "i": 0,
         "l": 0,
         "v": "some value"
-    })
+    }))
 
     r = get_resolve_secure_attribute("field", SecureString)
     assert (r(m, None, field=1) == "**********")
