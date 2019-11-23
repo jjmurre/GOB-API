@@ -6,6 +6,7 @@ from gobcore.exceptions import GOBException
 from gobcore.model.metadata import FIELD
 
 from gobapi.graphql_streaming.graphql2sql.graphql2sql import GraphQL2SQL
+from gobapi.graphql_streaming.resolve import Resolver
 from gobapi.response import stream_response, _dict_to_camelcase
 
 import json
@@ -177,10 +178,12 @@ class GraphQLStreamingResponseBuilder:
 
         # Fill result with everything except relations and technical attributes
         result = {k: v for k, v in collected_rows[0].items() if not k.startswith('_')}
+        resolver = Resolver(collected_rows[0])
 
         for row in collected_rows:
             self._add_sourcevalues_to_row(row)
             self._add_row_to_entity(row, result)
+            resolver.resolve_row(row, result)
 
         # Clear gobids from result set
         self._clear_gobids(collected_rows)

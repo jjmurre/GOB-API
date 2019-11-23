@@ -3,6 +3,7 @@ from antlr4 import InputStream, CommonTokenStream
 from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLLexer import GraphQLLexer
 from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLParser import GraphQLParser
 from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLVisitor import GraphQLVisitor as BaseVisitor
+from gobapi.graphql_streaming.resolve import CATALOG_NAME, COLLECTION_NAME
 
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
@@ -291,6 +292,11 @@ class SqlGenerator:
                          for field in [FIELD.GOBID] + self.selects[base_collection]['fields']]
 
         self.select_expressions.extend(select_fields)
+        # Add catalog and collection to allow for value resolution
+        self.select_expressions.extend([
+          f"'{base_info['catalog_name']}' AS {CATALOG_NAME}",
+          f"'{base_info['collection_name']}' AS {COLLECTION_NAME}",
+        ])
 
         arguments = self._get_arguments_with_defaults(self.selects[base_collection]['arguments'])
 
