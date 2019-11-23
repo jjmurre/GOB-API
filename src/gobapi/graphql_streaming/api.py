@@ -275,8 +275,13 @@ class GraphQLStreamingResponseBuilder:
 class GraphQLStreamingApi():
 
     def entrypoint(self):
-        request_data = json.loads(request.data.decode('utf-8'))
-        graphql2sql = GraphQL2SQL(request_data['query'])
+        # Compatible with plain GraphQL endpoint
+        query = request.args.get('query')
+        if not query:
+            # Compatible with existing GOB export code
+            request_data = json.loads(request.data.decode('utf-8'))
+            query = request_data['query']
+        graphql2sql = GraphQL2SQL(query)
         sql = graphql2sql.sql()
         session = get_session()
         result_rows = session.execute(text(sql))
