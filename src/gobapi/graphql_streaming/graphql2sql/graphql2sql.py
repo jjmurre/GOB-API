@@ -187,8 +187,26 @@ class SqlGenerator:
         self.relation_info = {}
         self.where_filter = []
 
+    def _resolve_schema_collection_name(self, schema_collection_name: str):
+        """
+        Resolve catalog and collection from schema collection name
+
+        :param schema_collection_name:
+        :return:
+        """
+        names = self.to_snake(schema_collection_name).split('_')
+        for n in range(1, len(names)):
+            catalog_name = '_'.join(names[:-n])
+            collection_name = '_'.join(names[-n:])
+            catalog = self.model.get_catalog(catalog_name)
+            collection = self.model.get_collection(catalog_name, collection_name)
+            if catalog and collection:
+                return catalog_name, collection_name
+        return None, None
+
     def _collect_relation_info(self, relation_name: str, schema_collection_name: str):
-        catalog_name, collection_name = self.to_snake(schema_collection_name).split('_')
+        catalog_name, collection_name = self._resolve_schema_collection_name(schema_collection_name)
+        assert catalog_name and collection_name, f"{schema_collection_name} error"
 
         collection = self.model.get_collection(catalog_name, collection_name)
 
@@ -535,6 +553,7 @@ class GraphQL2SQL:
 
     def __init__(self, graphql_query: str):
         self.query = graphql_query
+        print("QUERY", self.query)
         self.relations_hierarchy = None
         self.selections = None
 
