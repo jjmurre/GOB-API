@@ -553,7 +553,6 @@ class GraphQL2SQL:
 
     def __init__(self, graphql_query: str):
         self.query = graphql_query
-        print("QUERY", self.query)
         self.relations_hierarchy = None
         self.selections = None
 
