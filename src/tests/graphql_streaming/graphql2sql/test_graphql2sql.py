@@ -94,7 +94,7 @@ class TestGraphQL2SQL(TestCase):
   }
 }
 ''', '''
-SELECT cola_0._gobid, cola_0.identificatie
+SELECT cola_0._gobid, cola_0.identificatie, 'catalog' AS _catalog, 'collectiona' AS _collection
 FROM (
     SELECT * FROM catalog_collectiona
     WHERE (_expiration_date IS NULL OR _expiration_date > NOW()) AND _date_deleted IS NULL
@@ -116,7 +116,7 @@ ORDER BY cola_0._gobid
   }
 }
 ''', '''
-    SELECT cola_0._gobid, cola_0.identificatie, cola_0._gobid AS cursor
+    SELECT cola_0._gobid, cola_0.identificatie, cola_0._gobid AS cursor, 'catalog' AS _catalog, 'collectiona' AS _collection
     FROM (
         SELECT * FROM catalog_collectiona
         WHERE (_expiration_date IS NULL OR _expiration_date > NOW()) AND _gobid > 2 AND _date_deleted IS NULL
@@ -138,7 +138,7 @@ ORDER BY cola_0._gobid
   }
 }
 ''', '''
-SELECT geocoll_0._gobid, geocoll_0.identificatie, ST_AsText(geocoll_0.geofield) geofield
+SELECT geocoll_0._gobid, geocoll_0.identificatie, ST_AsText(geocoll_0.geofield) geofield, 'catalog' AS _catalog, 'collectionwithgeometry' AS _collection
 FROM (
     SELECT * FROM catalog_collectionwithgeometry
     WHERE (_expiration_date IS NULL OR _expiration_date > NOW()) AND _date_deleted IS NULL
@@ -159,7 +159,7 @@ ORDER BY geocoll_0._gobid
   }
 }
 ''', '''
-SELECT cola_0._gobid, cola_0.identificatie
+SELECT cola_0._gobid, cola_0.identificatie, 'catalog' AS _catalog, 'collectiona' AS _collection
 FROM (
     SELECT * FROM catalog_collectiona
     WHERE (_expiration_date IS NULL OR _expiration_date > NOW())
@@ -181,7 +181,7 @@ ORDER BY cola_0._gobid
   }
 }
 ''', '''
-SELECT cola_0._gobid, cola_0.identificatie
+SELECT cola_0._gobid, cola_0.identificatie, 'catalog' AS _catalog, 'collectiona' AS _collection
 FROM (
     SELECT * FROM catalog_collectiona
     WHERE (_expiration_date IS NULL OR _expiration_date > NOW()) AND _date_deleted IS NULL
@@ -203,7 +203,7 @@ ORDER BY cola_0._gobid
   }
 }
 ''', '''
-SELECT cola_0._gobid, cola_0.identificatie
+SELECT cola_0._gobid, cola_0.identificatie, 'catalog' AS _catalog, 'collectiona' AS _collection
 FROM (
     SELECT * FROM catalog_collectiona
     WHERE _date_deleted IS NULL
@@ -238,6 +238,8 @@ ORDER BY cola_0._gobid
 SELECT
 cola_0._gobid,
 cola_0.identificatie,
+'catalog' AS _catalog,
+'collectiona' AS _collection,
 cola_0.some_nested_relation _src_some_nested_relation,
 json_build_object('_gobid', colb_0._gobid,'nested_identificatie', colb_0.nested_identificatie) _some_nested_relation
 FROM (
@@ -281,6 +283,8 @@ ORDER BY cola_0._gobid
 SELECT
 colc_0._gobid,
 colc_0.identificatie,
+'catalog' AS _catalog,
+'collectionc' AS _collection,
 colc_0.relation_to_b _src_relation_to_b,
 json_build_object('_gobid', colb_0._gobid,'nested_identificatie', colb_0.nested_identificatie) _relation_to_b
 FROM (
@@ -325,6 +329,8 @@ ORDER BY colc_0._gobid
 SELECT
 colb_0._gobid,
 colb_0.identificatie,
+'catalog' AS _catalog,
+'collectionb' AS _collection,
 json_build_object('_gobid', colc_0._gobid,'nested_identificatie', 
     colc_0.nested_identificatie) _inv_relation_to_b_catalog_collectionc
 FROM (
@@ -369,6 +375,8 @@ ORDER BY colb_0._gobid
 SELECT
 cola_0._gobid,
 cola_0.identificatie,
+'catalog' AS _catalog,
+'collectiona' AS _collection,
 rel_bw_0.item _src_some_nested_many_relation,
 json_build_object('_gobid', colb_0._gobid,'nested_identificatie', 
 colb_0.nested_identificatie) _some_nested_many_relation
@@ -412,6 +420,8 @@ ORDER BY cola_0._gobid
 SELECT
 colb_0._gobid,
 colb_0.identificatie,
+'catalog' AS _catalog,
+'collectionb' AS _collection,
 json_build_object('_gobid', 
 cola_0._gobid,'identificatie', cola_0.identificatie) _inv_some_nested_many_relation_catalog_collectiona
 FROM (
@@ -451,6 +461,8 @@ ORDER BY colb_0._gobid
 SELECT
 colb_0._gobid,
 colb_0.identificatie,
+'catalog' AS _catalog,
+'collectionb' AS _collection,
 json_build_object('_gobid', cola_0._gobid,'identificatie', 
 cola_0.identificatie) _inv_some_nested_relation_catalog_collectiona
 FROM (
@@ -491,6 +503,8 @@ ORDER BY colb_0._gobid
 SELECT
 cola_0._gobid,
 cola_0.identificatie,
+'catalog' AS _catalog,
+'collectiona' AS _collection,
 json_build_object('_gobid', colb_0._gobid,'nested_identificatie', 
 colb_0.nested_identificatie) _relation_alias
 FROM (
@@ -532,6 +546,8 @@ ORDER BY cola_0._gobid
 SELECT
 cola_0._gobid,
 cola_0.identificatie,
+'catalog' AS _catalog,
+'collectiona' AS _collection,
 json_build_object('_gobid', colb_0._gobid,'nested_identificatie', 
 colb_0.nested_identificatie) _relation_alias
 FROM (
@@ -576,6 +592,8 @@ ORDER BY cola_0._gobid
 SELECT
 colb_0._gobid,
 colb_0.identificatie,
+'catalog' AS _catalog,
+'collectionb' AS _collection,
 json_build_object('_gobid', cola_0._gobid,'identificatie', 
 cola_0.identificatie) _inv_some_nested_relation_catalog_collectiona
 FROM (

@@ -15,8 +15,8 @@ _SEC_TYPES = [f"GOB.{type.name}" for type in GOB_SECURE_TYPES]
 class Resolver:
 
     def __init__(self, info):
-        self.user = User(request)
-        self.sec_attributes = {}
+        self._user = User(request)
+        self._attributes = {}
 
         catalog_name = info.get(CATALOG_NAME)
         collection_name = info.get(COLLECTION_NAME)
@@ -25,11 +25,11 @@ class Resolver:
             for attr in info.keys():
                 attr_spec = collection['attributes'].get(to_snake(attr))
                 if attr_spec and attr_spec['type'] in _SEC_TYPES:
-                    self.sec_attributes[attr] = get_gob_type(attr_spec['type'])
+                    self._attributes[attr] = get_gob_type(attr_spec['type'])
 
     def resolve_row(self, row, result):
         for attr, value in row.items():
-            gob_type = self.sec_attributes.get(attr)
+            gob_type = self._attributes.get(attr)
             if gob_type:
                 gob_value = gob_type.from_value(value)
-                result[attr] = gob_value.get_value(self.user)
+                result[attr] = gob_value.get_value(self._user)
