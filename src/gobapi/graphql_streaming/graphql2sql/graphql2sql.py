@@ -1,9 +1,9 @@
-import re
 from antlr4 import InputStream, CommonTokenStream
 from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLLexer import GraphQLLexer
 from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLParser import GraphQLParser
 from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLVisitor import GraphQLVisitor as BaseVisitor
 from gobapi.graphql_streaming.resolve import CATALOG_NAME, COLLECTION_NAME
+from gobapi.graphql_streaming.utils import to_snake
 
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
@@ -149,9 +149,6 @@ class SqlGenerator:
         self.relation_info = {}
         self.model = GOBModel()
 
-    def to_snake(self, camel: str):
-        return re.sub('([A-Z])', r'_\1', camel).lower()
-
     def _get_arguments_with_defaults(self, arguments: dict) -> dict:
         args = {
             'active': True,
@@ -176,7 +173,7 @@ class SqlGenerator:
                 return "'" + strval[1:-1] + "'"
             return value
 
-        return {self.to_snake(k): change_quotation(v) for k, v in arguments.items() if
+        return {to_snake(k): change_quotation(v) for k, v in arguments.items() if
                 k not in ignore and
                 not k.endswith('_desc') and
                 not k.endswith('_asc')
@@ -195,7 +192,7 @@ class SqlGenerator:
         :param schema_collection_name:
         :return:
         """
-        names = self.to_snake(schema_collection_name).split('_')
+        names = to_snake(schema_collection_name).split('_')
         for n in range(1, len(names)):
             catalog_name = '_'.join(names[:-n])
             collection_name = '_'.join(names[-n:])
@@ -234,7 +231,7 @@ class SqlGenerator:
         if field == self.CURSOR_ID:
             return f"{relation['alias']}.{FIELD.GOBID} AS {self.CURSOR_ID}"
 
-        field_snake = self.to_snake(field)
+        field_snake = to_snake(field)
         expression = f"{relation['alias']}.{field_snake}"
 
         # If geometry field, transform to WKT
@@ -490,7 +487,7 @@ LEFT JOIN {relation_table} {rel_table_alias} ON {rel_table_alias}.{FIELD.GOBID} 
         :param relation_name:
         :return:
         """
-        return ",".join([f"'{self.to_snake(attr)}', {relation_name}.{self.to_snake(attr)}" for attr in attributes
+        return ",".join([f"'{to_snake(attr)}', {relation_name}.{to_snake(attr)}" for attr in attributes
                          if attr not in self.srcvalues_attributes])
 
     def _is_srcvalue_requested(self, attributes: list):
@@ -499,7 +496,7 @@ LEFT JOIN {relation_table} {rel_table_alias} ON {rel_table_alias}.{FIELD.GOBID} 
     def _join_relation(self, relation_name: str, attributes: list, arguments: dict):
         parent = self.relation_parents[relation_name]
         parent_info = self._get_relation_info(parent)
-        relation_attr_name = self.to_snake(self.relation_aliases[relation_name])
+        relation_attr_name = to_snake(self.relation_aliases[relation_name])
 
         dst_catalog_name, dst_collection_name = self.model.get_catalog_collection_names_from_ref(
             parent_info['collection']['attributes'][relation_attr_name]['ref']
@@ -507,7 +504,7 @@ LEFT JOIN {relation_table} {rel_table_alias} ON {rel_table_alias}.{FIELD.GOBID} 
 
         dst_info = self._collect_relation_info(relation_name, f'{dst_catalog_name}_{dst_collection_name}')
 
-        alias = f"_{self.to_snake(relation_name)}"
+        alias = f"_{to_snake(relation_name)}"
         json_attrs = self._json_build_attrs(attributes, dst_info['alias'])
 
         relation_name = get_relation_name(
@@ -526,7 +523,7 @@ LEFT JOIN {relation_table} {rel_table_alias} ON {rel_table_alias}.{FIELD.GOBID} 
         parent = self.relation_parents[relation_name]
         parent_info = self._get_relation_info(parent)
 
-        relation_name_snake = self.to_snake(relation_name).split('_')
+        relation_name_snake = to_snake(relation_name).split('_')
 
         assert relation_name_snake[0] == 'inv'
 
