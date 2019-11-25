@@ -20,6 +20,7 @@ class TestGraphQLStreamingApi(TestCase):
     @patch("gobapi.graphql_streaming.api.text", lambda x: 'text_' + x)
     def test_entrypoint(self, mock_response_builder, mock_graphql2sql, mock_get_session, mock_response, mock_request):
         mock_request.data.decode.return_value = '{"query": "some query"}'
+        mock_request.args.get.return_value = None
         graphql2sql_instance = mock_graphql2sql.return_value
         graphql2sql_instance.sql.return_value = 'parsed query'
 

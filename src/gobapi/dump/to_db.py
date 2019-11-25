@@ -13,9 +13,9 @@ from gobapi.dump.sql import _create_schema, _create_table, _rename_table, _creat
 from gobapi.dump.csv import csv_entities
 from gobapi.dump.csv_stream import CSVStream
 
-STREAM_PER = 100               # Stream per STREAM_PER lines
-COMMIT_PER = 100 * STREAM_PER  # Commit once per COMMIT_PER lines
-BUFFER_PER = 4096              # Copy read buffer size
+STREAM_PER = 10000              # Stream per STREAM_PER lines
+COMMIT_PER = 10 * STREAM_PER    # Commit once per COMMIT_PER lines
+BUFFER_PER = 50000              # Copy read buffer size
 
 
 def _create_indexes(engine, schema, collection_name, model):

@@ -12,6 +12,8 @@ services:
       DATABASE_HOST_OVERRIDE: database
       MESSAGE_BROKER_ADDRESS: rabbitmq
       API_INFRA_SERVICES: MESSAGE_SERVICE
+      SECURE_SALT: insecure
+      SECURE_PASSWORD: insecure
       UWSGI_HTTP: ":8000"
       UWSGI_MODULE: "gobapi.wsgi"
       UWSGI_CALLABLE: "application"

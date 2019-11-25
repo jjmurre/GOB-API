@@ -1,3 +1,5 @@
+from unittest import mock
+import os
 import json
 import unittest
 
@@ -8,6 +10,7 @@ from gobapi.json import APIGobTypeJSONEncoder
 
 class TestJsonEncoding(unittest.TestCase):
 
+    @mock.patch.dict(os.environ,{'SECURE_SALT':'insecure', 'SECURE_PASSWORD':'insecure'})
     def test_json(self):
         gob_type = DateTime.from_value("2019-01-01T10:00:00.123456")
         to_json = json.dumps({'datetime': gob_type}, cls=APIGobTypeJSONEncoder)
