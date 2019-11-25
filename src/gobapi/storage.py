@@ -345,7 +345,7 @@ def dump_entities(catalog, collection):
     model['catalog'] = catalog
     model['collection'] = collection
 
-    return session.query(table).yield_per(1000), model
+    return session.query(table).yield_per(10000), model
 
 
 def query_entities(catalog, collection, view):
