@@ -41,9 +41,9 @@ class Resolver:
 
         collection = GOBModel().get_collection(catalog_name, collection_name)
         attributes = collection['attributes'].keys()
-        self._attributes[catalog_name][collection_name] = {to_camelcase(key): value for key, value in
-                            {attr: self._resolve_type(collection, attr) for attr in attributes}.items() if value}
-
+        self._attributes[catalog_name][collection_name] =\
+            {to_camelcase(key): value for key, value in
+             {attr: self._resolve_type(collection, attr) for attr in attributes}.items() if value}
 
     def _resolve_type(self, collection, attr):
         """

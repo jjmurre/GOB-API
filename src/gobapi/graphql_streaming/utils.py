@@ -2,7 +2,17 @@ import re
 
 
 def to_snake(camel: str):
+    """
+    Convert a camelCase string to snake
+
+    Example:
+        _to_snake(snakeCase) => snake_case
+
+    :param camel:
+    :return:
+    """
     return re.sub('([A-Z])', r'_\1', camel).lower()
+
 
 def to_camelcase(s):
     """Converts a snake_case string to camelCase
