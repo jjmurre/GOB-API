@@ -60,6 +60,7 @@ class GraphQLStreamingResponseBuilder:
         self.relations_hierarchy = relations_hierarchy
         self.selections = selections
         self.last_id = None
+        self._resolver = Resolver()
 
     def _to_node(self, obj: dict):
         return {
@@ -146,6 +147,9 @@ class GraphQLStreamingResponseBuilder:
             item = [rel for rel in insert_position[relation_name]['edges']
                     if row_relation[FIELD.GOBID] is not None and rel['node'][FIELD.GOBID] == row_relation[FIELD.GOBID]]
 
+            # Resolve the relation row, results are stored back again in the relation row
+            self._resolver.resolve_row(row_relation, row_relation)
+            row_relation = self._clear_row(row_relation)
             add_node = self._to_node(row_relation)
 
             if item:
@@ -177,18 +181,26 @@ class GraphQLStreamingResponseBuilder:
             return
 
         # Fill result with everything except relations and technical attributes
-        result = {k: v for k, v in collected_rows[0].items() if not k.startswith('_')}
-        resolver = Resolver(collected_rows[0])
+        result = self._clear_row(collected_rows[0])
 
         for row in collected_rows:
+            self._resolver.resolve_row(row, result)
             self._add_sourcevalues_to_row(row)
             self._add_row_to_entity(row, result)
-            resolver.resolve_row(row, result)
 
         # Clear gobids from result set
         self._clear_gobids(collected_rows)
 
         return self._to_node(result)
+
+    def _clear_row(self, row):
+        """
+        Remove all underscore attributes from the given row and return the result
+
+        :param row:
+        :return:
+        """
+        return {k: v for k, v in row.items() if not k.startswith('_')}
 
     def _clear_gobids(self, collected_rows: list):
         """Clears gobids from collected_rows

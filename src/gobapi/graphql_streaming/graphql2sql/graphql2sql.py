@@ -506,6 +506,7 @@ LEFT JOIN {relation_table} {rel_table_alias} ON {rel_table_alias}.{FIELD.GOBID} 
 
         alias = f"_{to_snake(relation_name)}"
         json_attrs = self._json_build_attrs(attributes, dst_info['alias'])
+        json_attrs = f"{json_attrs}, '_catalog', '{dst_catalog_name}', '_collection', '{dst_collection_name}'"
 
         relation_name = get_relation_name(
             self.model,
