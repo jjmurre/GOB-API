@@ -39,8 +39,12 @@ class Resolver:
             # Already initialized
             return
 
-        collection = GOBModel().get_collection(catalog_name, collection_name)
-        attributes = collection['attributes'].keys()
+        if (catalog_name and collection_name):
+            collection = GOBModel().get_collection(catalog_name, collection_name)
+            attributes = collection['attributes'].keys()
+        else:
+            attributes = {}
+
         self._attributes[catalog_name][collection_name] =\
             {to_camelcase(key): value for key, value in
              {attr: self._resolve_type(collection, attr) for attr in attributes}.items() if value}
@@ -67,8 +71,8 @@ class Resolver:
         :param result:
         :return:
         """
-        catalog_name = row[CATALOG_NAME]
-        collection_name = row[COLLECTION_NAME]
+        catalog_name = row.get(CATALOG_NAME)
+        collection_name = row.get(COLLECTION_NAME)
         self._init_catalog_collection(catalog_name, collection_name)
         for attr, value in row.items():
             gob_type = self._attributes[catalog_name][collection_name].get(attr)

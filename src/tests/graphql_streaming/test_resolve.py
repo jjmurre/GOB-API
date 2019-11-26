@@ -6,7 +6,7 @@ from gobapi.graphql_streaming.resolve import Resolver
 class TestResolve(unittest.TestCase):
 
     def testResolver(self):
-        resolver = Resolver({})
+        resolver = Resolver()
         self.assertIsNotNone(resolver)
         self.assertIsNotNone(resolver._user)
         self.assertEqual(resolver._attributes, {})
@@ -37,23 +37,14 @@ class TestResolve(unittest.TestCase):
 
         mock_model.get_collection.return_value = collection
 
-        info = {
-            '_catalog': 'cat',
-            '_collection': 'col',
-            'aB': "secure string",
-            'cD': "secure date",
-            'eF': "some value"
-        }
-
-        resolver = Resolver(info)
-        mock_model.get_collection.assert_called_with('cat', 'col')
-        self.assertEqual(resolver._attributes, {'aB': mock.ANY, 'cD': mock.ANY})
-        self.assertEqual(mock_get_gob_type.call_count, 2)
+        resolver = Resolver()
 
         mock_gob_value = mock.MagicMock()
         mock_gob_value.get_value = lambda u: "resolved value"
         mock_gob_type.from_value.return_value = mock_gob_value
         row = {
+            '_catalog': 'cat',
+            '_collection': 'col',
             'aB': 'aB value',
             'cD': 'cD value',
             'eF': 'eF value',
@@ -61,4 +52,11 @@ class TestResolve(unittest.TestCase):
         }
         result = {}
         resolver.resolve_row(row, result)
+        mock_model.get_collection.assert_called_with('cat', 'col')
+        self.assertEqual(resolver._attributes, {
+            'cat': {
+                'col': {'aB': mock.ANY, 'cD': mock.ANY}
+            }
+        })
+        self.assertEqual(mock_get_gob_type.call_count, 2)
         self.assertEqual(result, {'aB': 'resolved value', 'cD': 'resolved value'})
