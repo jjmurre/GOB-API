@@ -79,3 +79,7 @@ class Resolver:
             if gob_type:
                 gob_value = gob_type.from_value(value)
                 result[attr] = gob_value.get_value(self._user)
+
+        for attr in [name for name in [CATALOG_NAME, COLLECTION_NAME] if name in row]:
+            # Once a row has been resolved, don't resolve it twice
+            del row[attr]

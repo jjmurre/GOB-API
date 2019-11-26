@@ -149,7 +149,6 @@ class GraphQLStreamingResponseBuilder:
 
             # Resolve the relation row, results are stored back again in the relation row
             self._resolver.resolve_row(row_relation, row_relation)
-            row_relation = self._clear_row(row_relation)
             add_node = self._to_node(row_relation)
 
             if item:
@@ -181,7 +180,7 @@ class GraphQLStreamingResponseBuilder:
             return
 
         # Fill result with everything except relations and technical attributes
-        result = self._clear_row(collected_rows[0])
+        result = {k: v for k, v in collected_rows[0].items() if not k.startswith('_')}
 
         for row in collected_rows:
             self._resolver.resolve_row(row, result)
@@ -192,15 +191,6 @@ class GraphQLStreamingResponseBuilder:
         self._clear_gobids(collected_rows)
 
         return self._to_node(result)
-
-    def _clear_row(self, row):
-        """
-        Remove all underscore attributes from the given row and return the result
-
-        :param row:
-        :return:
-        """
-        return {k: v for k, v in row.items() if not k.startswith('_')}
 
     def _clear_gobids(self, collected_rows: list):
         """Clears gobids from collected_rows
