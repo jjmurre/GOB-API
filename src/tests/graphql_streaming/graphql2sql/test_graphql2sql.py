@@ -334,7 +334,7 @@ colb_0.identificatie,
 'catalog' AS _catalog,
 'collectionb' AS _collection,
 json_build_object('_gobid', colc_0._gobid,'nested_identificatie', 
-    colc_0.nested_identificatie) _inv_relation_to_b_catalog_collectionc
+    colc_0.nested_identificatie, '_catalog', 'catalog', '_collection', 'collectionc') _inv_relation_to_b_catalog_collectionc
 FROM (
     SELECT *
     FROM catalog_collectionb
@@ -425,7 +425,7 @@ colb_0.identificatie,
 'catalog' AS _catalog,
 'collectionb' AS _collection,
 json_build_object('_gobid', 
-cola_0._gobid,'identificatie', cola_0.identificatie) _inv_some_nested_many_relation_catalog_collectiona
+cola_0._gobid,'identificatie', cola_0.identificatie, '_catalog', 'catalog', '_collection', 'collectiona') _inv_some_nested_many_relation_catalog_collectiona
 FROM (
     SELECT *
     FROM catalog_collectionb
@@ -466,7 +466,7 @@ colb_0.identificatie,
 'catalog' AS _catalog,
 'collectionb' AS _collection,
 json_build_object('_gobid', cola_0._gobid,'identificatie', 
-cola_0.identificatie) _inv_some_nested_relation_catalog_collectiona
+cola_0.identificatie, '_catalog', 'catalog', '_collection', 'collectiona') _inv_some_nested_relation_catalog_collectiona
 FROM (
     SELECT *
     FROM catalog_collectionb
@@ -596,7 +596,7 @@ colb_0.identificatie,
 'catalog' AS _catalog,
 'collectionb' AS _collection,
 json_build_object('_gobid', cola_0._gobid,'identificatie', 
-cola_0.identificatie) _inv_some_nested_relation_catalog_collectiona
+cola_0.identificatie, '_catalog', 'catalog', '_collection', 'collectiona') _inv_some_nested_relation_catalog_collectiona
 FROM (
     SELECT *
     FROM catalog_collectionb

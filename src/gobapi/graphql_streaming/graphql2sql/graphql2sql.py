@@ -535,6 +535,7 @@ LEFT JOIN {relation_table} {rel_table_alias} ON {rel_table_alias}.{FIELD.GOBID} 
         dst_info = self._collect_relation_info(relation_name, f'{dst_model_name}')
 
         json_attrs = self._json_build_attrs(attributes, dst_info['alias'])
+        json_attrs = f"{json_attrs}, '_catalog', '{dst_catalog_name}', '_collection', '{dst_collection_name}'"
         alias = f"_inv_{relation_attr_name}_{dst_info['catalog_name']}_{dst_info['collection_name']}"
 
         relation_name = get_relation_name(
