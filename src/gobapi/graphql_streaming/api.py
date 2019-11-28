@@ -6,6 +6,7 @@ from gobcore.exceptions import GOBException
 from gobcore.model.metadata import FIELD
 
 from gobapi.graphql_streaming.graphql2sql.graphql2sql import GraphQL2SQL
+from gobapi.graphql_streaming.resolve import Resolver
 from gobapi.response import stream_response, _dict_to_camelcase
 
 import json
@@ -59,6 +60,7 @@ class GraphQLStreamingResponseBuilder:
         self.relations_hierarchy = relations_hierarchy
         self.selections = selections
         self.last_id = None
+        self._resolver = Resolver()
 
     def _to_node(self, obj: dict):
         return {
@@ -145,6 +147,8 @@ class GraphQLStreamingResponseBuilder:
             item = [rel for rel in insert_position[relation_name]['edges']
                     if row_relation[FIELD.GOBID] is not None and rel['node'][FIELD.GOBID] == row_relation[FIELD.GOBID]]
 
+            # Resolve the relation row, results are stored back again in the relation row
+            self._resolver.resolve_row(row_relation, row_relation)
             add_node = self._to_node(row_relation)
 
             if item:
@@ -179,6 +183,7 @@ class GraphQLStreamingResponseBuilder:
         result = {k: v for k, v in collected_rows[0].items() if not k.startswith('_')}
 
         for row in collected_rows:
+            self._resolver.resolve_row(row, result)
             self._add_sourcevalues_to_row(row)
             self._add_row_to_entity(row, result)
 
