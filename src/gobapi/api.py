@@ -23,6 +23,7 @@ from gobapi.response import hal_response, not_found, get_page_ref, ndjson_entiti
 from gobapi.dump.csv import csv_entities
 from gobapi.dump.sql import sql_entities
 from gobapi.dump.to_db import dump_to_db
+from gobapi.auth import secure_route, public_route
 
 from gobapi.states import get_states
 from gobapi.storage import connect, get_entities, get_entity, query_entities, dump_entities, query_reference_entities
@@ -354,28 +355,28 @@ def _health():
     return 'Connectivity OK'
 
 
-def _secure_route(func):
-    def wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
-    wrapper.__name__ = f"secure_{func.__name__}"
-    return wrapper
-
-
-def _public_route(func, *args, **kwargs):
-    def wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
-    wrapper.__name__ = f"public_{func.__name__}"
-    return wrapper
-
-
 def _add_route(app, rule, view_func, methods):
+    """
+    For every rule add a public and a secure endpoint
+
+    Both the public and the secure endpoints are protected.
+    The secure endpoint expects the keycloak headers to be present and the endpoint is protected by gatekeeper
+    The public endpoint assures that none of the keycloak headers is present
+
+    :param app:
+    :param rule:
+    :param view_func:
+    :param methods:
+    :return:
+    """
     wrappers = {
-        API_BASE_PATH: _public_route,
-        API_SECURE_BASE_PATH: _secure_route
+        API_BASE_PATH: public_route,
+        API_SECURE_BASE_PATH: secure_route
     }
     for path in [API_BASE_PATH, API_SECURE_BASE_PATH]:
         wrapper = wrappers[path]
-        app.add_url_rule(rule=f"{path}{rule}", methods=methods, view_func=wrapper(view_func))
+        wrapped_rule = f"{path}{rule}"
+        app.add_url_rule(rule=wrapped_rule, methods=methods, view_func=wrapper(wrapped_rule, view_func))
 
 
 def get_app():
