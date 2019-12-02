@@ -19,8 +19,19 @@ COPY gobapi gobapi
 # Copy dump utility
 COPY dump.py dump.py
 
+# Copy deploy dir
+COPY deploy /deploy/
+
 # Build
 COPY build.sh /app
 RUN ./build.sh
 
-CMD uwsgi
+# Gatekeeper
+COPY ./keycloak-gatekeeper.latest keycloak-gatekeeper
+COPY ./gatekeeper.conf gatekeeper.conf
+RUN chmod 755 keycloak-gatekeeper
+RUN mkdir -p /var/log/gatekeeper && chown datapunt /var/log/gatekeeper
+
+USER datapunt
+
+CMD ["/deploy/docker-run.sh"]

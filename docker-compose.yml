@@ -5,6 +5,11 @@ services:
   gobapi:
     build: src
     ports:
+      # To use gatekeeper:
+      #   Set port to 8000
+      #   Set secure-cookie: false in gatekeeper.conf
+      #   Set the variables in .env
+      # Use port 8001 to bypass gatekeeper locally
       - "8141:8000"
     container_name: gobapi
     environment:
@@ -14,7 +19,8 @@ services:
       API_INFRA_SERVICES: MESSAGE_SERVICE
       SECURE_SALT: insecure
       SECURE_PASSWORD: insecure
-      UWSGI_HTTP: ":8000"
+      # Gatekeeper listens on port 8000 and serves as a proxy for UWSGI
+      UWSGI_HTTP: ":8001"
       UWSGI_MODULE: "gobapi.wsgi"
       UWSGI_CALLABLE: "application"
       UWSGI_MASTER: "1"
@@ -25,6 +31,13 @@ services:
       UWSGI_THREADS: ""
       UWSGI_MAX_WORKER_LIFETIME: "1800"
       UWSGI_HTTP_TIMEOUT: "4000"
+      PROXY_CLIENT_ID: ${GATEKEEPER_CLIENT_ID}
+      PROXY_CLIENT_SECRET: ${GATEKEEPER_CLIENT_SECRET}
+      PROXY_ENCRYPTION_KEY: ${GATEKEEPER_ENCRYPTION_KEY}
+      PROXY_LISTEN: ${GATEKEEPER_LISTEN}
+      PROXY_UPSTREAM_URL: ${GATEKEEPER_UPSTREAM_URL}
+      PROXY_DISCOVERY_URL: ${GATEKEEPER_DISCOVERY_URL}
+      PROXY_REDIRECTION_URL: ${GATEKEEPER_REDIRECTION_URL}
 
 networks:
   default:

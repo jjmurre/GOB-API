@@ -15,7 +15,7 @@ class TestAuth(TestCase):
 
         mock_request.headers = {}
         result = wrapped_func()
-        self.assertEqual(result, (mock.ANY, 401))
+        self.assertEqual(result, (mock.ANY, 403))
 
         mock_request.headers = {
             REQUEST_USER: "any user"
@@ -66,8 +66,8 @@ class TestAuth(TestCase):
         self.assertEqual(result, (mock.ANY, 403))
 
     @patch('gobapi.auth.request')
-    @patch('gobapi.auth._report_fraud')
-    def test_fraud_detected(self, mock_report_fraud, mock_request):
+    @patch('gobapi.auth._secure_headers_detected')
+    def test_fraud_detected(self, mock_secure_headers, mock_request):
         func = lambda *args, **kwargs: "Any result"
 
         wrapped_func = public_route("any rule", func)
@@ -76,4 +76,4 @@ class TestAuth(TestCase):
             REQUEST_USER: "any user"
         }
         wrapped_func()
-        mock_report_fraud.assert_called()
+        mock_secure_headers.assert_called()
