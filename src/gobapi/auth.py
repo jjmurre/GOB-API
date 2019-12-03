@@ -17,20 +17,11 @@ def secure_route(rule, func):
     :return:
     """
     def wrapper(*args, **kwargs):
-        if _secure_headers_detected(rule, *args, **kwargs):
-            # Secure route requires secure headers
-            userid = request.headers.get(REQUEST_USER)
-            roles = request.headers.get(REQUEST_ROLE)
-            if userid is None:
-                # Check if the user is authenticated => 401 Unauthorized
-                return "Not logged in", 401
-            elif roles is None:
-                # Check if the user is authorized => 403 Forbidden
-                return "Insufficient privileges", 403
-            else:
-                return func(*args, **kwargs)
+        if request.headers.get(REQUEST_USER) and request.headers.get(REQUEST_ROLE):
+            return func(*args, **kwargs)
         else:
-            return "Missing authentication!", 403
+            # This should normally never happen because the endpoint is protected by gatekeeper
+            return "Forbidden", 403
 
     wrapper.__name__ = f"secure_{func.__name__}"
     return wrapper
@@ -38,9 +29,7 @@ def secure_route(rule, func):
 
 def _secure_headers_detected(rule, *args, **kwargs):
     """
-    Report fraud
-
-    Print an error and request information
+    Check if any secure headers are present in the request
 
     :param rule:
     :param args:
@@ -73,7 +62,7 @@ def public_route(rule, func, *args, **kwargs):
             dump_attrs = ['method', 'remote_addr', 'remote_user', 'headers']
             for attr in dump_attrs:
                 print(attr, getattr(request, attr))
-            return "Compromised headers detected!", 403
+            return "Bad request", 400
         else:
             return func(*args, **kwargs)
 

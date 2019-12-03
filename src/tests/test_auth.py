@@ -27,7 +27,7 @@ class TestAuth(TestCase):
             REQUEST_ROLE: "any role"
         }
         result = wrapped_func()
-        self.assertEqual(result, (mock.ANY, 401))
+        self.assertEqual(result, (mock.ANY, 403))
 
         mock_request.headers = {
             REQUEST_USER: "any user",
@@ -50,20 +50,20 @@ class TestAuth(TestCase):
             REQUEST_USER: "any user"
         }
         result = wrapped_func()
-        self.assertEqual(result, (mock.ANY, 403))
+        self.assertEqual(result, (mock.ANY, 400))
 
         mock_request.headers = {
             REQUEST_ROLE: "any role"
         }
         result = wrapped_func()
-        self.assertEqual(result, (mock.ANY, 403))
+        self.assertEqual(result, (mock.ANY, 400))
 
         mock_request.headers = {
             REQUEST_USER: "any user",
             REQUEST_ROLE: "any role"
         }
         result = wrapped_func()
-        self.assertEqual(result, (mock.ANY, 403))
+        self.assertEqual(result, (mock.ANY, 400))
 
     @patch('gobapi.auth.request')
     @patch('gobapi.auth._secure_headers_detected')
