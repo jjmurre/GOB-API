@@ -375,7 +375,6 @@ def _add_route(app, rule, view_func, methods):
     }
     for path in [API_BASE_PATH, API_SECURE_BASE_PATH]:
         wrapper = wrappers[path]
-        print(f"{path}{rule}")
         app.add_url_rule(rule=f"{path}{rule}", methods=methods, view_func=wrapper(view_func))
 
 
