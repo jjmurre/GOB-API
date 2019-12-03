@@ -42,6 +42,20 @@ def _secure_headers_detected(rule, *args, **kwargs):
     return False
 
 
+def _issue_fraud_warning(rule, *args, **kwargs):
+    """
+    Issue a fraud warning
+
+    For now this is printed on stdout (to be found in Kibana)
+
+    In the future this should be connected to an alert mechanism
+    """
+    print(f"ERROR: FRAUD DETECTED FOR RULE: {rule} => {request.url}", args, kwargs)
+    dump_attrs = ['method', 'remote_addr', 'remote_user', 'headers']
+    for attr in dump_attrs:
+        print(attr, getattr(request, attr))
+
+
 def public_route(rule, func, *args, **kwargs):
     """
     Public routes start with API_BASE_PATH and are not protected by gatekeeper
@@ -58,10 +72,7 @@ def public_route(rule, func, *args, **kwargs):
     def wrapper(*args, **kwargs):
         if _secure_headers_detected(rule, *args, **kwargs):
             # Public route cannot contain secure headers
-            print(f"ERROR: FRAUD DETECTED FOR RULE: {rule} => {request.url}", args, kwargs)
-            dump_attrs = ['method', 'remote_addr', 'remote_user', 'headers']
-            for attr in dump_attrs:
-                print(attr, getattr(request, attr))
+            _issue_fraud_warning(rule, *args, **kwargs)
             return "Bad request", 400
         else:
             return func(*args, **kwargs)

@@ -67,13 +67,21 @@ class TestAuth(TestCase):
 
     @patch('gobapi.auth.request')
     @patch('gobapi.auth._secure_headers_detected')
-    def test_fraud_detected(self, mock_secure_headers, mock_request):
+    def test_secure_headers_detected(self, mock_secure_headers, mock_request):
+        # Assure that public requests test for secure headers
         func = lambda *args, **kwargs: "Any result"
-
         wrapped_func = public_route("any rule", func)
+        wrapped_func()
+        mock_secure_headers.assert_called()
 
+    @patch('gobapi.auth.request')
+    @patch('gobapi.auth._issue_fraud_warning')
+    def test_fraud_warning_issued(self, mock_fraud_warning, mock_request):
+        # Assure that compromised public requests are signalled
+        func = lambda *args, **kwargs: "Any result"
         mock_request.headers = {
             REQUEST_USER: "any user"
         }
+        wrapped_func = public_route("any rule", func)
         wrapped_func()
-        mock_secure_headers.assert_called()
+        mock_fraud_warning.assert_called()
