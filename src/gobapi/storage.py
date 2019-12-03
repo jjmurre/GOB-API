@@ -18,7 +18,7 @@ from sqlalchemy.sql import label
 from gobcore.model import GOBModel
 from gobcore.model.relations import get_relation_name
 from gobcore.model.sa.gob import Base
-from gobcore.typesystem import get_gob_type_from_sql_type, enhance_type_info
+from gobcore.typesystem import get_gob_type_from_sql_type, get_gob_type_from_info
 from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS, FIELD
 
 from gobapi.config import GOB_DB, API_BASE_PATH
@@ -111,19 +111,6 @@ def _create_external_reference_link(entity, field, entity_catalog, entity_collec
     return {'href': f'{API_BASE_PATH}/{entity_catalog}/{entity_collection}/{identificatie}/{field_path}/'}
 
 
-def _get_gob_type(spec):
-    """
-    Return the GOB type for the given type info
-
-    The type info is enhanced (adding GOB types to it)
-    :param typeinfo:
-    :return:
-    """
-    if not spec.get("gob_type"):
-        enhance_type_info(spec)
-    return spec["gob_type"]
-
-
 def _create_reference(entity, field, spec, entity_catalog=None, entity_collection=None):
     """Create an embedded reference
 
@@ -143,7 +130,7 @@ def _create_reference(entity, field, spec, entity_catalog=None, entity_collectio
             embedded = [_format_reference(reference, catalog, collection) for reference in embedded]
         else:
             ref = _format_reference(embedded, catalog, collection)
-            gob_type = _get_gob_type(spec)
+            gob_type = get_gob_type_from_info(spec)
             embedded = gob_type.from_value(ref, secure=spec.get('secure'))
 
     return embedded
@@ -152,7 +139,7 @@ def _create_reference(entity, field, spec, entity_catalog=None, entity_collectio
 def _to_gob_value(entity, field, spec):
     entity_value = getattr(entity, field, None)
     if isinstance(spec, dict):
-        gob_type = _get_gob_type(spec)
+        gob_type = get_gob_type_from_info(spec)
         return gob_type.from_value(entity_value, **spec)
     else:
         gob_type = get_gob_type_from_sql_type(spec)
