@@ -10,7 +10,7 @@ services:
       #   Set secure-cookie: false in gatekeeper.conf
       #   Set the variables in .env
       # Use port 8001 to bypass gatekeeper locally
-      - "8141:8000"
+      - "8141:8001"
     container_name: gobapi
     environment:
       DATABASE_PORT_OVERRIDE: 5432
