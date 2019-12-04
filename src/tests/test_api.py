@@ -9,7 +9,7 @@ import json
 from unittest import TestCase
 from unittest.mock import patch
 
-from gobapi.api import _collection, _reference_collection, _secure_route, _public_route
+from gobapi.api import _collection, _reference_collection
 
 def noop(*args):
     pass
@@ -452,21 +452,6 @@ def test_wsgi(monkeypatch):
 
     from gobapi.wsgi import application
     assert(not application == None)
-
-
-class TestRoutes(TestCase):
-
-    def test_public_route(self):
-        f = lambda: "any result"
-        wrapper = _public_route(f)
-        self.assertEqual(wrapper(), "any result")
-        self.assertTrue(wrapper.__name__.startswith("public_"))
-
-    def test_secure_route(self):
-        f = lambda: "any result"
-        wrapper = _secure_route(f)
-        self.assertEqual(wrapper(), "any result")
-        self.assertTrue(wrapper.__name__.startswith("secure_"))
 
 
 class TestStreams(TestCase):
