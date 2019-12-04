@@ -613,7 +613,7 @@ class TestToDB(TestCase):
         mock_dump.return_value = iter([])
         results = [result for result in dump_to_db('any catalog name', 'any collection name', config)]
         self.assertEqual(mock_dump.call_count, 1)
-        self.assertEqual(2, len([line for line in results if line.startswith('Skipping')]))
+        self.assertEqual(2, len([line for line in results if "Skipping" in line]))
 
     @patch('gobapi.dump.to_db._create_schema', MagicMock())
     @patch('gobapi.dump.to_db._create_indexes', MagicMock())
@@ -662,7 +662,9 @@ class TestToDB(TestCase):
                                                     config)]
         self.assertEqual(mock_connection.commit.call_count, 1)
         mock_connection.close.assert_called()
-        self.assertTrue("Export data.\nExported" in "".join(results))
+        output = "".join(results)
+        self.assertTrue("Prepare export data" in output)
+        self.assertTrue("Exported " in output)
 
     @patch('gobapi.dump.to_db.get_reference_fields')
     @patch('gobapi.dump.to_db.get_field_specifications')
