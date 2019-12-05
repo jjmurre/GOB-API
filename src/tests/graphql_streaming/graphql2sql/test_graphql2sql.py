@@ -226,6 +226,8 @@ ORDER BY cola_0._gobid
                     nestedIdentificatie
                     bronwaarde
                     broninfo
+                    beginGeldigheidRelatie
+                    eindGeldigheidRelatie
                 }
             }
         }
@@ -234,6 +236,7 @@ ORDER BY cola_0._gobid
   }
 }''',
         # bronwaarde and broninfo are added as special case, they change the query by adding the _src selection
+        # Same goes for beginGeldigheidRelatie and eindGeldigheidRelatie, they should be added to the reference
             '''
 SELECT
 cola_0._gobid,
@@ -242,7 +245,8 @@ cola_0.identificatie,
 'collectiona' AS _collection,
 cola_0.some_nested_relation _src_some_nested_relation,
 json_build_object('_gobid', colb_0._gobid,'nested_identificatie', colb_0.nested_identificatie,
-'_catalog', 'catalog', '_collection', 'collectionb') _some_nested_relation
+ 'begin_geldigheid_relatie', rel_0.begin_geldigheid,'eind_geldigheid_relatie', rel_0.eind_geldigheid,
+ '_catalog', 'catalog', '_collection', 'collectionb') _some_nested_relation
 FROM (
     SELECT *
     FROM catalog_collectiona
@@ -250,11 +254,10 @@ FROM (
     ORDER BY _gobid
 
 ) cola_0
-LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0 ON rel_0.src_id = cola_0._id
-AND rel_0.bronwaarde = cola_0.some_nested_relation->>'bronwaarde'
-LEFT JOIN catalog_collectionb colb_0 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer
-AND (colb_0.some_property = 'someval')
-WHERE (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
+LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0 ON rel_0.src_id = cola_0._id AND rel_0.bronwaarde = cola_0.some_nested_relation->>'bronwaarde'
+LEFT JOIN catalog_collectionb colb_0 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer AND (colb_0.some_property = 'someval')
+WHERE (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
+AND colb_0._date_deleted IS NULL
 ORDER BY cola_0._gobid
          '''
 
@@ -296,10 +299,10 @@ FROM (
     ORDER BY _gobid
 
 ) colc_0
-LEFT JOIN mv_catalog_collectionc_relation_to_b rel_0 
+LEFT JOIN mv_catalog_collectionc_relation_to_b rel_0
 ON rel_0.src_id = colc_0._id
 AND rel_0.bronwaarde = colc_0.relation_to_b->>'bronwaarde' AND rel_0.src_volgnummer = colc_0.volgnummer
-LEFT JOIN catalog_collectionb colb_0 
+LEFT JOIN catalog_collectionb colb_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer AND (colb_0.some_property = 'someval')
 WHERE (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
 ORDER BY colc_0._gobid
@@ -333,7 +336,7 @@ colb_0._gobid,
 colb_0.identificatie,
 'catalog' AS _catalog,
 'collectionb' AS _collection,
-json_build_object('_gobid', colc_0._gobid,'nested_identificatie', 
+json_build_object('_gobid', colc_0._gobid,'nested_identificatie',
     colc_0.nested_identificatie, '_catalog', 'catalog', '_collection', 'collectionc') _inv_relation_to_b_catalog_collectionc
 FROM (
     SELECT *
@@ -342,9 +345,9 @@ FROM (
     ORDER BY _gobid
 
 ) colb_0
-LEFT JOIN mv_catalog_collectionc_relation_to_b rel_0 
+LEFT JOIN mv_catalog_collectionc_relation_to_b rel_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer
-LEFT JOIN catalog_collectionc colc_0 
+LEFT JOIN catalog_collectionc colc_0
 ON rel_0.src_id = colc_0._id AND rel_0.src_volgnummer = colc_0.volgnummer AND (colc_0.some_property = 'someval')
 WHERE (colc_0._expiration_date IS NULL OR colc_0._expiration_date > NOW()) AND colc_0._date_deleted IS NULL
 ORDER BY colb_0._gobid
@@ -380,7 +383,7 @@ cola_0.identificatie,
 'catalog' AS _catalog,
 'collectiona' AS _collection,
 rel_bw_0.item _src_some_nested_many_relation,
-json_build_object('_gobid', colb_0._gobid,'nested_identificatie', 
+json_build_object('_gobid', colb_0._gobid,'nested_identificatie',
 colb_0.nested_identificatie, '_catalog', 'catalog', '_collection', 'collectionb') _some_nested_many_relation
 FROM (
     SELECT *
@@ -389,11 +392,11 @@ FROM (
     ORDER BY _gobid
 
 ) cola_0
-LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_bw_0(item) 
+LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_bw_0(item)
 ON rel_bw_0.item->>'bronwaarde' IS NOT NULL
-LEFT JOIN mv_catalog_collectiona_some_nested_many_relation rel_0 
+LEFT JOIN mv_catalog_collectiona_some_nested_many_relation rel_0
 ON rel_0.src_id = cola_0._id AND rel_0.bronwaarde = rel_bw_0.item->>'bronwaarde'
-LEFT JOIN catalog_collectionb colb_0 
+LEFT JOIN catalog_collectionb colb_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer AND (colb_0.filter_arg = 'filterval')
 WHERE (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
 ORDER BY cola_0._gobid
@@ -424,7 +427,7 @@ colb_0._gobid,
 colb_0.identificatie,
 'catalog' AS _catalog,
 'collectionb' AS _collection,
-json_build_object('_gobid', 
+json_build_object('_gobid',
 cola_0._gobid,'identificatie', cola_0.identificatie, '_catalog', 'catalog', '_collection', 'collectiona') _inv_some_nested_many_relation_catalog_collectiona
 FROM (
     SELECT *
@@ -433,7 +436,7 @@ FROM (
     ORDER BY _gobid
 
 ) colb_0
-LEFT JOIN mv_catalog_collectiona_some_nested_many_relation rel_0 
+LEFT JOIN mv_catalog_collectiona_some_nested_many_relation rel_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer
 LEFT JOIN catalog_collectiona cola_0 ON rel_0.src_id = cola_0._id AND (cola_0.some_property = 'someval')
 WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW()) AND cola_0._date_deleted IS NULL
@@ -465,7 +468,7 @@ colb_0._gobid,
 colb_0.identificatie,
 'catalog' AS _catalog,
 'collectionb' AS _collection,
-json_build_object('_gobid', cola_0._gobid,'identificatie', 
+json_build_object('_gobid', cola_0._gobid,'identificatie',
 cola_0.identificatie, '_catalog', 'catalog', '_collection', 'collectiona') _inv_some_nested_relation_catalog_collectiona
 FROM (
     SELECT *
@@ -474,7 +477,7 @@ FROM (
     ORDER BY _gobid
 
 ) colb_0
-LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0 
+LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer
 LEFT JOIN catalog_collectiona cola_0 ON rel_0.src_id = cola_0._id AND (cola_0.some_property = 'someval')
 WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW()) AND cola_0._date_deleted IS NULL
@@ -515,7 +518,7 @@ FROM (
     ORDER BY _gobid
 
 ) cola_0
-LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0 
+LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0
 ON rel_0.src_id = cola_0._id
 LEFT JOIN catalog_collectionb colb_0 ON rel_0.dst_id = colb_0._id
 AND rel_0.dst_volgnummer = colb_0.volgnummer AND (colb_0.some_property = 'someval')
@@ -549,7 +552,7 @@ cola_0._gobid,
 cola_0.identificatie,
 'catalog' AS _catalog,
 'collectiona' AS _collection,
-json_build_object('_gobid', colb_0._gobid,'nested_identificatie', 
+json_build_object('_gobid', colb_0._gobid,'nested_identificatie',
 colb_0.nested_identificatie, '_catalog', 'catalog', '_collection', 'collectionb') _relation_alias
 FROM (
     SELECT *
@@ -558,9 +561,9 @@ FROM (
     ORDER BY _gobid
 
 ) cola_0
-LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0 
+LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0
 ON rel_0._gobid IN (
-    SELECT _gobid FROM mv_catalog_collectiona_some_nested_relation rel 
+    SELECT _gobid FROM mv_catalog_collectiona_some_nested_relation rel
     WHERE rel.src_id = cola_0._id
     LIMIT 2
 )
@@ -595,7 +598,7 @@ colb_0._gobid,
 colb_0.identificatie,
 'catalog' AS _catalog,
 'collectionb' AS _collection,
-json_build_object('_gobid', cola_0._gobid,'identificatie', 
+json_build_object('_gobid', cola_0._gobid,'identificatie',
 cola_0.identificatie, '_catalog', 'catalog', '_collection', 'collectiona') _inv_some_nested_relation_catalog_collectiona
 FROM (
     SELECT *

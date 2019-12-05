@@ -1,4 +1,7 @@
 from antlr4 import InputStream, CommonTokenStream
+
+from gobapi.graphql.filters import START_VALIDITY_RELATION, END_VALIDITY_RELATION
+
 from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLLexer import GraphQLLexer
 from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLParser import GraphQLParser
 from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLVisitor import GraphQLVisitor as BaseVisitor
@@ -136,6 +139,7 @@ class SqlGenerator:
 
     # Attributes to ignore in the query on attributes.
     srcvalues_attributes = [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO]
+    relvalues_attributes = [START_VALIDITY_RELATION, END_VALIDITY_RELATION]
 
     def __init__(self, visitor: GraphQLVisitor):
         """
@@ -487,11 +491,21 @@ LEFT JOIN {relation_table} {rel_table_alias} ON {rel_table_alias}.{FIELD.GOBID} 
         :param relation_name:
         :return:
         """
-        return ",".join([f"'{to_snake(attr)}', {relation_name}.{to_snake(attr)}" for attr in attributes
-                         if attr not in self.srcvalues_attributes])
+        json_attrs = ",".join([f"'{to_snake(attr)}', {relation_name}.{to_snake(attr)}" for attr in attributes
+                              if to_snake(attr) not in self.srcvalues_attributes + self.relvalues_attributes])
+
+        if self._is_relvalue_requested(attributes):
+            rel_attrs = ",".join([f"'{to_snake(attr)}', rel_{self.relcnt}.{to_snake(attr).replace('_relatie', '')}"
+                                 for attr in attributes if to_snake(attr) in self.relvalues_attributes])
+            json_attrs = f"{json_attrs}, {rel_attrs}"
+
+        return json_attrs
 
     def _is_srcvalue_requested(self, attributes: list):
-        return any([attr in self.srcvalues_attributes for attr in attributes])
+        return any([to_snake(attr) in self.srcvalues_attributes for attr in attributes])
+
+    def _is_relvalue_requested(self, attributes: list):
+        return any([to_snake(attr) in self.relvalues_attributes for attr in attributes])
 
     def _join_relation(self, relation_name: str, attributes: list, arguments: dict):
         parent = self.relation_parents[relation_name]
