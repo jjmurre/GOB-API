@@ -6,9 +6,11 @@ from unittest.mock import patch, MagicMock
 from sqlalchemy.sql.elements import AsBoolean
 from graphene_sqlalchemy import SQLAlchemyConnectionField
 from gobcore.typesystem.gob_secure_types import SecureString
+from gobcore.model.sa.gob import models, Base
 from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute, \
     get_resolve_secure_attribute, get_resolve_inverse_attribute, \
-    get_resolve_attribute_missing_relation, add_bronwaardes_to_results, gobmodel, _extract_tuples, models
+    get_resolve_attribute_missing_relation, add_bronwaardes_to_results, gobmodel, _extract_tuples, models, \
+    get_fields_in_query, flatten_join_query_result, _extract_relation_model, add_relation_join_query
 from gobapi import storage
 from gobapi import session
 
@@ -220,10 +222,12 @@ class TestFilters(TestCase):
         self.assertEqual([(1,), (4,), (7,)], _extract_tuples(input, ('a',)), 'Should return single item tuples')
         self.assertEqual([], _extract_tuples([], ('a',)), 'Empty input should result in empty output')
 
+    @patch("gobapi.graphql.filters.get_fields_in_query")
     @patch("gobapi.graphql.filters.FilterConnectionField")
     @patch("gobapi.graphql.filters.add_bronwaardes_to_results")
     @patch("gobapi.graphql.filters._extract_tuples")
-    def test_resolve_attribute(self, mock_extract_tuples, mock_add_bronwaardes, mock_filterconnfield):
+    def test_resolve_attribute(self, mock_extract_tuples, mock_add_bronwaardes, mock_filterconnfield,
+                               mock_get_fields_in_query):
         class Model():
             _id = MagicMock()
             volgnummer = '2'
@@ -242,21 +246,29 @@ class TestFilters(TestCase):
         resolve_attribute = get_resolve_attribute(model, src_attribute_name)
         result = resolve_attribute(obj, info, **kwargs)
 
+        mock_get_fields_in_query.return_value = []
+
         mock_filterconnfield.get_query.assert_called_with(model, info, **kwargs)
         get_query_res = mock_filterconnfield.get_query.return_value
+
         mock_extract_tuples.assert_called_with([obj.reference_field], ('id',))
+
         get_query_res.filter.assert_called_with(model._id.in_.return_value)
         filter_res = get_query_res.filter.return_value
-        mock_add_bronwaardes.assert_called_with(src_attribute_name, model, obj, filter_res.all.return_value)
+
+        filter_res.all.assert_called()
+
+        mock_add_bronwaardes.assert_called_with(src_attribute_name, model, obj, [])
 
         self.assertEqual(mock_add_bronwaardes.return_value, result)
 
+    @patch("gobapi.graphql.filters.get_fields_in_query")
     @patch("gobapi.graphql.filters.FilterConnectionField")
     @patch("gobapi.graphql.filters.add_bronwaardes_to_results")
     @patch("gobapi.graphql.filters._extract_tuples")
     @patch("gobapi.graphql.filters.tuple_")
     def test_resolve_attribute_with_states(self, mock_tuple_, mock_extract_tuples, mock_add_bronwaardes,
-                                           mock_filterconnfield):
+                                           mock_filterconnfield, mock_get_fields_in_query):
         class Model():
             _id = '1'
             volgnummer = '2'
@@ -275,14 +287,70 @@ class TestFilters(TestCase):
         resolve_attribute = get_resolve_attribute(model, src_attribute_name)
         result = resolve_attribute(obj, info, **kwargs)
 
+        mock_get_fields_in_query.return_value = []
+
         mock_filterconnfield.get_query.assert_called_with(model, info, **kwargs)
         get_query_res = mock_filterconnfield.get_query.return_value
+
         mock_extract_tuples.assert_called_with([obj.reference_field], ('id', 'volgnummer'))
         mock_tuple_.assert_called_with('1', '2')
         tuple_res = mock_tuple_.return_value
+
         get_query_res.filter.assert_called_with(tuple_res.in_.return_value)
         filter_res = get_query_res.filter.return_value
-        mock_add_bronwaardes.assert_called_with(src_attribute_name, model, obj, filter_res.all.return_value)
+
+        filter_res.all.assert_called()
+
+        mock_add_bronwaardes.assert_called_with(src_attribute_name, model, obj, [])
+
+        self.assertEqual(mock_add_bronwaardes.return_value, result)
+
+    @patch("gobapi.graphql.filters.flatten_join_query_result")
+    @patch("gobapi.graphql.filters.add_relation_join_query")
+    @patch("gobapi.graphql.filters.get_fields_in_query")
+    @patch("gobapi.graphql.filters.FilterConnectionField")
+    @patch("gobapi.graphql.filters.add_bronwaardes_to_results")
+    @patch("gobapi.graphql.filters._extract_tuples")
+    def test_resolve_attribute_join_relation(self, mock_extract_tuples, mock_add_bronwaardes, mock_filterconnfield,
+                               mock_get_fields_in_query, mock_add_relation_join_query, mock_flatten_join_query_result):
+        class Model():
+            _id = MagicMock()
+            volgnummer = '2'
+            __has_states__ = False
+
+        class Object():
+            reference_field = {'bronwaarde': '1', '_id': '1', 'volgnummer': '2'}
+            __has_states__ = False
+
+        model = Model()
+        obj = Object()
+        info = MagicMock()
+        kwargs = {'a': '1', 'b': '2'}
+        src_attribute_name = 'reference_field'
+
+        mock_get_fields_in_query.return_value = ['beginGeldigheidRelatie']
+        relation_res = mock_add_relation_join_query.return_value
+        relation_res.all.return_value = ['result']
+
+        resolve_attribute = get_resolve_attribute(model, src_attribute_name)
+        result = resolve_attribute(obj, info, **kwargs)
+
+        mock_filterconnfield.get_query.assert_called_with(model, info, **kwargs)
+        get_query_res = mock_filterconnfield.get_query.return_value
+
+        mock_extract_tuples.assert_called_with([obj.reference_field], ('id',))
+
+        get_query_res.filter.assert_called_with(model._id.in_.return_value)
+        filter_res = get_query_res.filter.return_value
+
+        mock_add_relation_join_query.assert_called_with(obj, model, src_attribute_name, filter_res)
+
+        relation_res.all.assert_called()
+
+        mock_flatten_join_query_result.assert_called_with('result')
+        flatten_res = mock_flatten_join_query_result.return_value
+
+        mock_add_bronwaardes.assert_called_with(src_attribute_name, model, obj, [flatten_res])
 
         self.assertEqual(mock_add_bronwaardes.return_value, result)
 
@@ -343,3 +411,162 @@ class TestFilters(TestCase):
         get_query_res.filter.assert_called_with(model.reference_field.contains.return_value)
         filter_res = get_query_res.filter.return_value
         self.assertEqual(filter_res.all.return_value, result)
+
+    @patch("gobapi.graphql.filters.ast_to_dict")
+    def test_get_fields_in_query(self, mock_ast_to_dict):
+        class ResolveInfo():
+            field_asts = ['mock_ast']
+            fragments = {}
+
+        mock_ast_to_dict.return_value = {
+            'selection_set': {
+                'selections': [
+                    {'kind': 'Field', 'name': {'value': 'edges'}, 'selection_set': {
+                        'selections': [
+                            {'kind': 'Field', 'name': {'value': 'edges'}, 'selection_set': {
+                                'selections': [
+                                    {'kind': 'Field', 'name': {'value': 'field 1'}},
+                                    {'kind': 'Field', 'name': {'value': 'field 2'}},
+                                    {'kind': 'Other', 'name': {'value': 'field 3'}},
+                                ]
+                            }}
+                        ]
+                    }}
+                ]
+            }
+        }
+
+        result = get_fields_in_query(ResolveInfo())
+
+        mock_ast_to_dict.assert_called_with('mock_ast')
+
+        self.assertEqual(result, ['field 1', 'field 2'])
+
+    def test_flatten_join_query_result(self):
+
+        mock_base = Base()
+
+        class MockKeyedTuple(tuple):
+
+            def __new__(cls, vals, labels=None):
+                t = tuple.__new__(cls, vals)
+                if labels:
+                    t.__dict__.update(zip(labels, vals))
+                return t
+
+            def _asdict(self):
+                return self.__dict__
+
+        mock_result = MockKeyedTuple((mock_base,'value1', 'value2'), ['reference', 'variable1', 'variable2'])
+        result = flatten_join_query_result(mock_result)
+
+        # Expect the variables to be set as attributes of the mock_base
+        self.assertEqual(mock_base.variable1, 'value1')
+        self.assertEqual(mock_base.variable2, 'value2')
+
+    @patch('gobapi.graphql.filters.gobmodel')
+    @patch('gobapi.graphql.filters.get_relation_name')
+    def test_extract_relation_model(self, mock_get_relation_name, mock_gobmodel):
+        class MockObject():
+
+            def __init__(self, table_name):
+                self.__tablename__ = table_name
+
+        mock_src_obj = MockObject('cola_cata')
+        mock_dst_obj = MockObject('colb_catb')
+
+        mock_get_relation_name.return_value = 'name'
+
+        mock_gobmodel.get_collection_from_table_name.return_value = 'cola'
+        mock_gobmodel.get_catalog_from_table_name.return_value = 'cata'
+
+        with patch.dict(models, {'rel_name': 'model'}, clear=True):
+            result = _extract_relation_model(mock_src_obj, mock_dst_obj, 'rel')
+
+            mock_get_relation_name.assert_called_with(mock_gobmodel, 'cata', 'cola', 'rel')
+
+            self.assertEqual(result, 'model')
+
+    @patch('gobapi.graphql.filters.and_')
+    @patch('gobapi.graphql.filters._extract_relation_model')
+    def test_add_relation_join_query(self, mock_extract_relation_model, mock_and):
+        class MockObject():
+            _id = 'src_id'
+            __has_states__ = False
+
+        class MockModel():
+            _id = 'src_id'
+            __has_states__ = False
+
+        class MockRelationModel():
+            src_id = 'src_id'
+            dst_id = 'not_dst_id'
+            begin_geldigheid = '2000'
+            eind_geldigheid = '2010'
+
+        mock_query = MagicMock()
+
+        src_obj = MockObject()
+        dst_model = MockModel()
+
+        mock_extract_relation_model.return_value = MockRelationModel()
+
+        result = add_relation_join_query(src_obj, dst_model, 'attribute_name', mock_query)
+
+        mock_extract_relation_model.assert_called_with(src_obj=src_obj, dst_model=dst_model, relation_name='attribute_name')
+        mock_relation_model = mock_extract_relation_model.return_value
+
+        mock_and.assert_called_with(*[True, False])
+
+        mock_query.join.assert_called_with(mock_relation_model, mock_and.return_value)
+        join_res = mock_query.join.return_value
+
+        join_res.add_columns.assert_called_with('2000', '2010')
+        add_columns_res = join_res.add_columns.return_value
+
+        self.assertEqual(result, add_columns_res)
+
+    @patch('gobapi.graphql.filters.and_')
+    @patch('gobapi.graphql.filters._extract_relation_model')
+    def test_add_relation_join_query_with_states(self, mock_extract_relation_model, mock_and):
+        class MockObject():
+            _id = 'src_id'
+            volgnummer = 'src_volgnummer'
+            __has_states__ = True
+
+        class MockModel():
+            _id = 'src_id'
+            volgnummer = 'dst_volgnummer'
+            __has_states__ = True
+
+        class MockRelationModel():
+            src_id = 'src_id'
+            dst_id = 'not_dst_id'
+
+            src_volgnummer = 'src_volgnummer'
+            dst_volgnummer = 'not_dst_volgnummer'
+
+            begin_geldigheid = '2000'
+            eind_geldigheid = '2010'
+
+        mock_query = MagicMock()
+
+        src_obj = MockObject()
+        dst_model = MockModel()
+
+        mock_extract_relation_model.return_value = MockRelationModel()
+
+        result = add_relation_join_query(src_obj, dst_model, 'attribute_name', mock_query)
+
+        mock_extract_relation_model.assert_called_with(src_obj=src_obj, dst_model=dst_model, relation_name='attribute_name')
+        mock_relation_model = mock_extract_relation_model.return_value
+
+        mock_and.assert_called_with(*[True, False, True, False])
+
+        mock_query.join.assert_called_with(mock_relation_model, mock_and.return_value)
+        join_res = mock_query.join.return_value
+
+        join_res.add_columns.assert_called_with('2000', '2010')
+        add_columns_res = join_res.add_columns.return_value
+
+        self.assertEqual(result, add_columns_res)
