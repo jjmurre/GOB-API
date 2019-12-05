@@ -4,7 +4,7 @@ from flask import request
 
 _AUTH_PATTERN = '^X-Auth-'
 REQUEST_USER = 'X-Auth-Userid'
-REQUEST_ROLE = 'X-Auth-Roles'
+REQUEST_ROLES = 'X-Auth-Roles'
 
 
 def secure_route(rule, func):
@@ -17,7 +17,7 @@ def secure_route(rule, func):
     :return:
     """
     def wrapper(*args, **kwargs):
-        if request.headers.get(REQUEST_USER) and request.headers.get(REQUEST_ROLE):
+        if request.headers.get(REQUEST_USER) and request.headers.get(REQUEST_ROLES):
             return func(*args, **kwargs)
         else:
             # This should normally never happen because the endpoint is protected by gatekeeper

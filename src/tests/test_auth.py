@@ -2,7 +2,7 @@ from unittest import TestCase, mock
 from unittest.mock import patch, MagicMock
 
 from gobapi.auth import secure_route, public_route
-from gobapi.auth import REQUEST_USER, REQUEST_ROLE
+from gobapi.auth import REQUEST_USER, REQUEST_ROLES
 
 
 class TestAuth(TestCase):
@@ -24,14 +24,14 @@ class TestAuth(TestCase):
         self.assertEqual(result, (mock.ANY, 403))
 
         mock_request.headers = {
-            REQUEST_ROLE: "any role"
+            REQUEST_ROLES: "any role"
         }
         result = wrapped_func()
         self.assertEqual(result, (mock.ANY, 403))
 
         mock_request.headers = {
             REQUEST_USER: "any user",
-            REQUEST_ROLE: "any role"
+            REQUEST_ROLES: "any role"
         }
         result = wrapped_func()
         self.assertEqual(result, "Any result")
@@ -53,14 +53,14 @@ class TestAuth(TestCase):
         self.assertEqual(result, (mock.ANY, 400))
 
         mock_request.headers = {
-            REQUEST_ROLE: "any role"
+            REQUEST_ROLES: "any role"
         }
         result = wrapped_func()
         self.assertEqual(result, (mock.ANY, 400))
 
         mock_request.headers = {
             REQUEST_USER: "any user",
-            REQUEST_ROLE: "any role"
+            REQUEST_ROLES: "any role"
         }
         result = wrapped_func()
         self.assertEqual(result, (mock.ANY, 400))

@@ -12,7 +12,7 @@ The API can be started by get_app().run()
 import json
 
 from flask_graphql import GraphQLView
-from flask import Flask, request, Response
+from flask import Flask, request, Response, stream_with_context
 from flask_cors import CORS
 
 from gobcore.model import GOBModel
@@ -194,7 +194,8 @@ def _dump(catalog_name, collection_name):
         content_type = request.content_type
         if content_type == 'application/json':
             config = json.loads(request.data)
-            return Response(dump_to_db(catalog_name, collection_name, config), mimetype='text/plain')
+            result = stream_with_context(dump_to_db(catalog_name, collection_name, config))
+            return Response(result, mimetype='text/plain')
         else:
             return f"Unrecognised content type '{content_type}'", 400
 

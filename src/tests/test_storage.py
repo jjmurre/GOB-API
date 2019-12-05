@@ -12,6 +12,7 @@ import sqlalchemy_filters
 from unittest import mock, TestCase
 
 from gobapi.storage import _get_convert_for_state, filter_deleted, connect, _format_reference, _get_table
+from gobapi.auth_query import AuthorizedQuery
 from gobcore.model.metadata import FIELD
 
 class MockEntity:
@@ -99,6 +100,12 @@ class MockEntities:
         return self
 
     def join(self, *args):
+        return self
+
+    def yield_per(self, *args):
+        return self
+
+    def set_catalog_collection(self, *args):
         return self
 
 
@@ -594,7 +601,7 @@ class TestStorage(TestCase):
 
         # Autocommit should always be set to True, to avoid problems with auto-creation of transactions that block
         # other processes.
-        mock_sessionmaker.assert_called_with(autocommit=True, autoflush=False, bind=mock_create_engine.return_value)
+        mock_sessionmaker.assert_called_with(autocommit=True, autoflush=False, bind=mock_create_engine.return_value, query_cls=AuthorizedQuery)
 
     def test_format_reference(self):
         reference = {

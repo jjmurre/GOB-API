@@ -35,6 +35,9 @@ class MockSession:
     def query(self, any_query):
         return self
 
+    def set_catalog_collection(self, *args):
+        return self
+
     def yield_per(self, n):
         return "any table"
 
@@ -426,6 +429,7 @@ class TestDumpApi(TestCase):
     @patch('gobapi.api.dump_to_db')
     @patch('gobapi.api.json')
     @patch('gobapi.api.request')
+    @patch('gobapi.api.stream_with_context', lambda f: f)
     def test_dump_db(self, mock_request, mock_json, mock_dump):
         mock_request.method = 'POST'
         mock_request.content_type = 'application/json'
