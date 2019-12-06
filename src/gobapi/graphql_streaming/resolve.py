@@ -5,6 +5,7 @@ from gobcore.secure.user import User
 from gobcore.typesystem import GOB_SECURE_TYPES, get_gob_type
 
 from gobapi.graphql_streaming.utils import to_snake, to_camelcase
+from gobapi.auth_query import Authority
 
 CATALOG_NAME = "_catalog"
 COLLECTION_NAME = "_collection"
@@ -74,6 +75,11 @@ class Resolver:
         catalog_name = row.get(CATALOG_NAME)
         collection_name = row.get(COLLECTION_NAME)
         self._init_catalog_collection(catalog_name, collection_name)
+
+        authority = Authority(catalog_name, collection_name)
+        authority.filter_row(row)
+        authority.filter_row(result)
+
         for attr, value in row.items():
             gob_type = self._attributes[catalog_name][collection_name].get(attr)
             if gob_type:

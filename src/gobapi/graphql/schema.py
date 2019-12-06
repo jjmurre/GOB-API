@@ -22,9 +22,11 @@ from gobcore.typesystem import GOB_SECURE_TYPES, get_gob_type
 from gobapi.response import _to_camelcase
 from gobapi.graphql import graphene_type, exclude_fields
 from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute, get_resolve_secure_attribute, \
-    get_resolve_inverse_attribute, get_resolve_attribute_missing_relation, \
+    get_resolve_inverse_attribute, get_resolve_attribute_missing_relation, get_resolve_auth_attribute, \
     START_VALIDITY_RELATION, END_VALIDITY_RELATION
 from gobapi.graphql.scalars import DateTime, GeoJSON
+from gobapi.auth_query import Authority
+
 
 # Use the GOB model to generate the GraphQL query
 model = GOBModel()
@@ -60,6 +62,11 @@ def get_collection_secure_attributes(collection):
 
     attrs = collection["attributes"]
     return {key: value for key, value in attrs.items() if value["type"] in SEC_TYPES}
+
+
+def get_collection_auth_attributes(catalog_name, collection_name):
+    authority = Authority(catalog_name, collection_name)
+    return authority.get_checked_columns().keys()
 
 
 def _get_sorted_references(model):
@@ -192,6 +199,12 @@ def get_graphene_query():
             **get_missing_relation_resolvers(missing_rels),
             **{rel: graphene.JSONString for rel in missing_rels},
         }
+
+        for attr in get_collection_auth_attributes(catalog_name, collection_name):
+            resolve_attr = f"resolve_{attr}"
+            resolve = object_type_fields.get(resolve_attr)
+            object_type_fields[resolve_attr] = get_resolve_auth_attribute(catalog_name, collection_name, attr, resolve)
+
         meta = type("Meta", (), {
             "model": base_model,
             "exclude_fields": exclude_fields,

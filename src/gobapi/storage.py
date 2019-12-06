@@ -361,6 +361,8 @@ def query_entities(catalog, collection, view):
     table, model = _get_table_and_model(catalog, collection, view)
 
     query = session.query(table)
+    query.set_catalog_collection(catalog, collection)
+
     # Exclude all records with date_deleted
     all_entities = filter_deleted(query, table)
 
@@ -477,6 +479,8 @@ def get_entity(catalog, collection, id, view=None):
     table, model = _get_table_and_model(catalog, collection, view)
 
     query = session.query(table).filter_by(**filter)
+    query.set_catalog_collection(catalog, collection)
+
     # Exclude all records with date_deleted
     entity = filter_deleted(query, table)
 

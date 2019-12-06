@@ -185,7 +185,8 @@ def _dump(catalog_name, collection_name):
         entities, model = dump_entities(catalog_name, collection_name)
 
         if format == "csv":
-            return Response(csv_entities(entities, model), mimetype='text/csv')
+            result = stream_with_context(csv_entities(entities, model))
+            return Response(result, mimetype='text/csv')
         elif format == "sql":
             return Response(sql_entities(catalog_name, collection_name, model), mimetype='application/sql')
         else:
@@ -227,10 +228,12 @@ def _collection(catalog_name, collection_name):
 
         if stream:
             entities, convert = query_entities(catalog_name, collection_name, view_name)
-            return Response(stream_entities(entities, convert), mimetype='application/json')
+            result = stream_with_context(stream_entities(entities, convert))
+            return Response(result, mimetype='application/json')
         elif ndjson:
             entities, convert = query_entities(catalog_name, collection_name, view_name)
-            return Response(ndjson_entities(entities, convert), mimetype='application/x-ndjson')
+            result = stream_with_context(ndjson_entities(entities, convert))
+            return Response(result, mimetype='application/x-ndjson')
         else:
             result, links = _entities(catalog_name, collection_name, page, page_size, view_name)
             return hal_response(data=result, links=links)

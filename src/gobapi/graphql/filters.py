@@ -16,6 +16,7 @@ from gobcore.model.sa.gob import models, Base
 from gobapi import serialize
 from gobapi.response import _to_camelcase
 from gobapi.storage import filter_active, filter_deleted
+from gobapi.auth_query import Authority
 
 from typing import List
 
@@ -88,6 +89,18 @@ def get_resolve_secure_attribute(name, GOBType):
         return serialize.secure_value(GOBType(value))
 
     return resolve_attribute
+
+
+def get_resolve_auth_attribute(catalog_name, collection_name, attr, resolver):
+
+    def authorize_attribute(obj, info, **kwargs):
+        if attr in authority.get_suppressed_columns():
+            setattr(obj, attr, None)
+        value = getattr(obj, attr)
+        return resolver(obj, info, **kwargs) if resolver and value else value
+
+    authority = Authority(catalog_name, collection_name)
+    return authorize_attribute
 
 
 def get_resolve_attribute_missing_relation(field_name):
