@@ -89,7 +89,12 @@ class AuthorizedQuery(Query):
         After delattr(), hasattr() still returns true
         However, executing delattr() twice results in an error
         """
-        suppressed_columns = self._authority.get_suppressed_columns()
+        if self._authority:
+            suppressed_columns = self._authority.get_suppressed_columns()
+        else:
+            print("UNAUTHORIZED ACCESS DETECTED")
+            suppressed_columns = []
+
         for entity in super().__iter__():
             if suppressed_columns:
                 self.set_suppressed_columns(entity, suppressed_columns)

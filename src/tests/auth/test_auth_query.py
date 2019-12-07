@@ -104,6 +104,14 @@ class TestAuthorizedQueryIter(TestCase):
         # Do not fail on set suppressed columns
         q.set_suppressed_columns(None, ["a"])
 
+    @patch("gobapi.auth.auth_query.super")
+    def test_iter_unauthorized(self, mock_super):
+        mock_super.return_value = iter([MockEntity(), MockEntity()])
+        q = AuthorizedQuery()
+        for result in q:
+            for attr in ["a", "b", "c"]:
+                self.assertTrue(hasattr(result, attr))
+
 
 class TestAuthority(TestCase):
 
