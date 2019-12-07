@@ -5,6 +5,7 @@ Dumps of catalog collections in sql format
 """
 from gobcore.model import GOBModel
 
+from gobapi.auth.auth_query import Authority
 from gobapi.dump.config import DELIMITER_CHAR
 from gobapi.dump.config import UNIQUE_ID, REFERENCE_TYPES, get_reference_fields
 from gobapi.dump.config import SQL_TYPE_CONVERSIONS, SQL_QUOTATION_MARK
@@ -99,6 +100,12 @@ CREATE INDEX {collection_name}_{field} ON {table} USING {method} ({field})
 """
 
 
+def _autorized_order(order, catalog_name, collection_name):
+    authority = Authority(catalog_name, collection_name)
+    suppress_columns = authority.get_suppressed_columns()
+    return [o for o in order if o not in suppress_columns]
+
+
 def _create_table(schema, catalog_name, collection_name, model):
     """
     Returns a SQL statement to create a table in a schema
@@ -110,7 +117,7 @@ def _create_table(schema, catalog_name, collection_name, model):
     :return:
     """
     specs = get_field_specifications(model)
-    order = get_field_order(model)
+    order = _autorized_order(get_field_order(model), catalog_name, collection_name)
     catalog = GOBModel().get_catalog(catalog_name)
     catalog_description = quote_sql_string(catalog['description'])
     fields = []

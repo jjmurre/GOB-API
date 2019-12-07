@@ -189,9 +189,10 @@ class TestSQL(TestCase):
 
     @patch('gobapi.dump.sql.GOBModel', MagicMock())
     @patch('gobapi.dump.sql.get_reference_fields', lambda x: dump.config.REFERENCE_FIELDS)
+    @patch('gobapi.dump.sql.Authority')
     @patch('gobapi.dump.sql.get_field_order')
     @patch('gobapi.dump.sql.get_field_specifications')
-    def test_create_table(self, mock_specs, mock_order):
+    def test_create_table(self, mock_specs, mock_order, mock_authority):
         catalogue = {
             'description': "Any 'catalogue' description"
         }
@@ -209,6 +210,7 @@ class TestSQL(TestCase):
         result = dump.sql._create_table(catalogue, 'any_schema', 'any_table', {})
         self.assertTrue("\"a\" character varying" in result)
         self.assertTrue("Any ''a'' description" in result)
+        mock_authority.assert_called()
 
         mock_specs.return_value = {
             'a': {
@@ -237,6 +239,7 @@ class TestSQL(TestCase):
         result = dump.sql._import_csv('any_schema', 'any_collection', 'any_collection.csv')
         self.assertTrue("\COPY \"any_schema\".\"any_collection\" FROM 'any_collection.csv'" in result)
 
+    @patch('gobapi.dump.sql.Authority', MagicMock())
     @patch('gobapi.dump.sql.GOBModel', MagicMock())
     @patch('gobapi.dump.sql.get_field_order', MagicMock())
     @patch('gobapi.dump.sql.get_field_specifications')

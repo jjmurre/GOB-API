@@ -1,4 +1,5 @@
-from flask import request, Response
+from flask import request, Response, stream_with_context
+
 from gobapi.session import get_session
 from sqlalchemy.sql import text
 
@@ -291,7 +292,7 @@ class GraphQLStreamingApi():
         session = get_session()
         result_rows = session.execute(text(sql))
 
-        response_builder = GraphQLStreamingResponseBuilder(result_rows, graphql2sql.relations_hierarchy,
-                                                           graphql2sql.selections)
+        response_builder = stream_with_context(
+            GraphQLStreamingResponseBuilder(result_rows, graphql2sql.relations_hierarchy, graphql2sql.selections))
 
         return Response(response_builder, mimetype='application/x-ndjson')
