@@ -11,15 +11,19 @@ class TestResolve(unittest.TestCase):
         self.assertIsNotNone(resolver._user)
         self.assertEqual(resolver._attributes, {})
 
+    @mock.patch('gobapi.graphql_streaming.resolve.Authority')
     @mock.patch('gobapi.graphql_streaming.resolve.GOBModel')
     @mock.patch('gobapi.graphql_streaming.resolve.get_gob_type')
     @mock.patch('gobapi.graphql_streaming.resolve._SEC_TYPES', ['GOB.SecureString', 'GOB.SecureDateTime'])
-    def testResolverWithAttributes(self, mock_get_gob_type, mock_model_class):
+    def testResolverWithAttributes(self, mock_get_gob_type, mock_model_class, mock_authority_class):
         mock_model = mock.MagicMock()
         mock_model_class.return_value = mock_model
 
         mock_gob_type = mock.MagicMock()
         mock_get_gob_type.return_value = mock_gob_type
+
+        mock_authority = mock.MagicMock()
+        mock_authority_class.return_value = mock_authority
 
         collection = {
             'attributes': {
@@ -52,6 +56,8 @@ class TestResolve(unittest.TestCase):
         }
         result = {}
         resolver.resolve_row(row, result)
+        mock_authority_class.assert_called_with('cat', 'col')
+        self.assertEqual(mock_authority.filter_row.call_count, 2)  # for row and for result
         mock_model.get_collection.assert_called_with('cat', 'col')
         self.assertEqual(resolver._attributes, {
             'cat': {

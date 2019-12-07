@@ -392,6 +392,7 @@ class TestCSV(TestCase):
         self.assertEqual(results, ['"a";"b";"ref"\n', '"a";5;"a"\n', '"a";5;"a"\n'])
 
 
+@patch('gobapi.api.stream_with_context', lambda f: f)
 class TestDumpApi(TestCase):
 
     @patch('gobapi.api.dump_entities', lambda cat, col: ([], {}))

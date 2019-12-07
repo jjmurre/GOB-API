@@ -41,6 +41,7 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
         self.relations_hierarchy = relations_hierarchy
         self.selections = selections or {}
         self.instance = GraphQLStreamingResponseBuilder(rows, relations_hierarchy, self.selections)
+        self.instance._resolver = MagicMock()
         return self.instance
 
     def test_init(self):
@@ -481,6 +482,7 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
                 'b': 5
             }
         }, result)
+        self.assertEqual(builder._resolver.resolve_row.call_count, 2)  # resolve row and resolve result
 
         self.assertEqual(2, builder._add_sourcevalues_to_row.call_count)
         builder._add_row_to_entity.assert_has_calls([

@@ -39,52 +39,53 @@ class TestAuthorizedQuery(TestCase):
 
     def test_create(self):
         q = AuthorizedQuery()
-        self.assertIsNone(q._catalog)
-        self.assertIsNone(q._collection)
-        self.assertEqual(q._auth_scheme, GOB_AUTH_SCHEME)
+        self.assertIsNone(q._authority)
 
     def test_set_catalog_collection(self):
         q = AuthorizedQuery()
         q.set_catalog_collection("any catalog", "any collection")
-        self.assertEqual(q._catalog, "any catalog")
-        self.assertEqual(q._collection, "any collection")
+        self.assertEqual(q._authority._catalog, "any catalog")
+        self.assertEqual(q._authority._collection, "any collection")
+        self.assertEqual(q._authority._auth_scheme, GOB_AUTH_SCHEME)
 
     @patch("gobapi.auth_query.request", mock_request)
     def test_get_roles(self):
         q = AuthorizedQuery()
+        q.set_catalog_collection('cat', 'col')
 
         mock_request.headers = {
             REQUEST_ROLES: "any roles"
         }
-        roles = q.get_roles()
+        roles = q._authority.get_roles()
         self.assertEqual(roles, ["any roles"])
 
         mock_request.headers = {}
-        roles = q.get_roles()
+        roles = q._authority.get_roles()
         self.assertEqual(roles, [])
 
         delattr(mock_request, 'headers')
-        roles = q.get_roles()
+        roles = q._authority.get_roles()
         self.assertEqual(roles, [])
 
+    @patch("gobapi.auth_query.request", mock_request)
     @patch("gobapi.auth_query.GOB_AUTH_SCHEME", mock_scheme)
     def test_get_suppressed_columns(self):
         q = AuthorizedQuery()
         q.set_catalog_collection("any catalog", "any collection")
-        q.get_roles = lambda : [role_a]
-        self.assertEqual(q.get_suppressed_columns(), [])
-        q.get_roles = lambda : [role_b]
-        self.assertEqual(q.get_suppressed_columns(), [])
-        q.get_roles = lambda : [role_c]
-        self.assertEqual(q.get_suppressed_columns(), ['any attribute'])
+        q._authority.get_roles = lambda : [role_a]
+        self.assertEqual(q._authority.get_suppressed_columns(), [])
+        q._authority.get_roles = lambda : [role_b]
+        self.assertEqual(q._authority.get_suppressed_columns(), [])
+        q._authority.get_roles = lambda : [role_c]
+        self.assertEqual(q._authority.get_suppressed_columns(), ['any attribute'])
 
-        q.get_roles = lambda : [role_a]
+        q._authority.get_roles = lambda : [role_a]
 
         q.set_catalog_collection("some other catalog", "any collection")
-        self.assertEqual(q.get_suppressed_columns(), [])
+        self.assertEqual(q._authority.get_suppressed_columns(), [])
 
         q.set_catalog_collection("any catalog", "some other collection")
-        self.assertEqual(q.get_suppressed_columns(), [])
+        self.assertEqual(q._authority.get_suppressed_columns(), [])
 
 class TestAuthorizedQueryIter(TestCase):
 
@@ -92,7 +93,8 @@ class TestAuthorizedQueryIter(TestCase):
     def test_iter(self, mock_super):
         mock_super.return_value = iter([MockEntity(), MockEntity()])
         q = AuthorizedQuery()
-        q.get_suppressed_columns = lambda: ["a", "b", "some other col"]
+        q._authority = mock.MagicMock()
+        q._authority.get_suppressed_columns = lambda: ["a", "b", "some other col"]
         for result in q:
             self.assertFalse(hasattr(result, "a"))
             self.assertFalse(hasattr(result, "b"))
