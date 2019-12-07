@@ -1,4 +1,4 @@
-GOB_ADMIN = "gob_adm"
+from gobapi.auth.config import GOB_ADMIN
 
 GOB_AUTH_SCHEME = {
     "test_catalogue": {

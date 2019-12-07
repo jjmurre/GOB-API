@@ -25,7 +25,7 @@ from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute,
     get_resolve_inverse_attribute, get_resolve_attribute_missing_relation, get_resolve_auth_attribute, \
     START_VALIDITY_RELATION, END_VALIDITY_RELATION
 from gobapi.graphql.scalars import DateTime, GeoJSON
-from gobapi.auth_query import Authority
+from gobapi.auth.auth_query import Authority
 
 
 # Use the GOB model to generate the GraphQL query

@@ -1,7 +1,7 @@
 from unittest import TestCase, mock
 from unittest.mock import patch, MagicMock
 
-from gobapi.auth_query import AuthorizedQuery, GOB_AUTH_SCHEME, REQUEST_ROLES
+from gobapi.auth.auth_query import Authority, AuthorizedQuery, GOB_AUTH_SCHEME, REQUEST_ROLES
 
 role_a = "a"
 role_b = "b"
@@ -34,7 +34,7 @@ class MockRequest():
 
 mock_request = MockRequest()
 
-@patch("gobapi.auth_query.super", MagicMock)
+@patch("gobapi.auth.auth_query.super", MagicMock)
 class TestAuthorizedQuery(TestCase):
 
     def test_create(self):
@@ -48,7 +48,7 @@ class TestAuthorizedQuery(TestCase):
         self.assertEqual(q._authority._collection, "any collection")
         self.assertEqual(q._authority._auth_scheme, GOB_AUTH_SCHEME)
 
-    @patch("gobapi.auth_query.request", mock_request)
+    @patch("gobapi.auth.auth_query.request", mock_request)
     def test_get_roles(self):
         q = AuthorizedQuery()
         q.set_catalog_collection('cat', 'col')
@@ -67,8 +67,8 @@ class TestAuthorizedQuery(TestCase):
         roles = q._authority.get_roles()
         self.assertEqual(roles, [])
 
-    @patch("gobapi.auth_query.request", mock_request)
-    @patch("gobapi.auth_query.GOB_AUTH_SCHEME", mock_scheme)
+    @patch("gobapi.auth.auth_query.request", mock_request)
+    @patch("gobapi.auth.auth_query.GOB_AUTH_SCHEME", mock_scheme)
     def test_get_suppressed_columns(self):
         q = AuthorizedQuery()
         q.set_catalog_collection("any catalog", "any collection")
@@ -89,7 +89,7 @@ class TestAuthorizedQuery(TestCase):
 
 class TestAuthorizedQueryIter(TestCase):
 
-    @patch("gobapi.auth_query.super")
+    @patch("gobapi.auth.auth_query.super")
     def test_iter(self, mock_super):
         mock_super.return_value = iter([MockEntity(), MockEntity()])
         q = AuthorizedQuery()
@@ -105,3 +105,18 @@ class TestAuthorizedQueryIter(TestCase):
         q.set_suppressed_columns(None, ["a"])
 
 
+class TestAuthority(TestCase):
+
+    def test_create(self):
+        authority = Authority('cat', 'col')
+        self.assertEqual(authority._catalog, 'cat')
+        self.assertEqual(authority._collection, 'col')
+        self.assertEqual(authority._auth_scheme, GOB_AUTH_SCHEME)
+
+    @patch("gobapi.auth.auth_query.request", mock_request)
+    def test_filter_row(self):
+        authority = Authority('cat', 'col')
+        authority.get_suppressed_columns = lambda: ['b', 'd']
+        row = {'a': 1, 'b': 2, 'c': 3}
+        authority.filter_row(row)
+        self.assertEqual(row, {'a': 1, 'c': 3})

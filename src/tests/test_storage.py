@@ -12,7 +12,7 @@ import sqlalchemy_filters
 from unittest import mock, TestCase
 
 from gobapi.storage import _get_convert_for_state, filter_deleted, connect, _format_reference, _get_table
-from gobapi.auth_query import AuthorizedQuery
+from gobapi.auth.auth_query import AuthorizedQuery
 from gobcore.model.metadata import FIELD
 
 class MockEntity:

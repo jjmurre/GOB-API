@@ -23,7 +23,7 @@ from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXE
 
 from gobapi.config import GOB_DB, API_BASE_PATH
 from gobapi.session import set_session, get_session
-from gobapi.auth_query import AuthorizedQuery, SUPPRESSED_COLUMNS
+from gobapi.auth.auth_query import AuthorizedQuery, SUPPRESSED_COLUMNS
 
 session = None
 _Base = None

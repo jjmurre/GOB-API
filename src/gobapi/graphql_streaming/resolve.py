@@ -5,7 +5,7 @@ from gobcore.secure.user import User
 from gobcore.typesystem import GOB_SECURE_TYPES, get_gob_type
 
 from gobapi.graphql_streaming.utils import to_snake, to_camelcase
-from gobapi.auth_query import Authority
+from gobapi.auth.auth_query import Authority
 
 CATALOG_NAME = "_catalog"
 COLLECTION_NAME = "_collection"

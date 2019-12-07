@@ -16,7 +16,7 @@ from gobcore.model.sa.gob import models, Base
 from gobapi import serialize
 from gobapi.response import _to_camelcase
 from gobapi.storage import filter_active, filter_deleted
-from gobapi.auth_query import Authority
+from gobapi.auth.auth_query import Authority
 
 from typing import List
 

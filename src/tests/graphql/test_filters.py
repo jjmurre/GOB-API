@@ -7,7 +7,7 @@ from sqlalchemy.sql.elements import AsBoolean
 from graphene_sqlalchemy import SQLAlchemyConnectionField
 from gobcore.typesystem.gob_secure_types import SecureString
 from gobcore.model.sa.gob import models, Base
-from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute, \
+from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute, get_resolve_auth_attribute, \
     get_resolve_secure_attribute, get_resolve_inverse_attribute, \
     get_resolve_attribute_missing_relation, add_bronwaardes_to_results, gobmodel, _extract_tuples, models, \
     get_fields_in_query, flatten_join_query_result, _extract_relation_model, add_relation_join_query
@@ -209,7 +209,6 @@ def test_resolve_secure_attribute(monkeypatch):
 
     r = get_resolve_secure_attribute("field", SecureString)
     assert (r(m, None, field=1) == "**********")
-
 
 class TestFilters(TestCase):
 
@@ -570,3 +569,30 @@ class TestFilters(TestCase):
         add_columns_res = join_res.add_columns.return_value
 
         self.assertEqual(result, add_columns_res)
+
+    @patch('gobapi.graphql.filters.Authority')
+    def test_resolve_auth_attribute(self, mock_authority_class):
+        mock_authority = MagicMock()
+        mock_authority_class.return_value = mock_authority
+
+        org_resolver = lambda obj, info, **kwargs: "Original resolver"
+        mock_authority.get_suppressed_columns = lambda: ['b']
+
+        class MockObject():
+
+            def __init__(self):
+                self.a = 'a'
+                self.b = 'b'
+                self.c = 'c'
+
+        resolver = get_resolve_auth_attribute('cat', 'col', 'b', org_resolver)
+        obj = MockObject()
+        self.assertEqual(resolver(obj, None), None)
+
+        resolver = get_resolve_auth_attribute('cat', 'col', 'a', org_resolver)
+        obj = MockObject()
+        self.assertEqual(resolver(obj, None), "Original resolver")
+
+        resolver = get_resolve_auth_attribute('cat', 'col', 'c', None)
+        obj = MockObject()
+        self.assertEqual(resolver(obj, None), "c")

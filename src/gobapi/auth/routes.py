@@ -2,9 +2,7 @@ import re
 
 from flask import request
 
-_AUTH_PATTERN = '^X-Auth-'
-REQUEST_USER = 'X-Auth-Userid'
-REQUEST_ROLES = 'X-Auth-Roles'
+from gobapi.auth.config import AUTH_PATTERN, REQUEST_ROLES, REQUEST_USER
 
 
 def secure_route(rule, func):
@@ -37,7 +35,7 @@ def _secure_headers_detected(rule, *args, **kwargs):
     :return:
     """
     for header, value in request.headers.items():
-        if re.match(_AUTH_PATTERN, header):
+        if re.match(AUTH_PATTERN, header):
             return True
     return False
 

@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Query
 from flask import request
 
-from gobapi.auth import REQUEST_ROLES
-from gobapi.auth_schemes import GOB_AUTH_SCHEME
+from gobapi.auth.config import REQUEST_ROLES
+from gobapi.auth.schemes import GOB_AUTH_SCHEME
 
 SUPPRESSED_COLUMNS = "_suppressed_columns"
 

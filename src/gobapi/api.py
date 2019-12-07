@@ -23,7 +23,7 @@ from gobapi.response import hal_response, not_found, get_page_ref, ndjson_entiti
 from gobapi.dump.csv import csv_entities
 from gobapi.dump.sql import sql_entities
 from gobapi.dump.to_db import dump_to_db
-from gobapi.auth import secure_route, public_route
+from gobapi.auth.routes import secure_route, public_route
 
 from gobapi.states import get_states
 from gobapi.storage import connect, get_entities, get_entity, query_entities, dump_entities, query_reference_entities
