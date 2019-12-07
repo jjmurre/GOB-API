@@ -8,7 +8,6 @@ class TestResolve(unittest.TestCase):
     def testResolver(self):
         resolver = Resolver()
         self.assertIsNotNone(resolver)
-        self.assertIsNotNone(resolver._user)
         self.assertEqual(resolver._attributes, {})
 
     @mock.patch('gobapi.graphql_streaming.resolve.Authority')
@@ -44,8 +43,9 @@ class TestResolve(unittest.TestCase):
         resolver = Resolver()
 
         mock_gob_value = mock.MagicMock()
-        mock_gob_value.get_value = lambda u: "resolved value"
+        mock_gob_value.get_value = lambda: "resolved value"
         mock_gob_type.from_value.return_value = mock_gob_value
+        mock_authority.get_secured_value.return_value = mock_gob_value.get_value()
         row = {
             '_catalog': 'cat',
             '_collection': 'col',

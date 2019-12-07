@@ -1,6 +1,8 @@
 from sqlalchemy.orm import Query
 from flask import request
 
+from gobcore.secure.user import User
+
 from gobapi.auth.config import REQUEST_ROLES
 from gobapi.auth.schemes import GOB_AUTH_SCHEME
 
@@ -57,6 +59,10 @@ class Authority():
                 except KeyError:
                     pass
         return row
+
+    def get_secured_value(self, sec_type):
+        user = User(request)
+        return sec_type.get_value(user)
 
 
 class AuthorizedQuery(Query):
