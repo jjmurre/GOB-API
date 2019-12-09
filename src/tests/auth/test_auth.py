@@ -2,7 +2,7 @@ from unittest import TestCase, mock
 from unittest.mock import patch, MagicMock
 
 from gobapi.auth.routes import secure_route, public_route
-from gobapi.auth.config import REQUEST_USER, REQUEST_ROLES
+from gobcore.secure.config import REQUEST_USER, REQUEST_ROLES
 
 
 class TestAuth(TestCase):

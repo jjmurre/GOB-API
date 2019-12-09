@@ -2,7 +2,7 @@ import re
 
 from flask import request
 
-from gobapi.auth.config import AUTH_PATTERN, REQUEST_ROLES, REQUEST_USER
+from gobcore.secure.config import AUTH_PATTERN, REQUEST_ROLES, REQUEST_USER
 
 
 def secure_route(rule, func):

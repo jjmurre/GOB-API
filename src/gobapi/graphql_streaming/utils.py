@@ -1,5 +1,7 @@
 import re
 
+from gobcore.model import GOBModel
+
 
 def to_snake(camel: str):
     """
@@ -28,3 +30,22 @@ def to_camelcase(s):
 
     _RE_TO_CAMELCASE = re.compile(r'(?!^)_([a-zA-Z])')
     return re.sub(_RE_TO_CAMELCASE, _camelcase_converter, s)
+
+
+def resolve_schema_collection_name(schema_collection_name: str):
+    """
+    Resolve catalog and collection from schema collection name
+
+    :param schema_collection_name:
+    :return:
+    """
+    model = GOBModel()
+    names = to_snake(schema_collection_name).split('_')
+    for n in range(1, len(names)):
+        catalog_name = '_'.join(names[:-n])
+        collection_name = '_'.join(names[-n:])
+        catalog = model.get_catalog(catalog_name)
+        collection = model.get_collection(catalog_name, collection_name)
+        if catalog and collection:
+            return catalog_name, collection_name
+    return None, None

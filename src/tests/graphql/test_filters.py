@@ -56,6 +56,9 @@ class Query():
     def subquery(self):
         return self
 
+    def set_catalog_collection(self, cat, col):
+        return self
+
     def join(self, table, on):
         if isinstance(on, AsBoolean):
             self.expr = self.expr + "And"
@@ -192,25 +195,18 @@ def test_add_bronwaardes_to_results(monkeypatch):
     assert getattr(res[2], 'property') is None
 
 
-def test_resolve_secure_attribute(monkeypatch):
-    monkeypatch.setattr(SQLAlchemyConnectionField, "get_query", lambda m, i, **kwargs: Query())
-    monkeypatch.setattr(storage, "session", Session())
-    monkeypatch.setattr(gobapi.graphql.filters, "add_bronwaardes_to_results", lambda s, o, res: res)
-
-    # Setup the relation model
-    rel = Model("src_id", "1")
-    setattr(rel, "src_volgnummer", "1")
-
-    m = Model("field", json.dumps({
-        "i": 0,
-        "l": 0,
-        "v": "some value"
-    }))
-
-    r = get_resolve_secure_attribute("field", SecureString)
-    assert (r(m, None, field=1) == "**********")
-
 class TestFilters(TestCase):
+
+    @patch("gobapi.graphql.filters.serialize.secure_value")
+    def test_resolve_secure_attribute(self, mock_serialize_secure_value):
+        m = Model("field", json.dumps({
+            "i": 0,
+            "l": 0,
+            "v": "some value"
+        }))
+        f = get_resolve_secure_attribute("field", SecureString)
+        mock_serialize_secure_value.return_value = "serialized secure value"
+        self.assertEqual(f(m, None, field=1), "serialized secure value")
 
     def test_extract_tuples(self):
         input = [{'a': 1, 'b': 2, 'c': 3}, {'a': 4, 'b': 5, 'c': 6}, {'a': 7, 'b': 8}]

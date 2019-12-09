@@ -101,6 +101,9 @@ CREATE INDEX {collection_name}_{field} ON {table} USING {method} ({field})
 
 
 def _autorized_order(order, catalog_name, collection_name):
+    """
+    Filter the order (list of columns) on columns that are not suppressed given the current request
+    """
     authority = Authority(catalog_name, collection_name)
     suppress_columns = authority.get_suppressed_columns()
     return [o for o in order if o not in suppress_columns]

@@ -4,6 +4,7 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch, call
 
 from gobapi.graphql_streaming.graphql2sql.graphql2sql import GraphQL2SQL, SqlGenerator, GraphQLVisitor, GraphQLParser
+from gobapi.graphql_streaming.utils import to_snake
 
 
 class MockModel:
@@ -634,37 +635,14 @@ ORDER BY colb_0._gobid
             print("OUTPUT", result)
         self.assertEqual(expect, actual)
 
-    def test_graphql2sql(self, mock_model):
+    @patch("gobapi.graphql_streaming.graphql2sql.graphql2sql.resolve_schema_collection_name")
+    def test_graphql2sql(self, mock_resolve, mock_model):
         mock_model.return_value = MockModel()
+        mock_resolve.side_effect = lambda n : to_snake(n).split('_')
 
         for inp, outp in self.test_cases:
             graphql2sql = GraphQL2SQL(inp)
             self.assertResult(inp, outp, graphql2sql.sql())
-
-
-    def test_resolve_schema_collection_name(self, mock_model):
-        model = MockModel()
-        mock_model.return_value = model
-        generator = SqlGenerator(GraphQLVisitor())
-
-        model.get_catalog = lambda cat: "catalog" if cat == "catalog" else None
-        model.get_collection = lambda cat, col: "collection" if col == "collection" else None
-        result = generator._resolve_schema_collection_name("catalogCollection")
-        self.assertEqual(result, ('catalog', 'collection'))
-
-        model.get_catalog = lambda cat: None
-        result = generator._resolve_schema_collection_name("catalogCollection")
-        self.assertEqual(result, (None, None))
-
-        model.get_catalog = lambda cat: "catalog" if cat == "catalog_ext" else None
-        model.get_collection = lambda cat, col: "collection" if col == "collection" else None
-        result = generator._resolve_schema_collection_name("catalogExtCollection")
-        self.assertEqual(result, ('catalog_ext', 'collection'))
-
-        model.get_catalog = lambda cat: "catalog" if cat == "catalog" else None
-        model.get_collection = lambda cat, col: "collection" if col == "ext_collection" else None
-        result = generator._resolve_schema_collection_name("catalogExtCollection")
-        self.assertEqual(result, ('catalog', 'ext_collection'))
 
 
 class TestGraphQLVisitor(TestCase):

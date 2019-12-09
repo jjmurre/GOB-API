@@ -3,7 +3,7 @@ from flask import request
 
 from gobcore.secure.user import User
 
-from gobapi.auth.config import REQUEST_ROLES
+from gobcore.secure.config import REQUEST_ROLES
 from gobapi.auth.schemes import GOB_AUTH_SCHEME
 
 SUPPRESSED_COLUMNS = "_suppressed_columns"
@@ -51,16 +51,20 @@ class Authority():
                 if not any([role for role in roles if role in auth.get('roles', [])])]
 
     def filter_row(self, row):
+        """
+        Set all columns in the row that should be suppressed to None
+        """
         suppressed_columns = self.get_suppressed_columns()
         if suppressed_columns:
             for column in suppressed_columns:
-                try:
-                    del row[column]
-                except KeyError:
-                    pass
+                if row.get(column) is not None:
+                    row[column] = None
         return row
 
     def get_secured_value(self, sec_type):
+        """
+        Create a user for his request and use this user to retrieve the value of the secure type
+        """
         user = User(request)
         return sec_type.get_value(user)
 
@@ -92,7 +96,7 @@ class AuthorizedQuery(Query):
         if self._authority:
             suppressed_columns = self._authority.get_suppressed_columns()
         else:
-            print("UNAUTHORIZED ACCESS DETECTED")
+            print("ERROR: UNAUTHORIZED ACCESS DETECTED")
             suppressed_columns = []
 
         for entity in super().__iter__():
@@ -111,6 +115,7 @@ class AuthorizedQuery(Query):
 
     def set_suppressed_columns(self, entity, suppressed_columns):
         try:
+            # Register the suppressed columns with the entity
             setattr(entity, SUPPRESSED_COLUMNS, suppressed_columns)
         except AttributeError:
             pass

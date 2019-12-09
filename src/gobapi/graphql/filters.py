@@ -18,6 +18,8 @@ from gobapi.response import _to_camelcase
 from gobapi.storage import filter_active, filter_deleted
 from gobapi.auth.auth_query import Authority
 
+from gobapi.graphql_streaming.utils import resolve_schema_collection_name
+
 from typing import List
 
 gobmodel = GOBModel()
@@ -60,6 +62,10 @@ class FilterConnectionField(SQLAlchemyConnectionField):
         :param kwargs: the filter arguments
         :return: the query to filter model on the filter arguments
         """
+        # Assure that query results are authorised
+        catalog, collection = resolve_schema_collection_name(model.__tablename__)
+        query.set_catalog_collection(catalog, collection)
+
         # Skip the default GraphQL filters
         RELAY_ARGS = ['first', 'last', 'before', 'after', 'sort', 'active']
 
@@ -92,12 +98,16 @@ def get_resolve_secure_attribute(name, GOBType):
 
 
 def get_resolve_auth_attribute(catalog_name, collection_name, attr, resolver):
+    """Gets a resolver for an authorised attribute
+
+    """
 
     def authorize_attribute(obj, info, **kwargs):
         if attr in authority.get_suppressed_columns():
             setattr(obj, attr, None)
         value = getattr(obj, attr)
-        return resolver(obj, info, **kwargs) if resolver and value else value
+        # Call any original resolver for the given attribute or return the value
+        return resolver(obj, info, **kwargs) if resolver and value is not None else value
 
     authority = Authority(catalog_name, collection_name)
     return authorize_attribute

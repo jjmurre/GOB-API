@@ -1,5 +1,4 @@
 import re
-from datetime import datetime
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
@@ -17,17 +16,6 @@ from gobapi.dump.csv_stream import CSVStream
 STREAM_PER = 10000              # Stream per STREAM_PER lines
 COMMIT_PER = 10 * STREAM_PER    # Commit once per COMMIT_PER lines
 BUFFER_PER = 50000              # Copy read buffer size
-
-
-def _progress(msg):
-    """
-    Return the given msg as a timestamped progress message
-    """
-    if len(msg) > 1:
-        # Only timestamp message that describe something (skip ".", "\n", etc)
-        now = datetime.now()
-        msg = f"{now.strftime('%d/%m/%Y %H:%M:%S')} - {msg}"
-    return msg
 
 
 def _create_indexes(engine, schema, collection_name, model):
@@ -50,7 +38,7 @@ def _create_indexes(engine, schema, collection_name, model):
             indexes.append({'field': f"{field}_ref"})           # Foreign key index
 
     for index in indexes:
-        yield _progress(f"Create index on {index['field']}\n")
+        yield f"Create index on {index['field']}\n"
         result = engine.execute(_create_index(schema, collection_name, **index))
         result.close()
 
@@ -59,7 +47,7 @@ def _dump_to_db(schema, catalog_name, collection_name, entities, model, config):
 
     engine = config['engine']
 
-    yield _progress(f"Create schema {schema} if not exists\n")
+    yield f"Create schema {schema} if not exists\n"
     create_schema = _create_schema(schema)
     result = engine.execute(create_schema)
     result.close()
@@ -67,17 +55,16 @@ def _dump_to_db(schema, catalog_name, collection_name, entities, model, config):
     # Collect new data in temporary table
     tmp_collection_name = f"tmp_{collection_name}"
 
-    yield _progress(f"Create table {collection_name}\n")
+    yield f"Create table {collection_name}\n"
     create_table = _create_table(schema, catalog_name, tmp_collection_name, model)
     result = engine.execute(create_table)
     result.close()
 
-    yield _progress("Prepare export data\n")
     connection = engine.raw_connection()
     stream = CSVStream(csv_entities(entities, model), STREAM_PER)
 
     with connection.cursor() as cursor:
-        yield _progress(f"{collection_name}: {stream.total_count:,}")
+        yield "Export data"
         commit = COMMIT_PER
         while stream.has_items():
             stream.reset_count()
@@ -91,22 +78,20 @@ def _dump_to_db(schema, catalog_name, collection_name, entities, model, config):
                 connection.commit()
                 commit += COMMIT_PER
 
-                yield _progress("\n")
-                yield _progress(f"{collection_name}: {stream.total_count:,}")
+                yield f"\n{collection_name}: {stream.total_count:,}"
             else:
                 # Let client know we're still working.
-                yield _progress(".")
+                yield "."
 
-    yield _progress("\n")
-    yield _progress(f"Exported {stream.total_count} rows\n")
+    yield(f"\nExported {stream.total_count} rows\n")
     connection.commit()
 
-    yield _progress(f"Finalize table {collection_name}\n")
+    yield f"Finalize table {collection_name}\n"
     rename_table = _rename_table(schema, current_name=tmp_collection_name, new_name=collection_name)
     result = engine.execute(rename_table)
     result.close()
 
-    yield _progress("Create default indexes\n")
+    yield "Create default indexes\n"
     yield from _create_indexes(engine, schema, collection_name, model)
 
     connection.close()
@@ -117,7 +102,7 @@ def dump_to_db(catalog_name, collection_name, config):
     config['engine'] = engine
 
     schema = config.get("schema", catalog_name)
-    yield _progress(f"Export {catalog_name} {collection_name} in schema {schema}\n")
+    yield f"Export {catalog_name} {collection_name} in schema {schema}\n"
 
     try:
         entities, model = dump_entities(catalog_name, collection_name)
@@ -130,16 +115,16 @@ def dump_to_db(catalog_name, collection_name, config):
 
                 if not relation_name or relation_name in SKIP_RELATIONS:
                     # relation_name is None when relation does not exist (yet)
-                    yield _progress(f"Skipping {catalog_name} {collection_name} {relation}\n")
+                    yield f"Skipping {catalog_name} {collection_name} {relation}\n"
                     continue
 
-                yield _progress(f"Export {catalog_name} {collection_name} {relation}\n")
+                yield f"Export {catalog_name} {collection_name} {relation}\n"
 
                 entities, model = dump_entities("rel", relation_name)
                 yield from _dump_to_db(schema, "rel", relation_name, entities, model, config)
 
-        yield _progress("Export completed\n")
+        yield "Export completed\n"
     except Exception as e:
-        yield _progress(f"ERROR: Export failed - {str(e)}\n")
+        yield f"ERROR: Export failed - {str(e)}\n"
 
     engine.dispose()

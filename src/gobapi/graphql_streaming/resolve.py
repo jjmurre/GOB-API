@@ -72,6 +72,7 @@ class Resolver:
         collection_name = row.get(COLLECTION_NAME)
         self._init_catalog_collection(catalog_name, collection_name)
 
+        # Filter row and result for columns that do not match with the roles of the current request
         authority = Authority(catalog_name, collection_name)
         authority.filter_row(row)
         authority.filter_row(result)

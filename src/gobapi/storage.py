@@ -442,7 +442,9 @@ def get_collection_states(catalog, collection):
         .subquery()
 
     # Filter the entities to only the highest volgnummer per id + start validity combination
-    all_entities = session.query(entity)\
+    all_entities = session.query(entity)
+    all_entities.set_catalog_collection(catalog, collection)
+    all_entities = all_entities \
         .join(sub, and_(getattr(sub.c, FIELD.ID) == getattr(entity, FIELD.ID),
                         getattr(sub.c, FIELD.START_VALIDITY) == getattr(entity, FIELD.START_VALIDITY),
                         sub.c.max_seqnr == cast(getattr(entity, FIELD.SEQNR), Integer)))\

@@ -127,4 +127,14 @@ class TestAuthority(TestCase):
         authority.get_suppressed_columns = lambda: ['b', 'd']
         row = {'a': 1, 'b': 2, 'c': 3}
         authority.filter_row(row)
-        self.assertEqual(row, {'a': 1, 'c': 3})
+        self.assertEqual(row, {'a': 1, 'b': None, 'c': 3})
+
+    @patch("gobapi.auth.auth_query.request")
+    @patch("gobapi.auth.auth_query.User")
+    def test_secured_value(self, mock_user, mock_request):
+        authority = Authority('cat', 'col')
+        mock_user.return_value = "any user"
+        mock_secure_type = mock.MagicMock()
+        result = authority.get_secured_value(mock_secure_type)
+        mock_user.assert_called_with(mock_request)
+        mock_secure_type.get_value.assert_called_with("any user")

@@ -670,9 +670,7 @@ class TestToDB(TestCase):
                                                     config)]
         self.assertEqual(mock_connection.commit.call_count, 1)
         mock_connection.close.assert_called()
-        output = "".join(results)
-        self.assertTrue("Prepare export data" in output)
-        self.assertTrue("Exported " in output)
+        self.assertTrue("Export data.\nExported" in "".join(results))
 
     @patch('gobapi.dump.to_db.get_reference_fields')
     @patch('gobapi.dump.to_db.get_field_specifications')

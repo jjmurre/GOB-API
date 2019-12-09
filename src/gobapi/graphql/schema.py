@@ -65,6 +65,9 @@ def get_collection_secure_attributes(collection):
 
 
 def get_collection_auth_attributes(catalog_name, collection_name):
+    """
+    Return all attributes of the given catalog and collection that are checked for authorisation
+    """
     authority = Authority(catalog_name, collection_name)
     return authority.get_checked_columns().keys()
 
@@ -200,6 +203,7 @@ def get_graphene_query():
             **{rel: graphene.JSONString for rel in missing_rels},
         }
 
+        # Add resolver for all authorised attributes
         for attr in get_collection_auth_attributes(catalog_name, collection_name):
             resolve_attr = f"resolve_{attr}"
             resolve = object_type_fields.get(resolve_attr)
