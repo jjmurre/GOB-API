@@ -18,7 +18,7 @@ from sqlalchemy.sql import label
 from gobcore.model import GOBModel
 from gobcore.model.relations import get_relation_name
 from gobcore.model.sa.gob import Base
-from gobcore.typesystem import get_gob_type, get_gob_type_from_sql_type
+from gobcore.typesystem import get_gob_type_from_sql_type, get_gob_type_from_info
 from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS, FIELD
 
 from gobapi.config import GOB_DB, API_BASE_PATH
@@ -127,26 +127,23 @@ def _create_reference(entity, field, spec, entity_catalog=None, entity_collectio
     if embedded is not None and spec['ref'] is not None:
         catalog, collection = spec['ref'].split(':')
         if spec['type'] == 'GOB.ManyReference':
-            formatted = []
-            for reference in embedded:
-                formatted.append(_format_reference(reference, catalog, collection))
-            embedded = formatted
+            embedded = [_format_reference(reference, catalog, collection) for reference in embedded]
         else:
-            embedded = _format_reference(embedded, catalog, collection)
+            ref = _format_reference(embedded, catalog, collection)
+            gob_type = get_gob_type_from_info(spec)
+            embedded = gob_type.from_value(ref, secure=spec.get('secure'))
 
     return embedded
 
 
 def _to_gob_value(entity, field, spec):
+    entity_value = getattr(entity, field, None)
     if isinstance(spec, dict):
-        gob_type = get_gob_type(spec['type'])
+        gob_type = get_gob_type_from_info(spec)
+        return gob_type.from_value(entity_value, **spec)
     else:
         gob_type = get_gob_type_from_sql_type(spec)
-
-    entity_value = getattr(entity, field, None)
-    gob_value = gob_type.from_value(entity_value)
-
-    return gob_value
+        return gob_type.from_value(entity_value)
 
 
 def _get_convert_for_state(model, fields=[], private_attributes=False):
@@ -206,14 +203,14 @@ def _get_convert_for_model(catalog, collection, model, meta=None, private_attrib
                                         for k, v in model['very_many_references'].items()})
 
         return hal_entity
-    meta = meta or {}
+
     # Get the attributes which are not a reference, exclude private_attributes unless specifically requested
     attributes = {k: v for k, v in model['fields'].items()
-                  if k not in model['references'].keys()
-                  and (not k.startswith('_') or private_attributes)
+                  if (not k.startswith('_') or private_attributes)
                   and not v.get('hidden')}
-
-    items = list(attributes.items()) + list(meta.items())
+    attributes.update(meta or {})
+    hal_attributes = {k: v for k, v in attributes.items() if k not in model['references'].keys()}
+    items = list(hal_attributes.items())
     return convert
 
 

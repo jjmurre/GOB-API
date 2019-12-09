@@ -7,6 +7,7 @@ and the specification of the model (get_gobmodel)
 import os
 
 API_BASE_PATH = '/gob'
+API_SECURE_BASE_PATH = '/gob/secure'
 
 GOB_DB = {
     'drivername': 'postgres',

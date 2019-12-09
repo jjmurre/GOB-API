@@ -3,22 +3,28 @@
 Filters provide for a way to dynamically filter collections on field values
 
 """
+from graphql.utils.ast_to_dict import ast_to_dict
 from graphene import Boolean
 from graphene_sqlalchemy import SQLAlchemyConnectionField
-from sqlalchemy import tuple_
+from sqlalchemy import tuple_, and_
 
 from gobcore.model.metadata import FIELD
 from gobcore.model import GOBModel
-from gobcore.model.sa.gob import models
+from gobcore.model.relations import get_relation_name
+from gobcore.model.sa.gob import models, Base
 
-from gobapi.storage import filter_active, filter_deleted
 from gobapi import serialize
+from gobapi.response import _to_camelcase
+from gobapi.storage import filter_active, filter_deleted
 
 from typing import List
 
 gobmodel = GOBModel()
 
 FILTER_ON_NULL_VALUE = "null"
+
+START_VALIDITY_RELATION = "begin_geldigheid_relatie"
+END_VALIDITY_RELATION = "eind_geldigheid_relatie"
 
 
 class FilterConnectionField(SQLAlchemyConnectionField):
@@ -201,6 +207,33 @@ def _extract_tuples(lst: List[dict], attrs: tuple):
     return [t for t in tuples if len(t) == len(attrs)]  # Remove short tuples
 
 
+def _get_catalog_collection_name_from_table_name(table_name):
+    """Gets the catalog and collection name from the table name
+
+    :param table_name:
+    """
+
+    catalog_name = gobmodel.get_catalog_from_table_name(table_name)
+    collection_name = gobmodel.get_collection_from_table_name(table_name)
+
+    return catalog_name, collection_name
+
+
+def _extract_relation_model(src_obj, dst_model, relation_name):
+
+    # Get the source catalogue and collection from the source object
+    src_table_name = getattr(src_obj, '__tablename__')
+    src_catalog_name, src_collection_name = _get_catalog_collection_name_from_table_name(src_table_name)
+
+    # Get the destination catalogue and collection from the destination model
+    dst_table_name = getattr(dst_model, '__tablename__')
+    dst_catalog_name, dst_collection_name = _get_catalog_collection_name_from_table_name(dst_table_name)
+
+    relation_table_name = f"rel_{get_relation_name(gobmodel, src_catalog_name, src_collection_name, relation_name)}"
+
+    return models[relation_table_name]
+
+
 def get_resolve_attribute(model, src_attribute_name):
     """Gets an attribute resolver
 
@@ -235,14 +268,101 @@ def get_resolve_attribute(model, src_attribute_name):
         query = FilterConnectionField.get_query(model, info, **kwargs)
         if model.__has_states__:
             ids = _extract_tuples(bronwaardes, ('id', 'volgnummer'))
+
             query = query.filter(tuple_(getattr(model, FIELD.ID), getattr(model, FIELD.SEQNR)).in_(ids))
         else:
             ids = _extract_tuples(bronwaardes, ('id',))
             query = query.filter(getattr(model, FIELD.ID).in_(ids))
 
-        return add_bronwaardes_to_results(src_attribute_name, model, obj, query.all())
+        # Extract the requested fields in the reference
+        query_fields = get_fields_in_query(info)
+
+        # Check if a relation field is requested and we need to join the relation table
+        join_relation = any([i in query_fields for i in [
+                            _to_camelcase(START_VALIDITY_RELATION),
+                            _to_camelcase(END_VALIDITY_RELATION)]])
+
+        if join_relation:
+            query = add_relation_join_query(obj, model, src_attribute_name, query)
+
+        results = [flatten_join_query_result(result) if join_relation else result for result in query.all()]
+
+        return add_bronwaardes_to_results(src_attribute_name, model, obj, results)
 
     return resolve_attribute
+
+
+def add_relation_join_query(obj, model, src_attribute_name, query):
+
+    relation_model = _extract_relation_model(src_obj=obj, dst_model=model, relation_name=src_attribute_name)
+
+    relation_join_args = [
+        getattr(obj, FIELD.ID) == getattr(relation_model, 'src_id'),
+        getattr(model, FIELD.ID) == getattr(relation_model, 'dst_id')
+    ]
+
+    if obj.__has_states__:
+        relation_join_args.append(getattr(obj, FIELD.SEQNR) == getattr(relation_model, 'src_volgnummer'))
+
+    if model.__has_states__:
+        relation_join_args.append(getattr(model, FIELD.SEQNR) == getattr(relation_model, 'dst_volgnummer'))
+
+    # Add the relationship table join and query the relation fields
+    query = query.join(relation_model, and_(*relation_join_args)) \
+                 .add_columns(getattr(relation_model, FIELD.START_VALIDITY),
+                              getattr(relation_model, FIELD.END_VALIDITY))
+
+    return query
+
+
+def get_fields_in_query(info):
+    """Gets the fields in a GraphQL query and returns a list with all fields in the reference attribute
+
+    :param info:
+    """
+    fields = []
+    node = ast_to_dict(info.field_asts[0])
+
+    fields = collect_fields(node, fields)
+
+    return fields
+
+
+def collect_fields(node, fields):
+    """ Recursively look in the GraphQL query to get the references fields.
+    It stops after the first set of edges and node to only get this reference's fields
+
+    :param node:
+    :param fields:
+    """
+
+    if node.get('selection_set'):
+        for leaf in node['selection_set']['selections']:
+            if leaf['kind'] == 'Field':
+                variable_name = leaf['name']['value']
+                if variable_name in ('edges', 'node'):
+                    collect_fields(leaf, fields)
+                else:
+                    fields.append(leaf['name']['value'])
+    return fields
+
+
+def flatten_join_query_result(result):
+    """SQLAlchemy returns a named tuple when querying for extra columns besided the reference model.
+    This function adds all extra variables to the reference object, to be used in GraphQL
+
+    :param result:
+    """
+
+    # The first item in the result is the requested reference object
+    reference_object = result[0]
+
+    for key, value in result._asdict().items():
+        if isinstance(value, Base):
+            continue
+        else:
+            setattr(reference_object, key, value)
+    return reference_object
 
 
 def get_resolve_inverse_attribute(model, src_attribute_name, is_many_reference):

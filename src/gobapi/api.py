@@ -18,11 +18,12 @@ from flask_cors import CORS
 from gobcore.model import GOBModel
 from gobcore.views import GOBViews
 
-from gobapi.config import API_BASE_PATH
+from gobapi.config import API_BASE_PATH, API_SECURE_BASE_PATH
 from gobapi.response import hal_response, not_found, get_page_ref, ndjson_entities, stream_entities
 from gobapi.dump.csv import csv_entities
 from gobapi.dump.sql import sql_entities
 from gobapi.dump.to_db import dump_to_db
+from gobapi.auth import secure_route, public_route
 
 from gobapi.states import get_states
 from gobapi.storage import connect, get_entities, get_entity, query_entities, dump_entities, query_reference_entities
@@ -354,6 +355,30 @@ def _health():
     return 'Connectivity OK'
 
 
+def _add_route(app, rule, view_func, methods):
+    """
+    For every rule add a public and a secure endpoint
+
+    Both the public and the secure endpoints are protected.
+    The secure endpoint expects the keycloak headers to be present and the endpoint is protected by gatekeeper
+    The public endpoint assures that none of the keycloak headers is present
+
+    :param app:
+    :param rule:
+    :param view_func:
+    :param methods:
+    :return:
+    """
+    wrappers = {
+        API_BASE_PATH: public_route,
+        API_SECURE_BASE_PATH: secure_route
+    }
+    for path in [API_BASE_PATH, API_SECURE_BASE_PATH]:
+        wrapper = wrappers[path]
+        wrapped_rule = f"{path}{rule}"
+        app.add_url_rule(rule=wrapped_rule, methods=methods, view_func=wrapper(wrapped_rule, view_func))
+
+
 def get_app():
     """Returns a Flask application object
 
@@ -370,34 +395,28 @@ def get_app():
         schema=schema,
         graphiql=True  # for having the GraphiQL interface
     )
-
-    ROUTES = [
-        # Health check URL
-        ('/status/health/', _health),
-
-        (f'{API_BASE_PATH}/', _catalogs),
-        (f'{API_BASE_PATH}/<catalog_name>/', _catalog),
-        (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/', _collection),
-        (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/<entity_id>/', _entity),
-        (f'{API_BASE_PATH}/<catalog_name>/<collection_name>/<entity_id>/<reference_path>/', _reference_collection),
-
-        # Get states with history for a list of collections
-        (f'{API_BASE_PATH}/toestanden/', _states),
-
-        (f'{API_BASE_PATH}/graphql/', graphql)
-    ]
+    graphql_streaming = GraphQLStreamingApi()
 
     app = Flask(__name__)
     CORS(app)
 
-    for route, view_func in ROUTES:
-        app.route(rule=route)(view_func)
+    # Health check route
+    app.route(rule='/status/health/')(_health)
 
-    graphql_streaming = GraphQLStreamingApi()
-    app.route(rule=f'{API_BASE_PATH}/graphql/streaming/', methods=['POST'])(graphql_streaming.entrypoint)
-
-    # Add dump endpoints
-    app.route(rule=f'{API_BASE_PATH}/dump/<catalog_name>/<collection_name>/', methods=['GET', 'POST'])(_dump)
+    # Application routes
+    ROUTES = [
+        ('/', _catalogs, ['GET']),
+        ('/<catalog_name>/', _catalog, ['GET']),
+        ('/<catalog_name>/<collection_name>/', _collection, ['GET']),
+        ('/<catalog_name>/<collection_name>/<entity_id>/', _entity, ['GET']),
+        ('/<catalog_name>/<collection_name>/<entity_id>/<reference_path>/', _reference_collection, ['GET']),
+        ('/toestanden/', _states, ['GET']),
+        ('/graphql/', graphql, ['GET', 'POST']),
+        ('/graphql/streaming/', graphql_streaming.entrypoint, ['POST']),
+        ('/dump/<catalog_name>/<collection_name>/', _dump, ['GET', 'POST'])
+    ]
+    for rule, view_func, methods in ROUTES:
+        _add_route(app, rule, view_func, methods)
 
     app.teardown_appcontext(shutdown_session)
 

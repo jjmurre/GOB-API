@@ -25,6 +25,6 @@ class TestJsonEncoding(unittest.TestCase):
         to_json = json.dumps({'string': gob_type}, cls=APIGobTypeJSONEncoder)
         self.assertEqual('{"string": "123"}', to_json)
 
-        gob_type = SecureString.from_value(read_protect("any string"), level=10)
+        gob_type = SecureString.from_value(read_protect("any string"), level=5)
         to_json = json.dumps({'string': gob_type}, cls=APIGobTypeJSONEncoder)
         self.assertEqual('{"string": "**********"}', to_json)

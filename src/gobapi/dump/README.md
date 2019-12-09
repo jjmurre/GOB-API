@@ -46,6 +46,7 @@ template for config.json:
 {
     "db": {
         "drivername": "postgres",
+        "database": "anydatabase",
         "username": "anyuser",
         "password": "anypassword",
         "host": "anyhost",

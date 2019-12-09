@@ -20,7 +20,8 @@ REL_SIDES = ["src", "dst"]
 REL_UNIQUE_IDS = [f"{side}_{UNIQUE_ID}" for side in REL_SIDES]
 REL_FIELDS = [f"src_{field}" for field in REL_INFO_FIELDS] +\
              [f"dst_{field}" for field in REL_INFO_FIELDS] +\
-             ["_expiration_date"]
+             ["_expiration_date"] +\
+             [FIELD.START_VALIDITY, FIELD.END_VALIDITY]
 
 # Types and Fields to skip when dumping contents
 SKIP_TYPES = ["GOB.VeryManyReference"]
