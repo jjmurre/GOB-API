@@ -491,12 +491,14 @@ LEFT JOIN {relation_table} {rel_table_alias} ON {rel_table_alias}.{FIELD.GOBID} 
         :param relation_name:
         :return:
         """
-        json_attrs = ",".join([f"'{to_snake(attr)}', {relation_name}.{to_snake(attr)}" for attr in attributes
-                              if to_snake(attr) not in self.srcvalues_attributes + self.relvalues_attributes])
+        snake_attrs = [to_snake(attr) for attr in attributes]
+
+        json_attrs = ",".join([f"'{attr}', {relation_name}.{attr}" for attr in snake_attrs
+                              if attr not in self.srcvalues_attributes + self.relvalues_attributes])
 
         if self._is_relvalue_requested(attributes):
-            rel_attrs = ",".join([f"'{to_snake(attr)}', rel_{self.relcnt}.{to_snake(attr).replace('_relatie', '')}"
-                                 for attr in attributes if to_snake(attr) in self.relvalues_attributes])
+            rel_attrs = ",".join([f"'{attr}', rel_{self.relcnt}.{attr.replace('_relatie', '')}"
+                                 for attr in snake_attrs if attr in self.relvalues_attributes])
             json_attrs = f"{json_attrs}, {rel_attrs}"
 
         return json_attrs
