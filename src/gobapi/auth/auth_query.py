@@ -55,7 +55,7 @@ class Authority():
         Set all columns in the row that should be suppressed to None
         """
         suppressed_columns = self.get_suppressed_columns()
-        for column in [c for c in suppressed_columns if row.get(c) is not None]:
+        for column in [c for c in suppressed_columns if c in row]:
             row[column] = None
         return row
 
@@ -96,15 +96,9 @@ class AuthorizedQuery(Query):
         for entity in super().__iter__():
             if suppressed_columns:
                 self.set_suppressed_columns(entity, suppressed_columns)
-                for column in suppressed_columns:
-                    self.suppress_attribute(column, entity)
+                for column in [c for c in suppressed_columns if hasattr(entity, c)]:
+                    setattr(entity, column, None)
             yield entity
-
-    def suppress_attribute(self, column, entity):
-        try:
-            setattr(entity, column, None)
-        except AttributeError:
-            pass
 
     def set_suppressed_columns(self, entity, suppressed_columns):
         try:

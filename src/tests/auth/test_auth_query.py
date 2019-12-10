@@ -96,10 +96,10 @@ class TestAuthorizedQueryIter(TestCase):
         q._authority = mock.MagicMock()
         q._authority.get_suppressed_columns = lambda: ["a", "b", "some other col"]
         for result in q:
-            self.assertFalse(hasattr(result, "a"))
-            self.assertFalse(hasattr(result, "b"))
+            self.assertIsNone(result.a)
+            self.assertIsNone(result.b)
             self.assertFalse(hasattr(result, "some other col"))
-            self.assertTrue(hasattr(result, "c"))
+            self.assertIsNotNone(result.c)
 
         # Do not fail on set suppressed columns
         q.set_suppressed_columns(None, ["a"])
