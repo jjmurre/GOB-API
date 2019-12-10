@@ -1,9 +1,12 @@
 from antlr4 import InputStream, CommonTokenStream
+
+from gobapi.graphql.filters import START_VALIDITY_RELATION, END_VALIDITY_RELATION
+
 from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLLexer import GraphQLLexer
 from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLParser import GraphQLParser
 from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLVisitor import GraphQLVisitor as BaseVisitor
 from gobapi.graphql_streaming.resolve import CATALOG_NAME, COLLECTION_NAME
-from gobapi.graphql_streaming.utils import to_snake
+from gobapi.graphql_streaming.utils import to_snake, resolve_schema_collection_name
 
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
@@ -136,6 +139,7 @@ class SqlGenerator:
 
     # Attributes to ignore in the query on attributes.
     srcvalues_attributes = [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO]
+    relvalues_attributes = [START_VALIDITY_RELATION, END_VALIDITY_RELATION]
 
     def __init__(self, visitor: GraphQLVisitor):
         """
@@ -185,25 +189,8 @@ class SqlGenerator:
         self.relation_info = {}
         self.where_filter = []
 
-    def _resolve_schema_collection_name(self, schema_collection_name: str):
-        """
-        Resolve catalog and collection from schema collection name
-
-        :param schema_collection_name:
-        :return:
-        """
-        names = to_snake(schema_collection_name).split('_')
-        for n in range(1, len(names)):
-            catalog_name = '_'.join(names[:-n])
-            collection_name = '_'.join(names[-n:])
-            catalog = self.model.get_catalog(catalog_name)
-            collection = self.model.get_collection(catalog_name, collection_name)
-            if catalog and collection:
-                return catalog_name, collection_name
-        return None, None
-
     def _collect_relation_info(self, relation_name: str, schema_collection_name: str):
-        catalog_name, collection_name = self._resolve_schema_collection_name(schema_collection_name)
+        catalog_name, collection_name = resolve_schema_collection_name(schema_collection_name)
         assert catalog_name and collection_name, f"{schema_collection_name} error"
 
         collection = self.model.get_collection(catalog_name, collection_name)
@@ -487,11 +474,23 @@ LEFT JOIN {relation_table} {rel_table_alias} ON {rel_table_alias}.{FIELD.GOBID} 
         :param relation_name:
         :return:
         """
-        return ",".join([f"'{to_snake(attr)}', {relation_name}.{to_snake(attr)}" for attr in attributes
-                         if attr not in self.srcvalues_attributes])
+        snake_attrs = [to_snake(attr) for attr in attributes]
+
+        json_attrs = ",".join([f"'{attr}', {relation_name}.{attr}" for attr in snake_attrs
+                              if attr not in self.srcvalues_attributes + self.relvalues_attributes])
+
+        if self._is_relvalue_requested(attributes):
+            rel_attrs = ",".join([f"'{attr}', rel_{self.relcnt}.{attr.replace('_relatie', '')}"
+                                 for attr in snake_attrs if attr in self.relvalues_attributes])
+            json_attrs = f"{json_attrs}, {rel_attrs}"
+
+        return json_attrs
 
     def _is_srcvalue_requested(self, attributes: list):
-        return any([attr in self.srcvalues_attributes for attr in attributes])
+        return any([to_snake(attr) in self.srcvalues_attributes for attr in attributes])
+
+    def _is_relvalue_requested(self, attributes: list):
+        return any([to_snake(attr) in self.relvalues_attributes for attr in attributes])
 
     def _join_relation(self, relation_name: str, attributes: list, arguments: dict):
         parent = self.relation_parents[relation_name]

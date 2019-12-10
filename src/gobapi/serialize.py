@@ -1,8 +1,6 @@
 import datetime
 
-from flask import request
-
-from gobcore.secure.user import User
+from gobapi.auth.auth_query import Authority
 
 
 def datetime_value(dt):
@@ -31,8 +29,8 @@ def secure_value(sec_value):
     :param sec_value: An encrypted secure value
     :return: the unencrypted value if the user has access to to the value, else a no-access string
     """
-    user = User(request)
-    value = sec_value.get_value(user)
+    authority = Authority(catalog_name=None, collection_name=None)
+    value = authority.get_secured_value(sec_value)
 
     if value is None:
         return None

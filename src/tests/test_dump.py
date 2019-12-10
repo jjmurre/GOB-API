@@ -35,6 +35,9 @@ class MockSession:
     def query(self, any_query):
         return self
 
+    def set_catalog_collection(self, *args):
+        return self
+
     def yield_per(self, n):
         return "any table"
 
@@ -186,9 +189,10 @@ class TestSQL(TestCase):
 
     @patch('gobapi.dump.sql.GOBModel', MagicMock())
     @patch('gobapi.dump.sql.get_reference_fields', lambda x: dump.config.REFERENCE_FIELDS)
+    @patch('gobapi.dump.sql.Authority')
     @patch('gobapi.dump.sql.get_field_order')
     @patch('gobapi.dump.sql.get_field_specifications')
-    def test_create_table(self, mock_specs, mock_order):
+    def test_create_table(self, mock_specs, mock_order, mock_authority):
         catalogue = {
             'description': "Any 'catalogue' description"
         }
@@ -206,6 +210,7 @@ class TestSQL(TestCase):
         result = dump.sql._create_table(catalogue, 'any_schema', 'any_table', {})
         self.assertTrue("\"a\" character varying" in result)
         self.assertTrue("Any ''a'' description" in result)
+        mock_authority.assert_called()
 
         mock_specs.return_value = {
             'a': {
@@ -234,6 +239,7 @@ class TestSQL(TestCase):
         result = dump.sql._import_csv('any_schema', 'any_collection', 'any_collection.csv')
         self.assertTrue("\COPY \"any_schema\".\"any_collection\" FROM 'any_collection.csv'" in result)
 
+    @patch('gobapi.dump.sql.Authority', MagicMock())
     @patch('gobapi.dump.sql.GOBModel', MagicMock())
     @patch('gobapi.dump.sql.get_field_order', MagicMock())
     @patch('gobapi.dump.sql.get_field_specifications')
@@ -389,6 +395,7 @@ class TestCSV(TestCase):
         self.assertEqual(results, ['"a";"b";"ref"\n', '"a";5;"a"\n', '"a";5;"a"\n'])
 
 
+@patch('gobapi.api.stream_with_context', lambda f: f)
 class TestDumpApi(TestCase):
 
     @patch('gobapi.api.dump_entities', lambda cat, col: ([], {}))
@@ -426,6 +433,7 @@ class TestDumpApi(TestCase):
     @patch('gobapi.api.dump_to_db')
     @patch('gobapi.api.json')
     @patch('gobapi.api.request')
+    @patch('gobapi.api.stream_with_context', lambda f: f)
     def test_dump_db(self, mock_request, mock_json, mock_dump):
         mock_request.method = 'POST'
         mock_request.content_type = 'application/json'
@@ -613,7 +621,7 @@ class TestToDB(TestCase):
         mock_dump.return_value = iter([])
         results = [result for result in dump_to_db('any catalog name', 'any collection name', config)]
         self.assertEqual(mock_dump.call_count, 1)
-        self.assertEqual(2, len([line for line in results if line.startswith('Skipping')]))
+        self.assertEqual(2, len([line for line in results if "Skipping" in line]))
 
     @patch('gobapi.dump.to_db._create_schema', MagicMock())
     @patch('gobapi.dump.to_db._create_indexes', MagicMock())

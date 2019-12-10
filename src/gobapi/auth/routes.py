@@ -2,9 +2,7 @@ import re
 
 from flask import request
 
-_AUTH_PATTERN = '^X-Auth-'
-REQUEST_USER = 'X-Auth-Userid'
-REQUEST_ROLE = 'X-Auth-Roles'
+from gobcore.secure.config import AUTH_PATTERN, REQUEST_ROLES, REQUEST_USER
 
 
 def secure_route(rule, func):
@@ -17,7 +15,7 @@ def secure_route(rule, func):
     :return:
     """
     def wrapper(*args, **kwargs):
-        if request.headers.get(REQUEST_USER) and request.headers.get(REQUEST_ROLE):
+        if request.headers.get(REQUEST_USER) and request.headers.get(REQUEST_ROLES):
             return func(*args, **kwargs)
         else:
             # This should normally never happen because the endpoint is protected by gatekeeper
@@ -37,7 +35,7 @@ def _secure_headers_detected(rule, *args, **kwargs):
     :return:
     """
     for header, value in request.headers.items():
-        if re.match(_AUTH_PATTERN, header):
+        if re.match(AUTH_PATTERN, header):
             return True
     return False
 

@@ -235,4 +235,4 @@ def get_field_value(entity, field, spec):
     """
     gob_type = get_gob_type(spec['type'])
     entity_value = getattr(entity, field, None)
-    return gob_type.from_value(entity_value).to_value
+    return None if entity_value is None else gob_type.from_value(entity_value).to_value

@@ -17,6 +17,8 @@ from gobapi import serialize
 from gobapi.response import _to_camelcase
 from gobapi.storage import filter_active, filter_deleted
 
+from gobapi.graphql_streaming.utils import resolve_schema_collection_name
+
 from typing import List
 
 gobmodel = GOBModel()
@@ -59,6 +61,10 @@ class FilterConnectionField(SQLAlchemyConnectionField):
         :param kwargs: the filter arguments
         :return: the query to filter model on the filter arguments
         """
+        # Assure that query results are authorised
+        catalog, collection = resolve_schema_collection_name(model.__tablename__)
+        query.set_catalog_collection(catalog, collection)
+
         # Skip the default GraphQL filters
         RELAY_ARGS = ['first', 'last', 'before', 'after', 'sort', 'active']
 

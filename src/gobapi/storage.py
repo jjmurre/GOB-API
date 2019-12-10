@@ -23,6 +23,7 @@ from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXE
 
 from gobapi.config import GOB_DB, API_BASE_PATH
 from gobapi.session import set_session, get_session
+from gobapi.auth.auth_query import AuthorizedQuery, SUPPRESSED_COLUMNS
 
 session = None
 _Base = None
@@ -43,7 +44,8 @@ def connect():
     engine = create_engine(URL(**GOB_DB))
     session = scoped_session(sessionmaker(autocommit=True,
                                           autoflush=False,
-                                          bind=engine))
+                                          bind=engine,
+                                          query_cls=AuthorizedQuery))
     _Base = automap_base()
     _Base.prepare(engine, reflect=True)
 
@@ -180,7 +182,8 @@ def _get_convert_for_model(catalog, collection, model, meta=None, private_attrib
     :return:
     """
     def convert(entity):
-        hal_entity = {k: _to_gob_value(entity, k, v) for k, v in items}
+        deleted = getattr(entity, SUPPRESSED_COLUMNS, [])
+        hal_entity = {k: _to_gob_value(entity, k, v) for k, v in items if k not in deleted}
 
         # Add link to self in each entity
         id = getattr(entity, '_id')
@@ -191,7 +194,8 @@ def _get_convert_for_model(catalog, collection, model, meta=None, private_attrib
         if model['references']:
             hal_entity['_embedded'] = {k: _create_reference(entity, k, v, catalog, collection)
                                        for k, v in model['references'].items()
-                                       if k not in model.get('very_many_references', {}).keys()
+                                       if k not in deleted
+                                       and k not in model.get('very_many_references', {}).keys()
                                        and ((not k.startswith('_') and not v.get('hidden')) or private_attributes)}
 
             # Delete embedded from the entity if no references are added
@@ -315,6 +319,8 @@ def get_entities(catalog, collection, offset, limit, view=None, reference_name=N
     all_entities, entity_convert = query_reference_entities(catalog, collection, reference_name, src_id) \
         if reference_name else query_entities(catalog, collection, view)
 
+    all_entities.set_catalog_collection(catalog, collection)
+
     # For views count is slow on large views
     all_count = all_entities.count() if view is None else None
 
@@ -342,7 +348,10 @@ def dump_entities(catalog, collection):
     model['catalog'] = catalog
     model['collection'] = collection
 
-    return session.query(table).yield_per(10000), model
+    entities = session.query(table)
+    entities.set_catalog_collection(catalog, collection)
+
+    return entities.yield_per(10000), model
 
 
 def query_entities(catalog, collection, view):
@@ -352,6 +361,8 @@ def query_entities(catalog, collection, view):
     table, model = _get_table_and_model(catalog, collection, view)
 
     query = session.query(table)
+    query.set_catalog_collection(catalog, collection)
+
     # Exclude all records with date_deleted
     all_entities = filter_deleted(query, table)
 
@@ -373,7 +384,7 @@ def query_entities(catalog, collection, view):
     else:
         entity_convert = _get_convert_for_model(catalog, collection, model)
 
-    return all_entities, entity_convert
+    return all_entities.yield_per(10000), entity_convert
 
 
 def query_reference_entities(catalog, collection, reference_name, src_id):
@@ -431,7 +442,9 @@ def get_collection_states(catalog, collection):
         .subquery()
 
     # Filter the entities to only the highest volgnummer per id + start validity combination
-    all_entities = session.query(entity)\
+    all_entities = session.query(entity)
+    all_entities.set_catalog_collection(catalog, collection)
+    all_entities = all_entities \
         .join(sub, and_(getattr(sub.c, FIELD.ID) == getattr(entity, FIELD.ID),
                         getattr(sub.c, FIELD.START_VALIDITY) == getattr(entity, FIELD.START_VALIDITY),
                         sub.c.max_seqnr == cast(getattr(entity, FIELD.SEQNR), Integer)))\
@@ -468,6 +481,8 @@ def get_entity(catalog, collection, id, view=None):
     table, model = _get_table_and_model(catalog, collection, view)
 
     query = session.query(table).filter_by(**filter)
+    query.set_catalog_collection(catalog, collection)
+
     # Exclude all records with date_deleted
     entity = filter_deleted(query, table)
 

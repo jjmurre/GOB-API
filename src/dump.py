@@ -17,6 +17,7 @@ config = {
     "ANALYSE_DATABASE_PORT_OVERRIDE": None,
 }
 
+RETRY_TIMEOUT = 300
 
 for variable in config.keys():
     value = os.getenv(variable)
@@ -63,6 +64,8 @@ def dump_collection(dump_api, schema, catalog_name, collection_name):
         print(f"Try {tries}: dump {catalog_name} - {collection_name}")
         if try_dump_collection(dump_api, schema, catalog_name, collection_name):
             return
+        # Wait a little before next try
+        time.sleep(RETRY_TIMEOUT)
 
 
 def try_dump_collection(dump_api, schema, catalog_name, collection_name):

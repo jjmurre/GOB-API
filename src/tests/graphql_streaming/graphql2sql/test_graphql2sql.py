@@ -4,6 +4,7 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch, call
 
 from gobapi.graphql_streaming.graphql2sql.graphql2sql import GraphQL2SQL, SqlGenerator, GraphQLVisitor, GraphQLParser
+from gobapi.graphql_streaming.utils import to_snake
 
 
 class MockModel:
@@ -226,6 +227,8 @@ ORDER BY cola_0._gobid
                     nestedIdentificatie
                     bronwaarde
                     broninfo
+                    beginGeldigheidRelatie
+                    eindGeldigheidRelatie
                 }
             }
         }
@@ -234,6 +237,7 @@ ORDER BY cola_0._gobid
   }
 }''',
         # bronwaarde and broninfo are added as special case, they change the query by adding the _src selection
+        # Same goes for beginGeldigheidRelatie and eindGeldigheidRelatie, they should be added to the reference
             '''
 SELECT
 cola_0._gobid,
@@ -242,7 +246,8 @@ cola_0.identificatie,
 'collectiona' AS _collection,
 cola_0.some_nested_relation _src_some_nested_relation,
 json_build_object('_gobid', colb_0._gobid,'nested_identificatie', colb_0.nested_identificatie,
-'_catalog', 'catalog', '_collection', 'collectionb') _some_nested_relation
+ 'begin_geldigheid_relatie', rel_0.begin_geldigheid,'eind_geldigheid_relatie', rel_0.eind_geldigheid,
+ '_catalog', 'catalog', '_collection', 'collectionb') _some_nested_relation
 FROM (
     SELECT *
     FROM catalog_collectiona
@@ -250,11 +255,10 @@ FROM (
     ORDER BY _gobid
 
 ) cola_0
-LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0 ON rel_0.src_id = cola_0._id
-AND rel_0.bronwaarde = cola_0.some_nested_relation->>'bronwaarde'
-LEFT JOIN catalog_collectionb colb_0 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer
-AND (colb_0.some_property = 'someval')
-WHERE (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
+LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0 ON rel_0.src_id = cola_0._id AND rel_0.bronwaarde = cola_0.some_nested_relation->>'bronwaarde'
+LEFT JOIN catalog_collectionb colb_0 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer AND (colb_0.some_property = 'someval')
+WHERE (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
+AND colb_0._date_deleted IS NULL
 ORDER BY cola_0._gobid
          '''
 
@@ -296,10 +300,10 @@ FROM (
     ORDER BY _gobid
 
 ) colc_0
-LEFT JOIN mv_catalog_collectionc_relation_to_b rel_0 
+LEFT JOIN mv_catalog_collectionc_relation_to_b rel_0
 ON rel_0.src_id = colc_0._id
 AND rel_0.bronwaarde = colc_0.relation_to_b->>'bronwaarde' AND rel_0.src_volgnummer = colc_0.volgnummer
-LEFT JOIN catalog_collectionb colb_0 
+LEFT JOIN catalog_collectionb colb_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer AND (colb_0.some_property = 'someval')
 WHERE (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
 ORDER BY colc_0._gobid
@@ -333,7 +337,7 @@ colb_0._gobid,
 colb_0.identificatie,
 'catalog' AS _catalog,
 'collectionb' AS _collection,
-json_build_object('_gobid', colc_0._gobid,'nested_identificatie', 
+json_build_object('_gobid', colc_0._gobid,'nested_identificatie',
     colc_0.nested_identificatie, '_catalog', 'catalog', '_collection', 'collectionc') _inv_relation_to_b_catalog_collectionc
 FROM (
     SELECT *
@@ -342,9 +346,9 @@ FROM (
     ORDER BY _gobid
 
 ) colb_0
-LEFT JOIN mv_catalog_collectionc_relation_to_b rel_0 
+LEFT JOIN mv_catalog_collectionc_relation_to_b rel_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer
-LEFT JOIN catalog_collectionc colc_0 
+LEFT JOIN catalog_collectionc colc_0
 ON rel_0.src_id = colc_0._id AND rel_0.src_volgnummer = colc_0.volgnummer AND (colc_0.some_property = 'someval')
 WHERE (colc_0._expiration_date IS NULL OR colc_0._expiration_date > NOW()) AND colc_0._date_deleted IS NULL
 ORDER BY colb_0._gobid
@@ -380,7 +384,7 @@ cola_0.identificatie,
 'catalog' AS _catalog,
 'collectiona' AS _collection,
 rel_bw_0.item _src_some_nested_many_relation,
-json_build_object('_gobid', colb_0._gobid,'nested_identificatie', 
+json_build_object('_gobid', colb_0._gobid,'nested_identificatie',
 colb_0.nested_identificatie, '_catalog', 'catalog', '_collection', 'collectionb') _some_nested_many_relation
 FROM (
     SELECT *
@@ -389,11 +393,11 @@ FROM (
     ORDER BY _gobid
 
 ) cola_0
-LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_bw_0(item) 
+LEFT JOIN jsonb_array_elements(cola_0.some_nested_many_relation) rel_bw_0(item)
 ON rel_bw_0.item->>'bronwaarde' IS NOT NULL
-LEFT JOIN mv_catalog_collectiona_some_nested_many_relation rel_0 
+LEFT JOIN mv_catalog_collectiona_some_nested_many_relation rel_0
 ON rel_0.src_id = cola_0._id AND rel_0.bronwaarde = rel_bw_0.item->>'bronwaarde'
-LEFT JOIN catalog_collectionb colb_0 
+LEFT JOIN catalog_collectionb colb_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer AND (colb_0.filter_arg = 'filterval')
 WHERE (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
 ORDER BY cola_0._gobid
@@ -424,7 +428,7 @@ colb_0._gobid,
 colb_0.identificatie,
 'catalog' AS _catalog,
 'collectionb' AS _collection,
-json_build_object('_gobid', 
+json_build_object('_gobid',
 cola_0._gobid,'identificatie', cola_0.identificatie, '_catalog', 'catalog', '_collection', 'collectiona') _inv_some_nested_many_relation_catalog_collectiona
 FROM (
     SELECT *
@@ -433,7 +437,7 @@ FROM (
     ORDER BY _gobid
 
 ) colb_0
-LEFT JOIN mv_catalog_collectiona_some_nested_many_relation rel_0 
+LEFT JOIN mv_catalog_collectiona_some_nested_many_relation rel_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer
 LEFT JOIN catalog_collectiona cola_0 ON rel_0.src_id = cola_0._id AND (cola_0.some_property = 'someval')
 WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW()) AND cola_0._date_deleted IS NULL
@@ -465,7 +469,7 @@ colb_0._gobid,
 colb_0.identificatie,
 'catalog' AS _catalog,
 'collectionb' AS _collection,
-json_build_object('_gobid', cola_0._gobid,'identificatie', 
+json_build_object('_gobid', cola_0._gobid,'identificatie',
 cola_0.identificatie, '_catalog', 'catalog', '_collection', 'collectiona') _inv_some_nested_relation_catalog_collectiona
 FROM (
     SELECT *
@@ -474,7 +478,7 @@ FROM (
     ORDER BY _gobid
 
 ) colb_0
-LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0 
+LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer
 LEFT JOIN catalog_collectiona cola_0 ON rel_0.src_id = cola_0._id AND (cola_0.some_property = 'someval')
 WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW()) AND cola_0._date_deleted IS NULL
@@ -515,7 +519,7 @@ FROM (
     ORDER BY _gobid
 
 ) cola_0
-LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0 
+LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0
 ON rel_0.src_id = cola_0._id
 LEFT JOIN catalog_collectionb colb_0 ON rel_0.dst_id = colb_0._id
 AND rel_0.dst_volgnummer = colb_0.volgnummer AND (colb_0.some_property = 'someval')
@@ -549,7 +553,7 @@ cola_0._gobid,
 cola_0.identificatie,
 'catalog' AS _catalog,
 'collectiona' AS _collection,
-json_build_object('_gobid', colb_0._gobid,'nested_identificatie', 
+json_build_object('_gobid', colb_0._gobid,'nested_identificatie',
 colb_0.nested_identificatie, '_catalog', 'catalog', '_collection', 'collectionb') _relation_alias
 FROM (
     SELECT *
@@ -558,9 +562,9 @@ FROM (
     ORDER BY _gobid
 
 ) cola_0
-LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0 
+LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0
 ON rel_0._gobid IN (
-    SELECT _gobid FROM mv_catalog_collectiona_some_nested_relation rel 
+    SELECT _gobid FROM mv_catalog_collectiona_some_nested_relation rel
     WHERE rel.src_id = cola_0._id
     LIMIT 2
 )
@@ -595,7 +599,7 @@ colb_0._gobid,
 colb_0.identificatie,
 'catalog' AS _catalog,
 'collectionb' AS _collection,
-json_build_object('_gobid', cola_0._gobid,'identificatie', 
+json_build_object('_gobid', cola_0._gobid,'identificatie',
 cola_0.identificatie, '_catalog', 'catalog', '_collection', 'collectiona') _inv_some_nested_relation_catalog_collectiona
 FROM (
     SELECT *
@@ -631,37 +635,14 @@ ORDER BY colb_0._gobid
             print("OUTPUT", result)
         self.assertEqual(expect, actual)
 
-    def test_graphql2sql(self, mock_model):
+    @patch("gobapi.graphql_streaming.graphql2sql.graphql2sql.resolve_schema_collection_name")
+    def test_graphql2sql(self, mock_resolve, mock_model):
         mock_model.return_value = MockModel()
+        mock_resolve.side_effect = lambda n : to_snake(n).split('_')
 
         for inp, outp in self.test_cases:
             graphql2sql = GraphQL2SQL(inp)
             self.assertResult(inp, outp, graphql2sql.sql())
-
-
-    def test_resolve_schema_collection_name(self, mock_model):
-        model = MockModel()
-        mock_model.return_value = model
-        generator = SqlGenerator(GraphQLVisitor())
-
-        model.get_catalog = lambda cat: "catalog" if cat == "catalog" else None
-        model.get_collection = lambda cat, col: "collection" if col == "collection" else None
-        result = generator._resolve_schema_collection_name("catalogCollection")
-        self.assertEqual(result, ('catalog', 'collection'))
-
-        model.get_catalog = lambda cat: None
-        result = generator._resolve_schema_collection_name("catalogCollection")
-        self.assertEqual(result, (None, None))
-
-        model.get_catalog = lambda cat: "catalog" if cat == "catalog_ext" else None
-        model.get_collection = lambda cat, col: "collection" if col == "collection" else None
-        result = generator._resolve_schema_collection_name("catalogExtCollection")
-        self.assertEqual(result, ('catalog_ext', 'collection'))
-
-        model.get_catalog = lambda cat: "catalog" if cat == "catalog" else None
-        model.get_collection = lambda cat, col: "collection" if col == "ext_collection" else None
-        result = generator._resolve_schema_collection_name("catalogExtCollection")
-        self.assertEqual(result, ('catalog', 'ext_collection'))
 
 
 class TestGraphQLVisitor(TestCase):
