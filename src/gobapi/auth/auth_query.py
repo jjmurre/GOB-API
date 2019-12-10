@@ -55,10 +55,8 @@ class Authority():
         Set all columns in the row that should be suppressed to None
         """
         suppressed_columns = self.get_suppressed_columns()
-        if suppressed_columns:
-            for column in suppressed_columns:
-                if row.get(column) is not None:
-                    row[column] = None
+        for column in [c for c in suppressed_columns if row.get(c) is not None]:
+            row[column] = None
         return row
 
     def get_secured_value(self, sec_type):
@@ -88,10 +86,6 @@ class AuthorizedQuery(Query):
         """
         Iterator that yields entities for which the non-authorized columns have been cleared.
         An extra attribute is set on the entity that specifies the cleared columns
-
-        Unfortunately the delattr method does not work for query results.
-        After delattr(), hasattr() still returns true
-        However, executing delattr() twice results in an error
         """
         if self._authority:
             suppressed_columns = self._authority.get_suppressed_columns()
@@ -108,8 +102,7 @@ class AuthorizedQuery(Query):
 
     def suppress_attribute(self, column, entity):
         try:
-            # For query results, delattr sets the entity value to null
-            delattr(entity, column)
+            setattr(entity, column, None)
         except AttributeError:
             pass
 
