@@ -1,6 +1,9 @@
 from gobcore.secure.config import GOB_ADMIN
 
 GOB_AUTH_SCHEME = {
+    # "brk": {
+    #     "roles": [GOB_ADMIN]
+    # },
     "test_catalogue": {
         "collections": {
             "secure": {

@@ -3,6 +3,11 @@ import re
 from flask import request
 
 from gobcore.secure.config import AUTH_PATTERN, REQUEST_ROLES, REQUEST_USER
+from gobapi.auth.auth_query import Authority
+
+# Request args that require authorisation
+# SECURE_ARGS = ['view']  # view results are not checked for secure data!
+SECURE_ARGS = []
 
 
 def secure_route(rule, func):
@@ -15,10 +20,11 @@ def secure_route(rule, func):
     :return:
     """
     def wrapper(*args, **kwargs):
-        if request.headers.get(REQUEST_USER) and request.headers.get(REQUEST_ROLES):
+        # Check that the endpoint is protected by gatekeeper and check access
+        if request.headers.get(REQUEST_USER) and request.headers.get(REQUEST_ROLES) and \
+                _allows_access(rule, *args, **kwargs):
             return func(*args, **kwargs)
         else:
-            # This should normally never happen because the endpoint is protected by gatekeeper
             return "Forbidden", 403
 
     wrapper.__name__ = f"secure_{func.__name__}"
@@ -38,6 +44,20 @@ def _secure_headers_detected(rule, *args, **kwargs):
         if re.match(AUTH_PATTERN, header):
             return True
     return False
+
+
+def _allows_access(rule, *args, **kwargs):
+    """
+    Check access to paths with variable catalog/collection names
+    """
+    catalog_name = kwargs.get('catalog_name')
+    collection_name = kwargs.get('collection_name')
+    return Authority(catalog_name, collection_name).allows_access()
+
+
+def _allows_args():
+    # Check if a secure parameter is present
+    return not [arg for arg in SECURE_ARGS if request.args.get(arg) is not None]
 
 
 def _issue_fraud_warning(rule, *args, **kwargs):
@@ -72,6 +92,8 @@ def public_route(rule, func, *args, **kwargs):
             # Public route cannot contain secure headers
             _issue_fraud_warning(rule, *args, **kwargs)
             return "Bad request", 400
+        elif not (_allows_access(rule, *args, **kwargs) and _allows_args()):
+            return "Forbidden", 403
         else:
             return func(*args, **kwargs)
 
