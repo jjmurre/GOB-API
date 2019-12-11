@@ -19,6 +19,16 @@ mock_scheme = {
             }
         }
     },
+    "secure catalog": {
+        "roles": [role_a, role_b]
+    },
+    "secure catalog collection": {
+        "collections": {
+            "secure collection": {
+                "roles": [role_a, role_b]
+            }
+        }
+    },
 }
 
 class MockEntity():
@@ -138,3 +148,25 @@ class TestAuthority(TestCase):
         result = authority.get_secured_value(mock_secure_type)
         mock_user.assert_called_with(mock_request)
         mock_secure_type.get_value.assert_called_with("any user")
+
+    @patch("gobapi.auth.auth_query.request", mock_request)
+    @patch("gobapi.auth.auth_query.GOB_AUTH_SCHEME", mock_scheme)
+    def test_allows_access(self):
+        authority = Authority('secure catalog', 'any col')
+        authority.get_roles = lambda : []
+        self.assertFalse(authority.allows_access())
+
+        authority.get_roles = lambda : [role_b]
+        self.assertTrue(authority.allows_access())
+
+        authority._catalog = "secure catalog collection"
+        authority._collection = "secure collection"
+        authority.get_roles = lambda : []
+        self.assertFalse(authority.allows_access())
+
+        authority.get_roles = lambda : [role_b]
+        self.assertTrue(authority.allows_access())
+
+        authority._collection = "any collection"
+        authority.get_roles = lambda : []
+        self.assertTrue(authority.allows_access())

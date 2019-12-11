@@ -36,16 +36,34 @@ class TestAuth(TestCase):
         result = wrapped_func()
         self.assertEqual(result, "Any result")
 
+    @patch('gobapi.auth.routes.Authority')
     @patch('gobapi.auth.routes.request')
-    def test_public_route(self, mock_request):
+    def test_public_route(self, mock_request, mock_authority_class):
         func = lambda *args, **kwargs: "Any result"
+
+        mock_authority = mock.MagicMock()
+        mock_authority.allows_access.return_value = True
+        mock_authority_class.return_value = mock_authority
 
         wrapped_func = public_route("any rule", func)
 
         mock_request.headers = {}
+        mock_request.args = {}
         result = wrapped_func()
         self.assertEqual(result, "Any result")
 
+        mock_request.headers = {}
+        mock_request.args = {'view': "any view"}
+        result = wrapped_func()
+        self.assertEqual(result, (mock.ANY, 403))
+
+        mock_request.headers = {}
+        mock_request.args = {}
+        mock_authority.allows_access.return_value = False
+        result = wrapped_func()
+        self.assertEqual(result, (mock.ANY, 403))
+
+        mock_authority.allows_access.return_value = True
         mock_request.headers = {
             REQUEST_USER: "any user"
         }

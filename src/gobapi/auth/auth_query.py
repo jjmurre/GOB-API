@@ -42,13 +42,32 @@ class Authority():
             return {}
         return collection_scheme['attributes']
 
+    def allows_access(self):
+        """
+        Test if the request has access to the catalog/collection
+        """
+        catalog_scheme = self._auth_scheme.get(self._catalog, {})
+        if self._allows_access(catalog_scheme):
+            collection_scheme = catalog_scheme.get('collections', {}).get(self._collection, {})
+            return self._allows_access(collection_scheme)
+        return False
+
+    def _allows_access(self, auth_schema):
+        """
+        Test if the request has access to the given authorisation scheme
+        """
+        return self._is_authorized_for(auth_schema) if auth_schema else True
+
+    def _is_authorized_for(self, auth):
+        roles = self.get_roles()
+        auth_roles = auth.get('roles', [])
+        return any([role for role in roles if role in auth_roles]) if auth_roles else True
+
     def get_suppressed_columns(self):
         """
         The suppressed columns are the columns that require a role that the user doesn't have
         """
-        roles = self.get_roles()
-        return [attr for attr, auth in self.get_checked_columns().items()
-                if not any([role for role in roles if role in auth.get('roles', [])])]
+        return [attr for attr, auth in self.get_checked_columns().items() if not self._is_authorized_for(auth)]
 
     def filter_row(self, row):
         """

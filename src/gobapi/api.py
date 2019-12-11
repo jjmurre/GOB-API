@@ -359,7 +359,7 @@ def _health():
     return 'Connectivity OK'
 
 
-def _add_route(app, rule, view_func, methods):
+def _add_route(app, paths, rule, view_func, methods):
     """
     For every rule add a public and a secure endpoint
 
@@ -377,7 +377,7 @@ def _add_route(app, rule, view_func, methods):
         API_BASE_PATH: public_route,
         API_SECURE_BASE_PATH: secure_route
     }
-    for path in [API_BASE_PATH, API_SECURE_BASE_PATH]:
+    for path in paths:
         wrapper = wrappers[path]
         wrapped_rule = f"{path}{rule}"
         app.add_url_rule(rule=wrapped_rule, methods=methods, view_func=wrapper(wrapped_rule, view_func))
@@ -408,19 +408,21 @@ def get_app():
     app.route(rule='/status/health/')(_health)
 
     # Application routes
+    PUBLIC = [API_BASE_PATH, API_SECURE_BASE_PATH]
+    # SECURE = [API_SECURE_BASE_PATH]
     ROUTES = [
-        ('/', _catalogs, ['GET']),
-        ('/<catalog_name>/', _catalog, ['GET']),
-        ('/<catalog_name>/<collection_name>/', _collection, ['GET']),
-        ('/<catalog_name>/<collection_name>/<entity_id>/', _entity, ['GET']),
-        ('/<catalog_name>/<collection_name>/<entity_id>/<reference_path>/', _reference_collection, ['GET']),
-        ('/toestanden/', _states, ['GET']),
-        ('/graphql/', graphql, ['GET', 'POST']),
-        ('/graphql/streaming/', graphql_streaming.entrypoint, ['POST']),
-        ('/dump/<catalog_name>/<collection_name>/', _dump, ['GET', 'POST'])
+        (PUBLIC, '/', _catalogs, ['GET']),
+        (PUBLIC, '/<catalog_name>/', _catalog, ['GET']),
+        (PUBLIC, '/<catalog_name>/<collection_name>/', _collection, ['GET']),
+        (PUBLIC, '/<catalog_name>/<collection_name>/<entity_id>/', _entity, ['GET']),
+        (PUBLIC, '/<catalog_name>/<collection_name>/<entity_id>/<reference_path>/', _reference_collection, ['GET']),
+        (PUBLIC, '/toestanden/', _states, ['GET']),
+        (PUBLIC, '/graphql/', graphql, ['GET', 'POST']),
+        (PUBLIC, '/graphql/streaming/', graphql_streaming.entrypoint, ['POST']),
+        (PUBLIC, '/dump/<catalog_name>/<collection_name>/', _dump, ['GET', 'POST'])
     ]
-    for rule, view_func, methods in ROUTES:
-        _add_route(app, rule, view_func, methods)
+    for paths, rule, view_func, methods in ROUTES:
+        _add_route(app, paths, rule, view_func, methods)
 
     app.teardown_appcontext(shutdown_session)
 
