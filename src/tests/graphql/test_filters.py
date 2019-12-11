@@ -493,11 +493,19 @@ class TestFilters(TestCase):
             _id = 'src_id'
             __has_states__ = False
 
+        class MockColumn():
+
+            def __init__(self, value):
+                self.value = value
+
+            def label(self, *args):
+                return self
+
         class MockRelationModel():
             src_id = 'src_id'
             dst_id = 'not_dst_id'
-            begin_geldigheid = '2000'
-            eind_geldigheid = '2010'
+            begin_geldigheid = MockColumn('2000')
+            eind_geldigheid = MockColumn('2010')
 
         mock_query = MagicMock()
 
@@ -516,7 +524,7 @@ class TestFilters(TestCase):
         mock_query.join.assert_called_with(mock_relation_model, mock_and.return_value)
         join_res = mock_query.join.return_value
 
-        join_res.add_columns.assert_called_with('2000', '2010')
+        join_res.add_columns.assert_called_with(mock_relation_model.begin_geldigheid, mock_relation_model.eind_geldigheid)
         add_columns_res = join_res.add_columns.return_value
 
         self.assertEqual(result, add_columns_res)
@@ -534,6 +542,14 @@ class TestFilters(TestCase):
             volgnummer = 'dst_volgnummer'
             __has_states__ = True
 
+        class MockColumn():
+
+            def __init__(self, value):
+                self.value = value
+
+            def label(self, *args):
+                return self
+
         class MockRelationModel():
             src_id = 'src_id'
             dst_id = 'not_dst_id'
@@ -541,8 +557,8 @@ class TestFilters(TestCase):
             src_volgnummer = 'src_volgnummer'
             dst_volgnummer = 'not_dst_volgnummer'
 
-            begin_geldigheid = '2000'
-            eind_geldigheid = '2010'
+            begin_geldigheid = MockColumn('2000')
+            eind_geldigheid = MockColumn('2010')
 
         mock_query = MagicMock()
 
@@ -561,7 +577,7 @@ class TestFilters(TestCase):
         mock_query.join.assert_called_with(mock_relation_model, mock_and.return_value)
         join_res = mock_query.join.return_value
 
-        join_res.add_columns.assert_called_with('2000', '2010')
+        join_res.add_columns.assert_called_with(mock_relation_model.begin_geldigheid, mock_relation_model.eind_geldigheid)
         add_columns_res = join_res.add_columns.return_value
 
         self.assertEqual(result, add_columns_res)

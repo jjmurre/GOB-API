@@ -315,8 +315,8 @@ def add_relation_join_query(obj, model, src_attribute_name, query):
 
     # Add the relationship table join and query the relation fields
     query = query.join(relation_model, and_(*relation_join_args)) \
-                 .add_columns(getattr(relation_model, FIELD.START_VALIDITY),
-                              getattr(relation_model, FIELD.END_VALIDITY))
+                 .add_columns(getattr(relation_model, FIELD.START_VALIDITY).label(START_VALIDITY_RELATION),
+                              getattr(relation_model, FIELD.END_VALIDITY).label(END_VALIDITY_RELATION))
 
     return query
 
