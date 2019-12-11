@@ -19,7 +19,6 @@ from gobcore.model.relations import get_fieldnames_for_missing_relations
 from gobcore.model.sa.gob import models
 from gobcore.typesystem import GOB_SECURE_TYPES, get_gob_type
 
-from gobapi.response import _to_camelcase
 from gobapi.graphql import graphene_type, exclude_fields
 from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute, get_resolve_secure_attribute, \
     get_resolve_inverse_attribute, get_resolve_attribute_missing_relation, \
@@ -204,8 +203,8 @@ def get_graphene_query():
         rel_connection_class = _create_connection_class(f"{model_name}Rel", {
             "bronwaarde": graphene.String(description=bronwaarde_description),
             "broninfo": GenericScalar(description=broninfo_description),
-            _to_camelcase(START_VALIDITY_RELATION): graphene.String(description=begin_geldigheid_relatie_description),
-            _to_camelcase(END_VALIDITY_RELATION): graphene.String(description=eind_geldigheid_relatie_description),
+            START_VALIDITY_RELATION: DateTime(description=begin_geldigheid_relatie_description),
+            END_VALIDITY_RELATION: DateTime(description=eind_geldigheid_relatie_description),
             **object_type_fields,
         }, meta)
 
