@@ -337,6 +337,11 @@ class TestCSV(TestCase):
         result = dump.csv._csv_values(value, spec)
         self.assertEqual(result, dump.csv._csv_reference_values(value, spec))
 
+        value = None
+        spec = {'type': 'GOB.Reference', 'ref': 'any catalog:any collection'}
+        result = dump.csv._csv_values(value, spec)
+        self.assertEqual(result, dump.csv._csv_reference_values(value, spec))
+
         value = {'a': 1, 'b': 'any value', 'c': 'some other value'}
         spec = {'type': 'GOB.JSON', 'attributes': {'a': 'some a', 'b': 'some b'}}
         result = dump.csv._csv_values(value, spec)
@@ -346,6 +351,11 @@ class TestCSV(TestCase):
         spec = {'type': 'GOB.JSON', 'attributes': {'a': 'some a', 'b': 'some b'}}
         result = dump.csv._csv_values(value, spec)
         self.assertEqual(result, ['1', ''])
+
+        value = None
+        spec = {'type': 'GOB.JSON', 'attributes': {'a': 'some a', 'b': 'some b'}}
+        result = dump.csv._csv_values(value, spec)
+        self.assertEqual(result, ['', ''])
 
     def test_csv_record(self):
         entity = None

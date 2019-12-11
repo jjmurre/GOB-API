@@ -83,6 +83,7 @@ def _csv_values(value, spec):
     if spec['type'] in REFERENCE_TYPES:
         return _csv_reference_values(value, spec)
     elif spec['type'] == 'GOB.JSON':
+        value = value or {}
         return [_csv_value(value.get(field)) for field in spec['attributes'].keys()]
     else:
         return [_csv_value(value)]

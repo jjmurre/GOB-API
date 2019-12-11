@@ -1,4 +1,4 @@
-from gobcore.typesystem import get_gob_type
+from gobcore.typesystem import get_gob_type, GOB_SECURE_TYPES
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
 from gobcore.typesystem import is_gob_geo_type, is_gob_reference_type
@@ -42,6 +42,11 @@ SQL_TYPE_CONVERSIONS = {
     "GOB.Geo.Polygon": "geometry",
     "GOB.Geo.Point": "geometry"
 }
+# Add constants for secure types (match on their base type)
+for t in GOB_SECURE_TYPES:
+    name = t.name
+    SQL_TYPE_CONVERSIONS[name] = SQL_TYPE_CONVERSIONS[f"GOB.{name.replace('Secure', '')}"]
+
 SQL_QUOTATION_MARK = "'"
 
 
