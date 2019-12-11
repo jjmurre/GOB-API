@@ -5,6 +5,10 @@ from flask import request
 from gobcore.secure.config import AUTH_PATTERN, REQUEST_ROLES, REQUEST_USER
 from gobapi.auth.auth_query import Authority
 
+# Request args that require authorisation
+# SECURE_ARGS = ['view']  # view results are not checked for secure data!
+SECURE_ARGS = []
+
 
 def secure_route(rule, func):
     """
@@ -52,8 +56,8 @@ def _allows_access(rule, *args, **kwargs):
 
 
 def _allows_args():
-    # Check if a view parameter is present (view results are not checked for secure data!)
-    return request.args.get('view') is None
+    # Check if a secure parameter is present
+    return not [arg for arg in SECURE_ARGS if request.args.get(arg) is not None]
 
 
 def _issue_fraud_warning(rule, *args, **kwargs):

@@ -36,6 +36,7 @@ class TestAuth(TestCase):
         result = wrapped_func()
         self.assertEqual(result, "Any result")
 
+    @patch('gobapi.auth.routes.SECURE_ARGS', ['secure_arg'])
     @patch('gobapi.auth.routes.Authority')
     @patch('gobapi.auth.routes.request')
     def test_public_route(self, mock_request, mock_authority_class):
@@ -53,7 +54,7 @@ class TestAuth(TestCase):
         self.assertEqual(result, "Any result")
 
         mock_request.headers = {}
-        mock_request.args = {'view': "any view"}
+        mock_request.args = {'secure_arg': "any secure_arg"}
         result = wrapped_func()
         self.assertEqual(result, (mock.ANY, 403))
 
