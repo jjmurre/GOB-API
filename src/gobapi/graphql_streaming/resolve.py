@@ -1,7 +1,7 @@
 from gobcore.model import GOBModel
 from gobcore.typesystem import GOB_SECURE_TYPES, get_gob_type
 
-from gobapi.graphql_streaming.utils import to_snake, to_camelcase
+from gobapi.utils import to_snake, to_camelcase
 from gobapi.auth.auth_query import Authority
 
 CATALOG_NAME = "_catalog"

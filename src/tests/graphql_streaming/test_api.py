@@ -554,7 +554,7 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
             'relationD': [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO],
         }, builder._get_requested_sourcevalues())
 
-    @patch("gobapi.graphql_streaming.api._dict_to_camelcase", lambda x: x)
+    @patch("gobapi.graphql_streaming.api.dict_to_camelcase", lambda x: x)
     @patch("gobapi.graphql_streaming.api.stream_response", lambda x: 'streamed_' + x)
     def test_iter(self):
         builder = self.get_instance()
