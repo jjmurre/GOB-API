@@ -13,6 +13,29 @@ Every endpoint contains the links to explore the data in more detail.
     
 # Installation
 
+## Secure data
+
+Secure data in GOB is protected by:
+- gatekeeper (protected access points)
+- keycloak (authentication)
+- authorisation schemes (match keycloak roles on GOB access)
+- encryption (for confidential attributes)
+
+In order to access secure data you need to define environment variables:
+- SECURE_SALT and SECURE_PASSWORD
+  - shared with GOB Import (symmetrical encryption).
+    GOB Import is responsable for the encryption and GOB API uses the secrets for decryption
+- GATEKEEPER configuration
+  - GATEKEEPER_CLIENT_ID
+  - GATEKEEPER_CLIENT_SECRET
+  - GATEKEEPER_ENCRYPTION_KEY
+  - GATEKEEPER_LISTEN
+  - GATEKEEPER_UPSTREAM_URL
+  - GATEKEEPER_DISCOVERY_URL
+  - GATEKEEPER_REDIRECTION_URL
+
+In order to activate gatekeeper and keycloak locally see the comments in docker-compose.yml   
+
 ## Local
 
 Make sure ANTLR4 is installed.
