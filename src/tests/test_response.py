@@ -10,7 +10,11 @@ import json
 from unittest import TestCase
 from unittest.mock import patch
 
+from gobcore.typesystem.gob_types import JSON
+
 from gobapi.response import stream_response, ndjson_entities, stream_entities
+from gobapi.utils import to_snake, to_camelcase, dict_to_camelcase, object_to_camelcase
+
 
 class MockRequest:
     args = {}
@@ -57,23 +61,38 @@ def test_hal_response(monkeypatch):
     assert(hal_response({}, {'link': 'href'}) == ('{"_links": {"link": {"href": "href"}, "self": {"href": "path?arg=value"}}}', 200, {'Content-Type': 'application/json'}))
 
 
-def test_camelcase_converter(monkeypatch):
+def test_to_snake():
+    assert(to_snake("") == "")
+    assert(to_snake("a") == "a")
+    assert(to_snake("A") == "_a")
+    assert(to_snake("ABC") == "_a_b_c")
+    assert(to_snake("firstSecond") == "first_second")
+
+
+def test_to_camelcase():
+    assert(to_camelcase("") == "")
+    assert(to_camelcase("a") == "a")
+    assert(to_camelcase("_a") == "_a")
+    assert(to_camelcase("_a_b_c") == "_aBC")
+    assert(to_camelcase("first_second") == "firstSecond")
+
+    assert(to_camelcase("") == "")
+    assert(to_camelcase("_") == "_")
+    assert(to_camelcase("_____") == "_____")
+    assert(to_camelcase("_camel_case_case") == "_camelCaseCase")
+    assert(to_camelcase("camel_case_case") == "camelCaseCase")
+    assert(to_camelcase("_camel_case_case_") == "_camelCaseCase_")
+
+
+def test_dict_to_camelcase(monkeypatch):
     before_each_response_test(monkeypatch)
 
-    from gobapi.response import _to_camelcase, _dict_to_camelcase
+    assert(dict_to_camelcase({}) == {})
 
-    assert(_to_camelcase("") == "")
-    assert(_to_camelcase("_") == "_")
-    assert(_to_camelcase("_____") == "_____")
-    assert(_to_camelcase("_camel_case_case") == "_camelCaseCase")
-    assert(_to_camelcase("camel_case_case") == "camelCaseCase")
-    assert(_to_camelcase("_camel_case_case_") == "_camelCaseCase_")
-
-    assert(_dict_to_camelcase({}) == {})
     adict = {
         "camel_case1" : "camel_case"
     }
-    assert(_dict_to_camelcase(adict) == {
+    assert(dict_to_camelcase(adict) == {
         'camelCase1': 'camel_case'
     })
 
@@ -82,7 +101,7 @@ def test_camelcase_converter(monkeypatch):
             "camel_case2" : "camel_case"
         }
     }
-    assert(_dict_to_camelcase(adict) == {
+    assert(dict_to_camelcase(adict) == {
         'camelCase1': {'camelCase2': 'camel_case'}
     })
 
@@ -97,7 +116,7 @@ def test_camelcase_converter(monkeypatch):
             "c": {"camel_case4": "e"}
         }
     }
-    assert(_dict_to_camelcase(adict) == {
+    assert(dict_to_camelcase(adict) == {
         'camelCase1': {
             'k': 'v',
             'camelCase2': {
@@ -113,7 +132,7 @@ def test_camelcase_converter(monkeypatch):
             "camel_case2" : "camel_case"
         }]
     }
-    assert(_dict_to_camelcase(adict) == {
+    assert(dict_to_camelcase(adict) == {
         'camelCase1': [{'camelCase2': 'camel_case'}]
     })
 
@@ -122,16 +141,53 @@ def test_camelcase_converter(monkeypatch):
             "camel_case2" : "camel_case"
         }]]
     }
-    assert(_dict_to_camelcase(adict) == {
+    assert(dict_to_camelcase(adict) == {
         'camelCase1': [[{'camelCase2': 'camel_case'}]]
     })
 
 
+def test_object_to_camelcase(monkeypatch):
+    before_each_response_test(monkeypatch)
+
+    assert(object_to_camelcase({}) == {})
+
+    obj = "camel_case1"
+    assert(object_to_camelcase(obj) == "camel_case1")
+
+    obj = ["camel_case1", "camel_case2"]
+    assert(object_to_camelcase(obj) == ["camel_case1", "camel_case2"])
+
+    obj = {"camel_case1" : "camel_case1", "camel_case2" : "camel_case2"}
+    assert(object_to_camelcase(obj) == {"camelCase1": "camel_case1", "camelCase2": "camel_case2"})
+
+    obj = [{"camel_case1" : "camel_case1"}, {"camel_case2" : "camel_case2"}]
+    assert(object_to_camelcase(obj) == [{"camelCase1": "camel_case1"}, {"camelCase2": "camel_case2"}])
+
+    obj = [{"camel_case1" : {"camel_case2" : "camel_case"}}]
+    assert(object_to_camelcase(obj) == [{"camelCase1": {"camelCase2" : "camel_case"}}])
+
+    obj = [{"camel_case1" : [{"camel_case2" : "camel_case"}]}]
+    assert(object_to_camelcase(obj) == [{"camelCase1": [{"camelCase2" : "camel_case"}]}])
+
+
 class TestStream(TestCase):
 
-    def test_stream(self):
-        result = stream_response({'some_key': 'some data'})
-        self.assertEqual(result, '{"someKey": "some data"}')
+    @patch('gobapi.auth.auth_query.request')
+    def test_stream(self, mock_request):
+        result = stream_response({'some_key': 'some_data'})
+        self.assertEqual(result, '{"someKey": "some_data"}')
+
+        result = stream_response({"some_key1": "some_data1", "some_key2": {"some_key3": "some_data3"}})
+        self.assertEqual(result, '{"someKey1": "some_data1", "someKey2": {"someKey3": "some_data3"}}')
+
+        result = stream_response({"some_key1": "some_data1", "some_key2": JSON('{"some_key3": "some_data3"}')})
+        self.assertEqual(result, '{"someKey1": "some_data1", "someKey2": {"someKey3": "some_data3"}}')
+
+        result = stream_response({"some_key1": "some_data1", "some_key2": JSON('[{"some_key3": "some_data3"}]')})
+        self.assertEqual(result, '{"someKey1": "some_data1", "someKey2": [{"someKey3": "some_data3"}]}')
+
+        result = stream_response({"some_key1": "some_data1", "some_key2": [JSON('{"some_key3": "some_data3"}')]})
+        self.assertEqual(result, '{"someKey1": "some_data1", "someKey2": [{"someKey3": "some_data3"}]}')
 
     @patch('gobapi.response.stream_response')
     def test_stream_entities(self, mock_response):

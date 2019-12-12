@@ -8,7 +8,8 @@ from gobcore.model.metadata import FIELD
 
 from gobapi.graphql_streaming.graphql2sql.graphql2sql import GraphQL2SQL
 from gobapi.graphql_streaming.resolve import Resolver
-from gobapi.response import stream_response, _dict_to_camelcase
+from gobapi.response import stream_response
+from gobapi.utils import dict_to_camelcase
 
 import json
 
@@ -233,7 +234,7 @@ class GraphQLStreamingResponseBuilder:
             # When all entities with the same GOBID are collected, self.build_entity() is called to merge the rows
             # back into one entity.
 
-            row = _dict_to_camelcase(dict(row))
+            row = dict_to_camelcase(dict(row))
             built_entity = None
 
             if row[FIELD.GOBID] != self.last_id and self.last_id is not None:

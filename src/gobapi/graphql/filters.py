@@ -14,7 +14,7 @@ from gobcore.model.relations import get_relation_name
 from gobcore.model.sa.gob import models, Base
 
 from gobapi import serialize
-from gobapi.response import _to_camelcase
+from gobapi.utils import to_camelcase
 from gobapi.storage import filter_active, filter_deleted
 
 from gobapi.graphql_streaming.utils import resolve_schema_collection_name
@@ -285,8 +285,8 @@ def get_resolve_attribute(model, src_attribute_name):
 
         # Check if a relation field is requested and we need to join the relation table
         join_relation = any([i in query_fields for i in [
-                            _to_camelcase(START_VALIDITY_RELATION),
-                            _to_camelcase(END_VALIDITY_RELATION)]])
+                            to_camelcase(START_VALIDITY_RELATION),
+                            to_camelcase(END_VALIDITY_RELATION)]])
 
         if join_relation:
             query = add_relation_join_query(obj, model, src_attribute_name, query)

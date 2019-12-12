@@ -6,7 +6,8 @@ from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLLexer import GraphQLLex
 from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLParser import GraphQLParser
 from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLVisitor import GraphQLVisitor as BaseVisitor
 from gobapi.graphql_streaming.resolve import CATALOG_NAME, COLLECTION_NAME
-from gobapi.graphql_streaming.utils import to_snake, resolve_schema_collection_name
+from gobapi.graphql_streaming.utils import resolve_schema_collection_name
+from gobapi.utils import to_snake
 
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
