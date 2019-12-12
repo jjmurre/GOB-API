@@ -12,12 +12,16 @@ import sqlalchemy_filters
 from unittest import mock, TestCase
 
 from gobapi.storage import _get_convert_for_state, filter_deleted, connect, _format_reference, _get_table, \
-    _to_gob_value, _add_resolve_attrs_to_columns, _get_convert_for_table
+    _to_gob_value, _add_resolve_attrs_to_columns, _get_convert_for_table, _add_relation_dates_to_manyreference, \
+    _flatten_join_result, _add_relation_joins
 from gobapi.auth.auth_query import AuthorizedQuery
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
 
 class MockEntity:
+    __has_states__ = False
+    __tablename__ = 'tablename'
+
     def __init__(self, *args):
         self._id = '1'
         self.identificatie = '1'
@@ -47,9 +51,18 @@ class MockEntity:
         self.volgnummer = 1
         self.max_seqnr = 1
         self.src_id = 1
+        self.src_volgnummer = 1
         self.dst_id = 1
+        self.bronwaarde = 'bronwaarde'
         for key in args:
             setattr(self, key, key)
+
+mock_models = {
+    'catalog_collection1': MockEntity(),
+    'catalog_collection2': MockEntity(),
+    'catalog_collection3': MockEntity(),
+    'rel_relation_name': MockEntity(),
+}
 
 
 class MockClasses:
@@ -108,6 +121,9 @@ class MockEntities:
         return self
 
     def set_catalog_collection(self, *args):
+        return self
+
+    def add_columns(self, *args):
         return self
 
 
@@ -334,6 +350,10 @@ def mock_get_gobmodel():
 
         def get_reference_by_abbreviations(self, catalog_abbreviation, collection_abbreviation):
             return 'catalog:collection'
+
+        def _extract_references(self, attributes):
+            return {field_name: spec for field_name, spec in attributes.items()
+                    if spec['type'] in ['GOB.Reference', 'GOB.ManyReference', 'GOB.VeryManyReference']}
     return model()
 
 def before_each_storage_test(monkeypatch):
@@ -364,6 +384,8 @@ def before_each_storage_test(monkeypatch):
 
     import gobapi.storage
     importlib.reload(gobapi.storage)
+
+    monkeypatch.setattr(gobapi.storage, 'models', mock_models)
 
     from gobapi.storage import connect
     connect()
@@ -789,3 +811,89 @@ class TestStorage(TestCase):
         ])
         mock_resolve_attrs.assert_called_with(table.columns)
 
+    def test_add_relation_dates_to_manyreference(self):
+        entity_reference = [
+            {'id': 1, 'bronwaarde': 'bronwaarde1'},
+            {'id': 2, 'bronwaarde': 'bronwaarde2'},
+            {'id': 3, 'bronwaarde': 'bronwaarde3'},
+            {'id': 4, 'bronwaarde': 'bronwaarde4'},
+        ]
+
+        relation_dates = [
+            {'bronwaarde': 'bronwaarde1', 'begin_geldigheid_relatie': datetime.datetime(2000,1,1), 'eind_geldigheid_relatie': datetime.datetime(2010,1,1)},
+            {'bronwaarde': 'bronwaarde2', 'begin_geldigheid_relatie': datetime.datetime(2000,1,1), 'eind_geldigheid_relatie': None},
+            {'bronwaarde': 'bronwaarde3'},
+        ]
+
+        result = _add_relation_dates_to_manyreference(entity_reference, relation_dates)
+
+        expected_result = [
+            {'id': 1, 'bronwaarde': 'bronwaarde1', 'begin_geldigheid_relatie': datetime.datetime(2000,1,1), 'eind_geldigheid_relatie': datetime.datetime(2010,1,1)},
+            {'id': 2, 'bronwaarde': 'bronwaarde2', 'begin_geldigheid_relatie': datetime.datetime(2000,1,1), 'eind_geldigheid_relatie': None},
+            {'id': 3, 'bronwaarde': 'bronwaarde3', 'begin_geldigheid_relatie': None, 'eind_geldigheid_relatie': None},
+            {'id': 4, 'bronwaarde': 'bronwaarde4'},
+        ]
+
+        self.assertEqual(result, expected_result)
+
+    @mock.patch("gobapi.storage._add_relation_dates_to_manyreference")
+    @mock.patch("gobapi.storage.Base", MockEntity)
+    def test_flatten_join_result(self, mock_add_dates):
+        mock_entity = MockEntity()
+
+        result_dict = {
+            'catalog_collection1': mock_entity,
+            'reference': [{'begin_geldigheid_relatie': 'begin', 'begin_geldigheid_relatie': 'eind'}],
+            '_private_reference': [],
+            'manyreference': [{'begin_geldigheid_relatie': 'begin', 'begin_geldigheid_relatie': 'eind'}]
+        }
+
+        class MockResult():
+
+            def __getitem__(self, key):
+                return mock_entity
+
+            def _asdict(self):
+                return result_dict
+
+        mock_result = MockResult()
+
+        result = _flatten_join_result(mock_result)
+
+        self.assertIn('begin_geldigheid_relatie', getattr(result, 'reference'))
+        self.assertIn('eind_geldigheid_relatie', getattr(result, 'reference'))
+
+        mock_add_dates.assert_called_with(mock_entity.manyreference, result_dict['manyreference'])
+
+    @mock.patch('gobapi.storage.and_')
+    @mock.patch("gobapi.storage.get_relations_for_collection")
+    @mock.patch("gobapi.storage.GOBModel")
+    @mock.patch("gobapi.storage.models", mock_models)
+    def test_add_relation_joins(self, mock_gobmodel, mock_get_relations, mock_and):
+        mock_get_relations.return_value = {
+            'relation': 'relation_name'
+        }
+
+        mock_gobmodel.return_value = 'model'
+
+        mock_query = mock.MagicMock()
+
+        result = _add_relation_joins('catalog', 'collection', MockEntity('__has_states__'), mock_query)
+
+        mock_get_relations.assert_called_with('model', 'catalog', 'collection')
+
+        # _id('1') == src_id(1) and volgnummer(1) == src_volgnummer(1)
+        mock_and.assert_called_with(*[False, True])
+
+        mock_relation_model = mock_models['rel_relation_name']
+
+        mock_query.join.assert_called_with(mock_relation_model, mock_and.return_value)
+        join_res = mock_query.join.return_value
+
+        join_res.add_columns.assert_called()
+        add_columns_res = join_res.add_columns.return_value
+
+        add_columns_res.group_by.assert_called()
+        group_by_res = add_columns_res.group_by.return_value
+
+        self.assertEqual(result, group_by_res)
