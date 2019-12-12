@@ -11,8 +11,10 @@ import sqlalchemy_filters
 
 from unittest import mock, TestCase
 
-from gobapi.storage import _get_convert_for_state, filter_deleted, connect, _format_reference, _get_table
+from gobapi.storage import _get_convert_for_state, filter_deleted, connect, _format_reference, _get_table, \
+    _to_gob_value, _add_resolve_attrs_to_columns, _get_convert_for_table
 from gobapi.auth.auth_query import AuthorizedQuery
+from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
 
 class MockEntity:
@@ -635,3 +637,155 @@ class TestStorage(TestCase):
 
         names = ["any"]
         self.assertEqual(_get_table(names, "any123"), "any")
+
+    @mock.patch("gobapi.storage.Authority")
+    @mock.patch("gobapi.storage.get_gob_type_from_info")
+    def test_to_gob_value_dict(self, mock_from_info, mock_authority):
+        entity = {
+            'field a': 'value a',
+        }
+        field = 'field a'
+        spec = {}
+        mock_type = mock.MagicMock()
+        mock_from_info.return_value = mock_type
+
+        with mock.patch("gobapi.storage.GOB_SECURE_TYPES", []):
+            result = _to_gob_value(entity, field, spec)
+
+        mock_authority.assert_not_called()
+        self.assertEqual(mock_type.from_value.return_value, result)
+
+    @mock.patch("gobapi.storage.Authority")
+    @mock.patch("gobapi.storage.get_gob_type_from_info")
+    def test_to_gob_value_secure(self, mock_from_info, mock_authority):
+        entity = {
+            'field a': 'value a',
+        }
+        field = 'field a'
+        spec = {}
+        mock_type = mock.MagicMock()
+        mock_from_info.return_value = mock_type
+
+        with mock.patch("gobapi.storage.GOB_SECURE_TYPES", [mock_type]):
+            result = _to_gob_value(entity, field, spec)
+
+        mock_authority.get_secured_value.assert_called_with(mock_type.from_value_secure.return_value)
+        self.assertEqual(mock_authority.get_secured_value.return_value, result)
+
+    def test_add_resolve_attrs_to_columns(self):
+        class MockColumn:
+            def __init__(self, name):
+                self.name = name
+
+        model = GOBModel()
+        model._data = {
+            'the_catalog': {
+                'abbreviation': 'cat',
+                'name': 'the_catalog',
+                'collections': {
+                    'the_collection': {
+                        'name': 'the_collection',
+                        'abbreviation': 'col',
+                        'attributes': {
+                            'ignored_column': {
+                                'column': 'spec',
+                                'of': 'ignored_column',
+                            },
+                            'resolved_column': {
+                                'column': 'spec',
+                                'of': 'resolved_column',
+                            }
+                        }
+                    },
+                    'the_collection2': {
+                        'name': 'the_collection2',
+                        'abbreviation': 'col2',
+                        'attributes': {
+                            'other_resolved_column': {
+                                'column': 'spec',
+                                'of': 'other_resolved_column'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        columns = [
+            MockColumn('ignored_column'),
+            MockColumn('cat:col:resolved_column'),
+            MockColumn('cat:col2:other_resolved_column'),
+            MockColumn('cat:col2:nonexisting'),
+        ]
+
+        with mock.patch("gobapi.storage.GOBModel", return_value=model):
+            _add_resolve_attrs_to_columns(columns)
+
+        self.assertFalse(hasattr(columns[0], 'attribute'))
+        self.assertFalse(hasattr(columns[0], 'public_name'))
+
+        self.assertEqual({
+            'column': 'spec',
+            'of': 'resolved_column',
+        }, getattr(columns[1], 'attribute'))
+
+        self.assertEqual('resolved_column', getattr(columns[1], 'public_name'))
+
+        self.assertEqual({
+            'column': 'spec',
+            'of': 'other_resolved_column',
+        }, getattr(columns[2], 'attribute'))
+
+        self.assertEqual('other_resolved_column', getattr(columns[2], 'public_name'))
+
+        self.assertFalse(hasattr(columns[3], 'attribute'))
+        self.assertFalse(hasattr(columns[3], 'public_name'))
+
+    @mock.patch("gobapi.storage._add_resolve_attrs_to_columns")
+    @mock.patch("gobapi.storage._to_gob_value")
+    def test_get_convert_for_table(self, mock_to_gob_value, mock_resolve_attrs):
+        """Tests the resolve_column method and result when using _add_resolve_attrs_to_columns.
+        Tests if _to_gob_value is called with the right parameters, and if the result matches.
+
+        Does not check references and filter.
+
+        """
+        class MockColumn:
+            def __init__(self, name, with_attr=False):
+                self.name = name
+                self.type = 'the type'
+
+                if with_attr:
+                    self.attribute = 'the attribute'
+                    self.public_name = 'public_' + name
+
+        class MockTable:
+            def __init__(self, columns):
+                self.columns = columns
+
+        table = MockTable([
+            MockColumn('columna', False),
+            MockColumn('columnb', True),
+        ])
+
+        convert = _get_convert_for_table(table)
+
+        entity = {
+            'columna': 'col_a_value',
+            'columnb': 'col_b_value',
+        }
+
+        mock_to_gob_value.side_effect = lambda e, n, t: 'gobval(' + e.get(n) + ')'
+        mock_resolve_attrs.side_effect = lambda x: x
+
+        result = convert(entity)
+        self.assertEqual({
+            'columna': 'gobval(col_a_value)',
+            'public_columnb': 'gobval(col_b_value)',
+        }, result)
+
+        mock_to_gob_value.assert_has_calls([
+            mock.call(entity, 'columna', type('the type')),
+            mock.call(entity, 'columnb', 'the attribute'),
+        ])
+        mock_resolve_attrs.assert_called_with(table.columns)
+

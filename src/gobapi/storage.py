@@ -6,6 +6,8 @@ By using this module the API does not need to have any knowledge about the under
 
 """
 import datetime
+import re
+
 from collections import defaultdict
 
 from sqlalchemy import create_engine, Table, MetaData, func, and_, or_, Integer, cast
@@ -15,15 +17,15 @@ from sqlalchemy.ext.automap import automap_base
 from sqlalchemy_filters import apply_filters
 from sqlalchemy.sql import label
 
-from gobcore.model import GOBModel
+from gobcore.model import GOBModel, NotInModelException
 from gobcore.model.relations import get_relation_name
 from gobcore.model.sa.gob import Base
-from gobcore.typesystem import get_gob_type_from_sql_type, get_gob_type_from_info
+from gobcore.typesystem import get_gob_type_from_sql_type, get_gob_type_from_info, GOB_SECURE_TYPES
 from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS, FIELD
 
 from gobapi.config import GOB_DB, API_BASE_PATH
 from gobapi.session import set_session, get_session
-from gobapi.auth.auth_query import AuthorizedQuery, SUPPRESSED_COLUMNS
+from gobapi.auth.auth_query import AuthorizedQuery, SUPPRESSED_COLUMNS, Authority
 
 session = None
 _Base = None
@@ -142,6 +144,13 @@ def _to_gob_value(entity, field, spec):
     entity_value = getattr(entity, field, None)
     if isinstance(spec, dict):
         gob_type = get_gob_type_from_info(spec)
+
+        if gob_type in GOB_SECURE_TYPES:
+            # Instantiate secure object with value
+            secure_type = gob_type.from_value_secure(entity_value, spec)
+
+            # Return decrypted value
+            return Authority.get_secured_value(secure_type)
         return gob_type.from_value(entity_value, **spec)
     else:
         gob_type = get_gob_type_from_sql_type(spec)
@@ -218,6 +227,34 @@ def _get_convert_for_model(catalog, collection, model, meta=None, private_attrib
     return convert
 
 
+def _add_resolve_attrs_to_columns(columns):
+    """Adds attributes to columns necessary to resolve model attributes from a view.
+
+    Looks for attributes of the form brk:sjt:heeft_bsn_voor, and will try to find the attribute heeft_bsn_voor in the
+    catalog brk and collection sjt.
+
+    Adds attribute, authority and public_name (heeft_bsn_voor in this case) to columns matching the pattern above.
+    """
+    resolve_attr_pattern = re.compile("^(\w+):(\w+):(\w+)$")
+
+    for column in columns:
+        match = re.match(resolve_attr_pattern, column.name)
+        if not match:
+            continue
+
+        catalog_abbreviation, collection_abbreviation, attribute_name = match.groups()
+
+        try:
+            catalog, collection = GOBModel().get_catalog_collection_from_abbr(catalog_abbreviation,
+                                                                              collection_abbreviation)
+            attribute = collection['attributes'][attribute_name]
+        except (NotInModelException, KeyError):
+            continue
+
+        setattr(column, 'attribute', attribute)
+        setattr(column, 'public_name', attribute_name)
+
+
 def _get_convert_for_table(table, filter=None):
     """Get the entity to dict convert function for database Tables or Views
 
@@ -228,8 +265,25 @@ def _get_convert_for_table(table, filter=None):
     :return:
     """
     def convert(entity):
-        # Use the sqltypes to get the correct gobtype and return a dict
-        hal_entity = {column.name: _to_gob_value(entity, column.name, type(column.type)) for column in columns}
+        def resolve_column(column):
+            """Resolves the name and value of the given column for entity using _to_gob_value
+            Uses attributes set by _add_resolve_attrs_to_columns to determine how values are resolved.
+
+            If 'attribute' is set on column, pass 'attribute' to _to_gob_value, in which case the GOB type will be
+            used. Otherwise, pass SQL type of the column.
+            """
+            value = _to_gob_value(
+                entity,
+                column.name,
+                getattr(column, 'attribute', type(column.type)),
+            )
+            # If 'public_name' is set, replace column name (for example brk:sjt:heeft_bsn_voor) with 'public_name',
+            # (for example heeft_bsn_voor). Set by _add_resolve_attrs_to_columns
+            name = getattr(column, 'public_name', column.name)
+
+            return name, value
+
+        hal_entity = {name: value for name, value in [resolve_column(column) for column in columns]}
 
         # Add references to other entities
         if references:
@@ -285,6 +339,8 @@ def _get_convert_for_table(table, filter=None):
             'type': gob_type,
             'ref': ref
         }
+
+    _add_resolve_attrs_to_columns(columns)
     return convert
 
 

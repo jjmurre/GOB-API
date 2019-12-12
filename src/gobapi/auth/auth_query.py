@@ -78,7 +78,8 @@ class Authority():
             row[column] = None
         return row
 
-    def get_secured_value(self, sec_type):
+    @classmethod
+    def get_secured_value(cls, sec_type):
         """
         Create a user for his request and use this user to retrieve the value of the secure type
         """
