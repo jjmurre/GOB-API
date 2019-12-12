@@ -140,13 +140,17 @@ def _create_reference(entity, field, spec, entity_catalog=None, entity_collectio
     return embedded
 
 
-def _to_gob_value(entity, field, spec, authority=None):
+def _to_gob_value(entity, field, spec):
     entity_value = getattr(entity, field, None)
     if isinstance(spec, dict):
         gob_type = get_gob_type_from_info(spec)
 
-        if authority and gob_type in GOB_SECURE_TYPES:
-            return authority.get_secured_value(gob_type.from_value_secure(entity_value, spec))
+        if gob_type in GOB_SECURE_TYPES:
+            # Instantiate secure object with value
+            secure_type = gob_type.from_value_secure(entity_value, spec)
+
+            # Return decrypted value
+            return Authority.get_secured_value(secure_type)
         return gob_type.from_value(entity_value, **spec)
     else:
         gob_type = get_gob_type_from_sql_type(spec)
@@ -232,7 +236,6 @@ def _add_resolve_attrs_to_columns(columns):
     Adds attribute, authority and public_name (heeft_bsn_voor in this case) to columns matching the pattern above.
     """
     resolve_attr_pattern = re.compile("^(\w+):(\w+):(\w+)$")
-    authorities = defaultdict(dict)
 
     for column in columns:
         match = re.match(resolve_attr_pattern, column.name)
@@ -248,14 +251,7 @@ def _add_resolve_attrs_to_columns(columns):
         except (NotInModelException, KeyError):
             continue
 
-        authority = authorities[catalog_abbreviation].get(collection_abbreviation)
-
-        if not authority:
-            authority = Authority(catalog['name'], collection['name'])
-            authorities[catalog_abbreviation][collection_abbreviation] = authority
-
         setattr(column, 'attribute', attribute)
-        setattr(column, 'authority', authority)
         setattr(column, 'public_name', attribute_name)
 
 
@@ -275,18 +271,15 @@ def _get_convert_for_table(table, filter=None):
 
             If 'attribute' is set on column, pass 'attribute' to _to_gob_value, in which case the GOB type will be
             used. Otherwise, pass SQL type of the column.
-
-            Passes 'authority' to _to_gob_value to be able to resolve secured values.
             """
             value = _to_gob_value(
                 entity,
                 column.name,
-                getattr(column, 'attribute') if hasattr(column, 'attribute') else type(column.type),
-                authority=getattr(column, 'authority', None),
+                getattr(column, 'attribute', type(column.type)),
             )
             # If 'public_name' is set, replace column name (for example brk:sjt:heeft_bsn_voor) with 'public_name',
             # (for example heeft_bsn_voor). Set by _add_resolve_attrs_to_columns
-            name = column.public_name if hasattr(column, 'public_name') else column.name
+            name = getattr(column, 'public_name', column.name)
 
             return name, value
 

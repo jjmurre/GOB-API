@@ -638,8 +638,9 @@ class TestStorage(TestCase):
         names = ["any"]
         self.assertEqual(_get_table(names, "any123"), "any")
 
+    @mock.patch("gobapi.storage.Authority")
     @mock.patch("gobapi.storage.get_gob_type_from_info")
-    def test_to_gob_value_with_authority(self, mock_from_info):
+    def test_to_gob_value_dict(self, mock_from_info, mock_authority):
         entity = {
             'field a': 'value a',
         }
@@ -648,20 +649,29 @@ class TestStorage(TestCase):
         mock_type = mock.MagicMock()
         mock_from_info.return_value = mock_type
 
-        mock_authority = mock.MagicMock()
+        with mock.patch("gobapi.storage.GOB_SECURE_TYPES", []):
+            result = _to_gob_value(entity, field, spec)
+
+        mock_authority.assert_not_called()
+        self.assertEqual(mock_type.from_value.return_value, result)
+
+    @mock.patch("gobapi.storage.Authority")
+    @mock.patch("gobapi.storage.get_gob_type_from_info")
+    def test_to_gob_value_secure(self, mock_from_info, mock_authority):
+        entity = {
+            'field a': 'value a',
+        }
+        field = 'field a'
+        spec = {}
+        mock_type = mock.MagicMock()
+        mock_from_info.return_value = mock_type
 
         with mock.patch("gobapi.storage.GOB_SECURE_TYPES", [mock_type]):
-            result = _to_gob_value(entity, field, spec, mock_authority)
+            result = _to_gob_value(entity, field, spec)
 
         mock_authority.get_secured_value.assert_called_with(mock_type.from_value_secure.return_value)
         self.assertEqual(mock_authority.get_secured_value.return_value, result)
 
-    class MockAuthority:
-        def __init__(self, catalog, collection):
-            self.catalog = catalog
-            self.collection = collection
-
-    @mock.patch("gobapi.storage.Authority", MockAuthority)
     def test_add_resolve_attrs_to_columns(self):
         class MockColumn:
             def __init__(self, name):
@@ -711,7 +721,6 @@ class TestStorage(TestCase):
             _add_resolve_attrs_to_columns(columns)
 
         self.assertFalse(hasattr(columns[0], 'attribute'))
-        self.assertFalse(hasattr(columns[0], 'authority'))
         self.assertFalse(hasattr(columns[0], 'public_name'))
 
         self.assertEqual({
@@ -719,9 +728,6 @@ class TestStorage(TestCase):
             'of': 'resolved_column',
         }, getattr(columns[1], 'attribute'))
 
-        authority = getattr(columns[1], 'authority')
-        self.assertEqual('the_catalog', authority.catalog)
-        self.assertEqual('the_collection', authority.collection)
         self.assertEqual('resolved_column', getattr(columns[1], 'public_name'))
 
         self.assertEqual({
@@ -729,13 +735,9 @@ class TestStorage(TestCase):
             'of': 'other_resolved_column',
         }, getattr(columns[2], 'attribute'))
 
-        authority = getattr(columns[2], 'authority')
-        self.assertEqual('the_catalog', authority.catalog)
-        self.assertEqual('the_collection2', authority.collection)
         self.assertEqual('other_resolved_column', getattr(columns[2], 'public_name'))
 
         self.assertFalse(hasattr(columns[3], 'attribute'))
-        self.assertFalse(hasattr(columns[3], 'authority'))
         self.assertFalse(hasattr(columns[3], 'public_name'))
 
     @mock.patch("gobapi.storage._add_resolve_attrs_to_columns")
@@ -748,13 +750,12 @@ class TestStorage(TestCase):
 
         """
         class MockColumn:
-            def __init__(self, name, with_attr_auth=False):
+            def __init__(self, name, with_attr=False):
                 self.name = name
                 self.type = 'the type'
 
-                if with_attr_auth:
+                if with_attr:
                     self.attribute = 'the attribute'
-                    self.authority = 'the authority'
                     self.public_name = 'public_' + name
 
         class MockTable:
@@ -773,7 +774,7 @@ class TestStorage(TestCase):
             'columnb': 'col_b_value',
         }
 
-        mock_to_gob_value.side_effect = lambda e, n, t, authority: 'gobval(' + e.get(n) + ')'
+        mock_to_gob_value.side_effect = lambda e, n, t: 'gobval(' + e.get(n) + ')'
         mock_resolve_attrs.side_effect = lambda x: x
 
         result = convert(entity)
@@ -783,8 +784,8 @@ class TestStorage(TestCase):
         }, result)
 
         mock_to_gob_value.assert_has_calls([
-            mock.call(entity, 'columna', type('the type'), authority=None),
-            mock.call(entity, 'columnb', 'the attribute', authority='the authority'),
+            mock.call(entity, 'columna', type('the type')),
+            mock.call(entity, 'columnb', 'the attribute'),
         ])
         mock_resolve_attrs.assert_called_with(table.columns)
 
