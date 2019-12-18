@@ -18,14 +18,15 @@ from sqlalchemy_filters import apply_filters
 from sqlalchemy.sql import label
 
 from gobcore.model import GOBModel, NotInModelException
-from gobcore.model.relations import get_relation_name
-from gobcore.model.sa.gob import Base
+from gobcore.model.relations import get_relation_name, get_relations_for_collection
+from gobcore.model.sa.gob import Base, models
 from gobcore.typesystem import get_gob_type_from_sql_type, get_gob_type_from_info, GOB_SECURE_TYPES
 from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS, FIELD
 
 from gobapi.config import GOB_DB, API_BASE_PATH
 from gobapi.session import set_session, get_session
 from gobapi.auth.auth_query import AuthorizedQuery, SUPPRESSED_COLUMNS, Authority
+from gobapi.constants import API_FIELD
 
 session = None
 _Base = None
@@ -88,8 +89,7 @@ def _get_table_and_model(catalog_name, collection_name, view=None):
     if view:
         return Table(view, metadata, autoload=True), None
     else:
-        table_name = _get_table(dir(_Base.classes), GOBModel().get_table_name(catalog_name, collection_name))
-        return getattr(_Base.classes, table_name), GOBModel().get_collection(catalog_name, collection_name)
+        return models[f'{catalog_name}_{collection_name}'], GOBModel().get_collection(catalog_name, collection_name)
 
 
 def _create_reference_link(reference, catalog, collection):
@@ -181,6 +181,40 @@ def _get_convert_for_state(model, fields=[], private_attributes=False):
     return convert
 
 
+def _add_relation_dates_to_manyreference(entity_reference, relation_dates):
+    for item in entity_reference:
+        for relation_date in relation_dates:
+            if item[FIELD.SOURCE_VALUE] == relation_date[FIELD.SOURCE_VALUE]:
+                item.update({
+                    API_FIELD.START_VALIDITY_RELATION: relation_date.get(API_FIELD.START_VALIDITY_RELATION),
+                    API_FIELD.END_VALIDITY_RELATION: relation_date.get(API_FIELD.END_VALIDITY_RELATION),
+                })
+    return entity_reference
+
+
+def _flatten_join_result(result):
+    entity = result[0]
+    for key, value in result._asdict().items():
+        if isinstance(value, Base):
+            continue
+        else:
+            reference = getattr(entity, key)
+            # For GOB.ManyReference add the relation dates based on the bronwaarde in the item
+            if isinstance(reference, list):
+                _add_relation_dates_to_manyreference(reference, value)
+            else:
+                # For GOB.Reference only one value is expected and should be added to the result
+                try:
+                    reference.update({
+                        API_FIELD.START_VALIDITY_RELATION: value[0].get(API_FIELD.START_VALIDITY_RELATION),
+                        API_FIELD.END_VALIDITY_RELATION: value[0].get(API_FIELD.END_VALIDITY_RELATION),
+                    })
+                except IndexError:
+                    pass
+
+    return entity
+
+
 def _get_convert_for_model(catalog, collection, model, meta=None, private_attributes=False):
     """Get the entity to dict convert function for GOBModels
 
@@ -190,7 +224,10 @@ def _get_convert_for_model(catalog, collection, model, meta=None, private_attrib
     :param model:
     :return:
     """
-    def convert(entity):
+    def convert(result):
+
+        entity = _flatten_join_result(result) if isinstance(result, tuple) else result
+
         deleted = getattr(entity, SUPPRESSED_COLUMNS, [])
         hal_entity = {k: _to_gob_value(entity, k, v) for k, v in items if k not in deleted}
 
@@ -419,6 +456,8 @@ def query_entities(catalog, collection, view):
     query = session.query(table)
     query.set_catalog_collection(catalog, collection)
 
+    query = _add_relation_joins(catalog, collection, table, query) if not view else query
+
     # Exclude all records with date_deleted
     all_entities = filter_deleted(query, table)
 
@@ -432,6 +471,9 @@ def query_entities(catalog, collection, view):
     except (KeyError, TypeError) as e:
         pass
     else:
+        # When joining other tables, we need the tablename on filters to know which table to filter on
+        for filter in filters:
+            filter.update({'model': table.__tablename__})
         all_entities = apply_filters(all_entities, filters)
 
     if view:
@@ -441,6 +483,32 @@ def query_entities(catalog, collection, view):
         entity_convert = _get_convert_for_model(catalog, collection, model)
 
     return all_entities.yield_per(10000), entity_convert
+
+
+def _add_relation_joins(catalog, collection, table, query):
+    relations = get_relations_for_collection(GOBModel(), catalog, collection)
+
+    for relation_name, relation_table_name in relations.items():
+        relation_model = models[f'rel_{relation_table_name}']
+
+        relation_join_args = [
+            getattr(table, FIELD.ID) == getattr(relation_model, 'src_id')
+        ]
+
+        if table.__has_states__:
+            relation_join_args.append(getattr(table, FIELD.SEQNR) == getattr(relation_model, 'src_volgnummer'))
+
+        # Join all relation tables and create a array of all relations. Include source value to match the objects
+        query = query.join(relation_model, and_(*relation_join_args)) \
+                     .add_columns(
+                        func.json_agg(func.json_build_object(
+                            FIELD.SOURCE_VALUE, getattr(relation_model, FIELD.SOURCE_VALUE),
+                            API_FIELD.START_VALIDITY_RELATION, getattr(relation_model, FIELD.START_VALIDITY),
+                            API_FIELD.END_VALIDITY_RELATION, getattr(relation_model, FIELD.END_VALIDITY)))
+                        .label(relation_name)) \
+                     .group_by(table)
+
+    return query
 
 
 def query_reference_entities(catalog, collection, reference_name, src_id):
@@ -539,6 +607,8 @@ def get_entity(catalog, collection, id, view=None):
     query = session.query(table).filter_by(**filter)
     query.set_catalog_collection(catalog, collection)
 
+    query = _add_relation_joins(catalog, collection, table, query)
+
     # Exclude all records with date_deleted
     entity = filter_deleted(query, table)
 
@@ -552,6 +622,9 @@ def get_entity(catalog, collection, id, view=None):
     except (KeyError, TypeError) as e:
         pass
     else:
+        # When joining other tables, we need the tablename on filters to know which table to filter on
+        for filter in filters:
+            filter.update({'model': table.__tablename__})
         entity = apply_filters(entity, filters)
 
     entity = entity.one_or_none()

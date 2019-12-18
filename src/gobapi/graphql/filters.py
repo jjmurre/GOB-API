@@ -17,6 +17,7 @@ from gobapi import serialize
 from gobapi.utils import to_camelcase
 from gobapi.storage import filter_active, filter_deleted
 
+from gobapi.constants import API_FIELD
 from gobapi.graphql_streaming.utils import resolve_schema_collection_name
 
 from typing import List
@@ -24,9 +25,6 @@ from typing import List
 gobmodel = GOBModel()
 
 FILTER_ON_NULL_VALUE = "null"
-
-START_VALIDITY_RELATION = "begin_geldigheid_relatie"
-END_VALIDITY_RELATION = "eind_geldigheid_relatie"
 
 
 class FilterConnectionField(SQLAlchemyConnectionField):
@@ -285,8 +283,8 @@ def get_resolve_attribute(model, src_attribute_name):
 
         # Check if a relation field is requested and we need to join the relation table
         join_relation = any([i in query_fields for i in [
-                            to_camelcase(START_VALIDITY_RELATION),
-                            to_camelcase(END_VALIDITY_RELATION)]])
+                            to_camelcase(API_FIELD.START_VALIDITY_RELATION),
+                            to_camelcase(API_FIELD.END_VALIDITY_RELATION)]])
 
         if join_relation:
             query = add_relation_join_query(obj, model, src_attribute_name, query)
@@ -315,8 +313,8 @@ def add_relation_join_query(obj, model, src_attribute_name, query):
 
     # Add the relationship table join and query the relation fields
     query = query.join(relation_model, and_(*relation_join_args)) \
-                 .add_columns(getattr(relation_model, FIELD.START_VALIDITY).label(START_VALIDITY_RELATION),
-                              getattr(relation_model, FIELD.END_VALIDITY).label(END_VALIDITY_RELATION))
+                 .add_columns(getattr(relation_model, FIELD.START_VALIDITY).label(API_FIELD.START_VALIDITY_RELATION),
+                              getattr(relation_model, FIELD.END_VALIDITY).label(API_FIELD.END_VALIDITY_RELATION))
 
     return query
 

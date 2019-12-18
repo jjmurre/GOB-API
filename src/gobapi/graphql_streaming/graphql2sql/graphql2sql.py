@@ -1,7 +1,5 @@
 from antlr4 import InputStream, CommonTokenStream
-
-from gobapi.graphql.filters import START_VALIDITY_RELATION, END_VALIDITY_RELATION
-
+from gobapi.constants import API_FIELD
 from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLLexer import GraphQLLexer
 from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLParser import GraphQLParser
 from gobapi.graphql_streaming.graphql2sql.grammar.GraphQLVisitor import GraphQLVisitor as BaseVisitor
@@ -140,7 +138,7 @@ class SqlGenerator:
 
     # Attributes to ignore in the query on attributes.
     srcvalues_attributes = [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO]
-    relvalues_attributes = [START_VALIDITY_RELATION, END_VALIDITY_RELATION]
+    relvalues_attributes = [API_FIELD.START_VALIDITY_RELATION, API_FIELD.END_VALIDITY_RELATION]
 
     def __init__(self, visitor: GraphQLVisitor):
         """
