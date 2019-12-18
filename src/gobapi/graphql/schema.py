@@ -15,11 +15,12 @@ import sqlalchemy
 from sqlalchemy.dialects import postgresql
 
 from gobcore.model import GOBModel
-from gobcore.model.metadata import FIELD
 from gobcore.model.relations import get_fieldnames_for_missing_relations
 from gobcore.model.sa.gob import models
+from gobcore.model.metadata import FIELD
 from gobcore.typesystem import GOB_SECURE_TYPES, get_gob_type
 
+from gobapi.constants import API_FIELD, API_FIELD_DESCRIPTION
 from gobapi.graphql import graphene_type, exclude_fields
 from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute, get_resolve_secure_attribute, \
     get_resolve_inverse_attribute, get_resolve_attribute_missing_relation
@@ -32,12 +33,6 @@ inverse_connection_fields = {}  # FilterConnectionField() per collection without
 
 # Generation of GraphQL schema goes past the default recursion limit of 1000 (something in Graphene)
 sys.setrecursionlimit(1500)
-
-bronwaarde_description = "De bronwaarde die als basis dient voor deze relatie"
-broninfo_description = "De extra waarden meegegeven vanuit de bron naast de bronwaarde voor deze relatie"
-
-begin_geldigheid_relatie_description = "De datum waarop deze relatie is ontstaan"
-eind_geldigheid_relatie_description = "De datum waarop deze relatie is geëindigd"
 
 
 def get_collection_references(collection):
@@ -201,10 +196,14 @@ def get_graphene_query():
                                                          object_type_fields,
                                                          meta)
         rel_connection_class = _create_connection_class(f"{model_name}Rel", {
-            "bronwaarde": graphene.String(description=bronwaarde_description),
-            "broninfo": GenericScalar(description=broninfo_description),
-            FIELD.START_VALIDITY_RELATION: DateTime(description=begin_geldigheid_relatie_description),
-            FIELD.END_VALIDITY_RELATION: DateTime(description=eind_geldigheid_relatie_description),
+            "bronwaarde": graphene.String(description=API_FIELD_DESCRIPTION[FIELD.SOURCE_VALUE]),
+            "broninfo": GenericScalar(description=API_FIELD_DESCRIPTION[FIELD.SOURCE_INFO]),
+            API_FIELD.START_VALIDITY_RELATION: DateTime(
+                description=API_FIELD_DESCRIPTION[API_FIELD.START_VALIDITY_RELATION]
+            ),
+            API_FIELD.END_VALIDITY_RELATION: DateTime(
+                description=API_FIELD_DESCRIPTION[API_FIELD.END_VALIDITY_RELATION]
+            ),
             **object_type_fields,
         }, meta)
 

@@ -26,6 +26,7 @@ from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXE
 from gobapi.config import GOB_DB, API_BASE_PATH
 from gobapi.session import set_session, get_session
 from gobapi.auth.auth_query import AuthorizedQuery, SUPPRESSED_COLUMNS, Authority
+from gobapi.constants import API_FIELD
 
 session = None
 _Base = None
@@ -185,8 +186,8 @@ def _add_relation_dates_to_manyreference(entity_reference, relation_dates):
         for relation_date in relation_dates:
             if item[FIELD.SOURCE_VALUE] == relation_date[FIELD.SOURCE_VALUE]:
                 item.update({
-                    FIELD.START_VALIDITY_RELATION: relation_date.get(FIELD.START_VALIDITY_RELATION),
-                    FIELD.END_VALIDITY_RELATION: relation_date.get(FIELD.END_VALIDITY_RELATION),
+                    API_FIELD.START_VALIDITY_RELATION: relation_date.get(API_FIELD.START_VALIDITY_RELATION),
+                    API_FIELD.END_VALIDITY_RELATION: relation_date.get(API_FIELD.END_VALIDITY_RELATION),
                 })
     return entity_reference
 
@@ -205,8 +206,8 @@ def _flatten_join_result(result):
                 # For GOB.Reference only one value is expected and should be added to the result
                 try:
                     reference.update({
-                        FIELD.START_VALIDITY_RELATION: value[0].get(FIELD.START_VALIDITY_RELATION),
-                        FIELD.END_VALIDITY_RELATION: value[0].get(FIELD.END_VALIDITY_RELATION),
+                        API_FIELD.START_VALIDITY_RELATION: value[0].get(API_FIELD.START_VALIDITY_RELATION),
+                        API_FIELD.END_VALIDITY_RELATION: value[0].get(API_FIELD.END_VALIDITY_RELATION),
                     })
                 except IndexError:
                     pass
@@ -502,8 +503,8 @@ def _add_relation_joins(catalog, collection, table, query):
                      .add_columns(
                         func.json_agg(func.json_build_object(
                             FIELD.SOURCE_VALUE, getattr(relation_model, FIELD.SOURCE_VALUE),
-                            FIELD.START_VALIDITY_RELATION, getattr(relation_model, FIELD.START_VALIDITY),
-                            FIELD.END_VALIDITY_RELATION, getattr(relation_model, FIELD.END_VALIDITY)))
+                            API_FIELD.START_VALIDITY_RELATION, getattr(relation_model, FIELD.START_VALIDITY),
+                            API_FIELD.END_VALIDITY_RELATION, getattr(relation_model, FIELD.END_VALIDITY)))
                         .label(relation_name)) \
                      .group_by(table)
 
