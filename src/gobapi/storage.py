@@ -499,14 +499,16 @@ def _add_relation_joins(catalog, collection, table, query):
             relation_join_args.append(getattr(table, FIELD.SEQNR) == getattr(relation_model, 'src_volgnummer'))
 
         # Join all relation tables and create a array of all relations. Include source value to match the objects
-        query = query.join(relation_model, and_(*relation_join_args)) \
+        query = query.outerjoin(relation_model, and_(*relation_join_args)) \
                      .add_columns(
                         func.json_agg(func.json_build_object(
                             FIELD.SOURCE_VALUE, getattr(relation_model, FIELD.SOURCE_VALUE),
                             API_FIELD.START_VALIDITY_RELATION, getattr(relation_model, FIELD.START_VALIDITY),
                             API_FIELD.END_VALIDITY_RELATION, getattr(relation_model, FIELD.END_VALIDITY)))
-                        .label(relation_name)) \
-                     .group_by(table)
+                        .label(relation_name))
+
+    # Add group by clause to aggregate relation results
+    query = query.group_by(table)
 
     return query
 

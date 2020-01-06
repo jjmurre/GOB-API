@@ -117,6 +117,9 @@ class MockEntities:
     def join(self, *args):
         return self
 
+    def outerjoin(self, *args):
+        return self
+
     def yield_per(self, *args):
         return self
 
@@ -887,8 +890,8 @@ class TestStorage(TestCase):
 
         mock_relation_model = mock_models['rel_relation_name']
 
-        mock_query.join.assert_called_with(mock_relation_model, mock_and.return_value)
-        join_res = mock_query.join.return_value
+        mock_query.outerjoin.assert_called_with(mock_relation_model, mock_and.return_value)
+        join_res = mock_query.outerjoin.return_value
 
         join_res.add_columns.assert_called()
         add_columns_res = join_res.add_columns.return_value
