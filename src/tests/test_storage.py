@@ -13,10 +13,11 @@ from unittest import mock, TestCase
 
 from gobapi.storage import _get_convert_for_state, filter_deleted, connect, _format_reference, _get_table, \
     _to_gob_value, _add_resolve_attrs_to_columns, _get_convert_for_table, _add_relation_dates_to_manyreference, \
-    _flatten_join_result
+    _flatten_join_result, get_entity_refs_after, dump_entities
 from gobapi.auth.auth_query import AuthorizedQuery
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
+
 
 class MockEntity:
     __has_states__ = False
@@ -867,3 +868,65 @@ class TestStorage(TestCase):
         self.assertIn('eind_geldigheid_relatie', getattr(result, 'reference'))
 
         mock_add_dates.assert_called_with(mock_entity.manyreference, result_dict['manyreference'])
+
+    @mock.patch("gobapi.storage._Base", mock.MagicMock())
+    @mock.patch("gobapi.storage.get_table_and_model")
+    @mock.patch("gobapi.storage.get_session")
+    def test_get_entity_refs_after(self, mock_get_session, mock_get_table_and_model):
+
+        table_no_seqnr = type('MockTableNoSeqnr', (object,), {'_id': '230', '_last_event': 2000})
+        table_seqnr = type('MockTableWithSeqnr', (object,), {'_id': '230', '_last_event': 2000, 'volgnummer': 2})
+        mock_get_session.return_value.query.return_value.filter.return_value.all.return_value = [
+            ('id1',),
+            ('id2',),
+            ('id3',),
+        ]
+
+        # First check query selection without volgnummer
+        mock_get_table_and_model.return_value = table_no_seqnr, 'model'
+        get_entity_refs_after('catalog', 'collection', 2920)
+
+        mock_get_session.return_value.query.assert_called_with('230')
+
+        # Test query selection with volgnummer
+        mock_get_table_and_model.return_value = table_seqnr, 'model'
+        result = get_entity_refs_after('catalog', 'collection', 2920)
+
+        mock_get_session.return_value.query.assert_called_with('230_2')
+        self.assertEqual(['id1', 'id2', 'id3'], result)
+
+        # Test filter
+        mock_get_session.return_value.query.return_value.filter.assert_called_with(False)
+
+        get_entity_refs_after('catalog', 'collection', 1900)
+        mock_get_session.return_value.query.return_value.filter.assert_called_with(True)
+
+        get_entity_refs_after('catalog', 'collection', 2000)
+        mock_get_session.return_value.query.return_value.filter.assert_called_with(False)
+
+        mock_get_table_and_model.assert_called_with('catalog', 'collection')
+
+    @mock.patch("gobapi.storage._Base", mock.MagicMock())
+    @mock.patch("gobapi.storage.get_table_and_model")
+    @mock.patch("gobapi.storage.get_session")
+    def test_dump_entities_with_filter(self, mock_get_session, mock_get_table_and_model):
+        mock_table = type('MockTable', (object,), {'_id': '9204940'})
+        mock_model = {}
+        mock_filter = mock.MagicMock()
+
+        mock_get_table_and_model.return_value = mock_table, mock_model
+
+        result = dump_entities('catalog_name', 'collection_name', mock_filter)
+        mock_get_session.return_value.query.assert_called_with(mock_table)
+
+        # Assert filter is called, and used on entities
+        mock_filter.assert_called_with(mock_table)
+        mock_get_session.return_value.query.return_value.filter.assert_called_with(mock_filter.return_value)
+        entities = mock_get_session.return_value.query.return_value.filter.return_value
+
+        # Assert catalog/collection are set on entities
+        entities.set_catalog_collection.assert_called_with('catalog_name', 'collection_name')
+
+        mock_model['catalog'] = 'catalog_name'
+        mock_model['collection'] = 'collection_name'
+        self.assertEqual((entities.yield_per.return_value, mock_model), result)
