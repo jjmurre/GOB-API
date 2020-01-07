@@ -1,7 +1,7 @@
 from unittest import TestCase
 from unittest.mock import MagicMock, patch, call
 
-from gobapi.dump.to_db import dump_to_db, DbDumper, _dump_relations
+from gobapi.dump.to_db import dump_to_db, DbDumper, _dump_relations, FIELD
 
 
 class MockStream():
@@ -282,7 +282,9 @@ class TestDbDumper(TestCase):
         db_dumper._copy_table_into.assert_not_called()
 
         self.assertIn('Do full dump\n', result)
-        mock_dump_entities.assert_called_with(db_dumper.catalog_name, db_dumper.collection_name)
+        mock_dump_entities.assert_called_with(db_dumper.catalog_name,
+                                              db_dumper.collection_name,
+                                              order_by=FIELD.LAST_EVENT)
 
     @patch('gobapi.dump.to_db.dump_entities')
     def test_dump_to_db_force_full(self, mock_dump_entities, mock_create_engine, mock_url):
@@ -293,7 +295,9 @@ class TestDbDumper(TestCase):
         db_dumper._copy_table_into.assert_not_called()
 
         self.assertIn('Do full dump\n', result)
-        mock_dump_entities.assert_called_with(db_dumper.catalog_name, db_dumper.collection_name)
+        mock_dump_entities.assert_called_with(db_dumper.catalog_name,
+                                              db_dumper.collection_name,
+                                              order_by=FIELD.LAST_EVENT)
 
     @patch('gobapi.dump.to_db.dump_entities')
     def test_dump_to_db_full_columns_not_equal(self, mock_dump_entities, mock_create_engine, mock_url):
@@ -304,7 +308,9 @@ class TestDbDumper(TestCase):
         result = list(db_dumper.dump_to_db())
         db_dumper._copy_table_into.assert_not_called()
         self.assertIn('Do full dump\n', result)
-        mock_dump_entities.assert_called_with(db_dumper.catalog_name, db_dumper.collection_name)
+        mock_dump_entities.assert_called_with(db_dumper.catalog_name,
+                                              db_dumper.collection_name,
+                                              order_by=FIELD.LAST_EVENT)
 
     @patch('gobapi.dump.to_db.dump_entities')
     @patch('gobapi.dump.to_db.get_entity_refs_after')
@@ -323,7 +329,8 @@ class TestDbDumper(TestCase):
         db_dumper._delete_dst_entities.assert_called_with(db_dumper.tmp_collection_name, mock_get_entity_refs.return_value)
 
         mock_dump_entities.assert_called_with(db_dumper.catalog_name, db_dumper.collection_name,
-                                              db_dumper._filter_last_events_lambda.return_value)
+                                              filter=db_dumper._filter_last_events_lambda.return_value,
+                                              order_by=FIELD.LAST_EVENT)
 
     @patch('gobapi.dump.to_db.dump_entities')
     @patch('gobapi.dump.to_db.get_entity_refs_after')
@@ -341,7 +348,8 @@ class TestDbDumper(TestCase):
         db_dumper._delete_dst_entities.assert_not_called()
 
         mock_dump_entities.assert_called_with(db_dumper.catalog_name, db_dumper.collection_name,
-                                              db_dumper._filter_last_events_lambda.return_value)
+                                              filter=db_dumper._filter_last_events_lambda.return_value,
+                                              order_by=FIELD.LAST_EVENT)
 
 
 @patch('gobapi.dump.to_db.DbDumper')
