@@ -13,7 +13,7 @@ from unittest import mock, TestCase
 
 from gobapi.storage import _get_convert_for_state, filter_deleted, connect, _format_reference, _get_table, \
     _to_gob_value, _add_resolve_attrs_to_columns, _get_convert_for_table, _add_relation_dates_to_manyreference, \
-    _flatten_join_result, _add_relation_joins
+    _flatten_join_result
 from gobapi.auth.auth_query import AuthorizedQuery
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
@@ -867,36 +867,3 @@ class TestStorage(TestCase):
         self.assertIn('eind_geldigheid_relatie', getattr(result, 'reference'))
 
         mock_add_dates.assert_called_with(mock_entity.manyreference, result_dict['manyreference'])
-
-    @mock.patch('gobapi.storage.and_')
-    @mock.patch("gobapi.storage.get_relations_for_collection")
-    @mock.patch("gobapi.storage.GOBModel")
-    @mock.patch("gobapi.storage.models", mock_models)
-    def test_add_relation_joins(self, mock_gobmodel, mock_get_relations, mock_and):
-        mock_get_relations.return_value = {
-            'relation': 'relation_name'
-        }
-
-        mock_gobmodel.return_value = 'model'
-
-        mock_query = mock.MagicMock()
-
-        result = _add_relation_joins('catalog', 'collection', MockEntity('__has_states__'), mock_query)
-
-        mock_get_relations.assert_called_with('model', 'catalog', 'collection')
-
-        # _id('1') == src_id(1) and volgnummer(1) == src_volgnummer(1)
-        mock_and.assert_called_with(*[False, True])
-
-        mock_relation_model = mock_models['rel_relation_name']
-
-        mock_query.outerjoin.assert_called_with(mock_relation_model, mock_and.return_value)
-        join_res = mock_query.outerjoin.return_value
-
-        join_res.add_columns.assert_called()
-        add_columns_res = join_res.add_columns.return_value
-
-        add_columns_res.group_by.assert_called()
-        group_by_res = add_columns_res.group_by.return_value
-
-        self.assertEqual(result, group_by_res)

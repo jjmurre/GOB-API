@@ -18,7 +18,7 @@ from sqlalchemy_filters import apply_filters
 from sqlalchemy.sql import label
 
 from gobcore.model import GOBModel, NotInModelException
-from gobcore.model.relations import get_relation_name, get_relations_for_collection
+from gobcore.model.relations import get_relation_name
 from gobcore.model.sa.gob import Base, models
 from gobcore.typesystem import get_gob_type_from_sql_type, get_gob_type_from_info, GOB_SECURE_TYPES
 from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS, FIELD
@@ -456,8 +456,6 @@ def query_entities(catalog, collection, view):
     query = session.query(table)
     query.set_catalog_collection(catalog, collection)
 
-    query = _add_relation_joins(catalog, collection, table, query) if not view else query
-
     # Exclude all records with date_deleted
     all_entities = filter_deleted(query, table)
 
@@ -483,34 +481,6 @@ def query_entities(catalog, collection, view):
         entity_convert = _get_convert_for_model(catalog, collection, model)
 
     return all_entities.yield_per(10000), entity_convert
-
-
-def _add_relation_joins(catalog, collection, table, query):
-    relations = get_relations_for_collection(GOBModel(), catalog, collection)
-
-    for relation_name, relation_table_name in relations.items():
-        relation_model = models[f'rel_{relation_table_name}']
-
-        relation_join_args = [
-            getattr(table, FIELD.ID) == getattr(relation_model, 'src_id')
-        ]
-
-        if table.__has_states__:
-            relation_join_args.append(getattr(table, FIELD.SEQNR) == getattr(relation_model, 'src_volgnummer'))
-
-        # Join all relation tables and create a array of all relations. Include source value to match the objects
-        query = query.outerjoin(relation_model, and_(*relation_join_args)) \
-                     .add_columns(
-                        func.json_agg(func.json_build_object(
-                            FIELD.SOURCE_VALUE, getattr(relation_model, FIELD.SOURCE_VALUE),
-                            API_FIELD.START_VALIDITY_RELATION, getattr(relation_model, FIELD.START_VALIDITY),
-                            API_FIELD.END_VALIDITY_RELATION, getattr(relation_model, FIELD.END_VALIDITY)))
-                        .label(relation_name))
-
-    # Add group by clause to aggregate relation results
-    query = query.group_by(table)
-
-    return query
 
 
 def query_reference_entities(catalog, collection, reference_name, src_id):
@@ -608,8 +578,6 @@ def get_entity(catalog, collection, id, view=None):
 
     query = session.query(table).filter_by(**filter)
     query.set_catalog_collection(catalog, collection)
-
-    query = _add_relation_joins(catalog, collection, table, query)
 
     # Exclude all records with date_deleted
     entity = filter_deleted(query, table)
