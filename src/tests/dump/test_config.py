@@ -237,7 +237,7 @@ class TestDumpStorage(TestCase):
 
     @patch('gobapi.storage._Base', "any base")
     @patch('gobapi.storage.get_session', lambda: MockSession())
-    @patch('gobapi.storage._get_table_and_model', lambda cat, col: ("any table", {}))
+    @patch('gobapi.storage.get_table_and_model', lambda cat, col: ("any table", {}))
     def test_dump_entities(self):
         result = storage.dump_entities("any catalog", "any collection")
         self.assertEqual(result, ('any table', {'catalog': 'any catalog', 'collection': 'any collection'}))

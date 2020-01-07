@@ -8,6 +8,7 @@ By using this module the API does not need to have any knowledge about the under
 import datetime
 import re
 
+from typing import List
 from collections import defaultdict
 
 from sqlalchemy import create_engine, Table, MetaData, func, and_, or_, Integer, cast
@@ -76,7 +77,7 @@ def _get_table(table_names, table_name):
     return match
 
 
-def _get_table_and_model(catalog_name, collection_name, view=None):
+def get_table_and_model(catalog_name, collection_name, view=None):
     """Table and Model
 
     Utility method to retrieve the Table and Model for a specific collection.
@@ -424,34 +425,65 @@ def get_entities(catalog, collection, offset, limit, view=None, reference_name=N
     return entities, all_count
 
 
-def dump_entities(catalog, collection):
+def dump_entities(catalog, collection, filter=None):
     """
     Get all entities in the given catalog collection
 
     :param catalog:
     :param collection:
+    :param filter: function that returns a filter expression with the table as input
+
+    example of filter parameter:
+    filter = lambda table: getattr(table, FIELD.LAST_EVENT) > max_eventid
+
     :return: (all collection entities, the collection model)
     """
     assert _Base
     session = get_session()
 
-    table, model = _get_table_and_model(catalog, collection)
+    table, model = get_table_and_model(catalog, collection)
 
     # Register the meta data in the model
     model['catalog'] = catalog
     model['collection'] = collection
 
     entities = session.query(table)
+
+    if filter:
+        entities = entities.filter(filter(table))
     entities.set_catalog_collection(catalog, collection)
 
     return entities.yield_per(10000), model
+
+
+def get_entity_refs_after(catalog: str, collection: str, last_eventid: int) -> List[str]:
+    """
+    Returns refs of entities with _last_event greater than last_eventid
+
+    :param catalog:
+    :param collection:
+    :param last_eventid:
+    """
+    assert _Base
+    session = get_session()
+
+    table, _ = get_table_and_model(catalog, collection)
+
+    id = getattr(table, FIELD.ID) + '_' \
+        + str(getattr(table, FIELD.SEQNR)) if hasattr(table, FIELD.SEQNR) else getattr(table, FIELD.ID)
+    ids = [
+        row[0] for row in
+        session.query(id).filter(getattr(table, FIELD.LAST_EVENT) > last_eventid).all()
+    ]
+
+    return ids
 
 
 def query_entities(catalog, collection, view):
     assert _Base
     session = get_session()
 
-    table, model = _get_table_and_model(catalog, collection, view)
+    table, model = get_table_and_model(catalog, collection, view)
 
     query = session.query(table)
     query.set_catalog_collection(catalog, collection)
@@ -492,13 +524,13 @@ def query_reference_entities(catalog, collection, reference_name, src_id):
     rel_catalog_name = 'rel'
     rel_collection_name = get_relation_name(gob_model, catalog, collection, reference_name)
 
-    rel_table, rel_model = _get_table_and_model(rel_catalog_name, rel_collection_name)
+    rel_table, rel_model = get_table_and_model(rel_catalog_name, rel_collection_name)
 
     dst_catalog_name, dst_collection_name = gob_model.get_collection(
         catalog, collection)['references'][reference_name]['ref'].split(':')
 
     # Destination table and model
-    dst_table, dst_model = _get_table_and_model(dst_catalog_name, dst_collection_name)
+    dst_table, dst_model = get_table_and_model(dst_catalog_name, dst_collection_name)
 
     query = session.query(dst_table) \
                    .join(rel_table, dst_table._id == rel_table.dst_id) \
@@ -527,7 +559,7 @@ def get_collection_states(catalog, collection):
     assert _Base
     session = get_session()
 
-    entity, model = _get_table_and_model(catalog, collection)
+    entity, model = get_table_and_model(catalog, collection)
 
     # Get the max sequence number for every id + start validity combination
     sub = session.query(getattr(entity, FIELD.ID),
@@ -574,7 +606,7 @@ def get_entity(catalog, collection, id, view=None):
         "_id": id,
     }
 
-    table, model = _get_table_and_model(catalog, collection, view)
+    table, model = get_table_and_model(catalog, collection, view)
 
     query = session.query(table).filter_by(**filter)
     query.set_catalog_collection(catalog, collection)

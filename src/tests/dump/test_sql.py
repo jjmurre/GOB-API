@@ -1,7 +1,8 @@
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from gobapi.dump.sql import _create_table, _create_schema, _import_csv, sql_entities
+from gobapi.dump.sql import _create_table, _create_schema, _import_csv, sql_entities, get_max_eventid, \
+    delete_entities_with_source_ids, _quoted_tablename, _rename_table, _create_index
 from gobapi.dump.config import REFERENCE_FIELDS
 
 
@@ -77,3 +78,28 @@ class TestSQL(TestCase):
         self.assertTrue("CREATE TABLE IF NOT EXISTS" in result)
         self.assertTrue("\COPY" in result)
 
+    def test_quoted_tablename(self):
+        result = _quoted_tablename('schema', 'collection')
+        self.assertEqual('"schema"."collection"', result)
+
+    def test_rename_table(self):
+        result = _rename_table('schema', 'current_name', 'new_name')
+        self.assertEqual('\nDROP  TABLE IF EXISTS "schema"."new_name"     CASCADE;\n'
+                         'ALTER TABLE IF EXISTS "schema"."current_name" RENAME TO new_name\n',
+                         result)
+
+    def test_create_index(self):
+        result = _create_index('schema', 'collection', 'field', 'method')
+        self.assertEqual('\nCREATE INDEX collection_field ON "schema"."collection" USING method (field)\n', result)
+
+    def test_get_max_eventid(self):
+        result = get_max_eventid('schema', 'collection')
+        self.assertEqual('SELECT max(_last_event) FROM "schema"."collection"', result)
+
+    def test_delete_entities_with_source_ids(self):
+        result = delete_entities_with_source_ids('schema', 'collection', ['source_id_a', 'source_id_b'])
+
+        self.assertEqual(
+            'DELETE FROM "schema"."collection" WHERE _source_id IN (\'source_id_a\',\'source_id_b\')',
+            result
+        )

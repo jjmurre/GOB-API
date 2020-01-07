@@ -11,6 +11,7 @@ from gobapi.dump.config import UNIQUE_ID, REFERENCE_TYPES, get_reference_fields
 from gobapi.dump.config import SQL_TYPE_CONVERSIONS, SQL_QUOTATION_MARK
 
 from gobapi.dump.config import get_field_specifications, joined_names, get_field_order
+from gobcore.model.metadata import FIELD
 
 
 def _quote(name):
@@ -67,6 +68,10 @@ def quote_sql_string(s):
     return s.replace(SQL_QUOTATION_MARK, 2 * SQL_QUOTATION_MARK)
 
 
+def _quoted_tablename(schema, table_name):
+    return f"{_quote(schema)}.{_quote(table_name)}"
+
+
 def _rename_table(schema, current_name, new_name):
     """
     Rename table with the given current_name in the given schema to new_name in the same schema
@@ -76,8 +81,8 @@ def _rename_table(schema, current_name, new_name):
     :param new_name:
     :return:
     """
-    current_table = (f"{_quote(schema)}.{_quote(current_name)}")
-    new_table = (f"{_quote(schema)}.{_quote(new_name)}")
+    current_table = _quoted_tablename(schema, current_name)
+    new_table = _quoted_tablename(schema, new_name)
     return f"""
 DROP  TABLE IF EXISTS {new_table}     CASCADE;
 ALTER TABLE IF EXISTS {current_table} RENAME TO {new_name}
@@ -94,10 +99,21 @@ def _create_index(schema, collection_name, field, method="btree"):
     :param method:
     :return:
     """
-    table = (f"{_quote(schema)}.{_quote(collection_name)}")
+    table = _quoted_tablename(schema, collection_name)
     return f"""
 CREATE INDEX {collection_name}_{field} ON {table} USING {method} ({field})
 """
+
+
+def get_max_eventid(schema, collection_name):
+    table_name = _quoted_tablename(schema, collection_name)
+    return f"SELECT max({FIELD.LAST_EVENT}) FROM {table_name}"
+
+
+def delete_entities_with_source_ids(schema, collection_name, source_ids):
+    table_name = _quoted_tablename(schema, collection_name)
+    source_ids_sql = ",".join([f"'{source_id}'" for source_id in source_ids])
+    return f"DELETE FROM {table_name} WHERE {FIELD.SOURCE_ID} IN ({source_ids_sql})"
 
 
 def _autorized_order(order, catalog_name, collection_name):
@@ -177,7 +193,7 @@ def _import_csv(schema, collection_name, csv_file):
     :param csv_file:
     :return:
     """
-    table_name = (f"{_quote(schema)}.{_quote(collection_name)}")
+    table_name = _quoted_tablename(schema, collection_name)
     return f"\COPY {table_name} FROM '{csv_file}' DELIMITER '{DELIMITER_CHAR}' CSV HEADER;"
 
 
