@@ -204,13 +204,18 @@ class DbDumper:
             source_ids_to_update = get_entity_refs_after(self.catalog_name, self.collection_name, max_eventid)
 
             if source_ids_to_update:
+                yield f"Delete {len(source_ids_to_update)} entities from dst database that are going to be updated\n"
                 self._delete_dst_entities(self.tmp_collection_name, source_ids_to_update)
 
-            entities, model = dump_entities(self.catalog_name, self.collection_name,
-                                            self._filter_last_events_lambda(max_eventid))
+            entities, model = dump_entities(
+                self.catalog_name,
+                self.collection_name,
+                filter=self._filter_last_events_lambda(max_eventid),
+                order_by=FIELD.LAST_EVENT
+            )
         else:
             yield "Do full dump\n"
-            entities, model = dump_entities(self.catalog_name, self.collection_name)
+            entities, model = dump_entities(self.catalog_name, self.collection_name, order_by=FIELD.LAST_EVENT)
 
         yield from self._dump_entities_to_table(entities, model)
         yield from self._rename_tmp_table()

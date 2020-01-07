@@ -425,13 +425,14 @@ def get_entities(catalog, collection, offset, limit, view=None, reference_name=N
     return entities, all_count
 
 
-def dump_entities(catalog, collection, filter=None):
+def dump_entities(catalog, collection, filter=None, order_by=None):
     """
     Get all entities in the given catalog collection
 
     :param catalog:
     :param collection:
     :param filter: function that returns a filter expression with the table as input
+    :param order_by: column to order by
 
     example of filter parameter:
     filter = lambda table: getattr(table, FIELD.LAST_EVENT) > max_eventid
@@ -451,6 +452,10 @@ def dump_entities(catalog, collection, filter=None):
 
     if filter:
         entities = entities.filter(filter(table))
+
+    if order_by:
+        entities = entities.order_by(getattr(table, order_by))
+
     entities.set_catalog_collection(catalog, collection)
 
     return entities.yield_per(10000), model

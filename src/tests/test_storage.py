@@ -916,7 +916,7 @@ class TestStorage(TestCase):
 
         mock_get_table_and_model.return_value = mock_table, mock_model
 
-        result = dump_entities('catalog_name', 'collection_name', mock_filter)
+        result = dump_entities('catalog_name', 'collection_name', filter=mock_filter)
         mock_get_session.return_value.query.assert_called_with(mock_table)
 
         # Assert filter is called, and used on entities
@@ -930,3 +930,19 @@ class TestStorage(TestCase):
         mock_model['catalog'] = 'catalog_name'
         mock_model['collection'] = 'collection_name'
         self.assertEqual((entities.yield_per.return_value, mock_model), result)
+
+    @mock.patch("gobapi.storage._Base", mock.MagicMock())
+    @mock.patch("gobapi.storage.get_table_and_model")
+    @mock.patch("gobapi.storage.get_session")
+    def test_dump_entities_order_by(self, mock_get_session, mock_get_table_and_model):
+        mock_table = type('MockTable', (object,), {'_id': '9204940', '_order_by_column': 'orderval'})
+        mock_model = {}
+        order_by_column = '_order_by_column'
+
+        mock_get_table_and_model.return_value = mock_table, mock_model
+        dump_entities('catalog_name', 'collection_name', order_by=order_by_column)
+
+        mock_get_session.return_value.query.assert_called_with(mock_table)
+
+        # Assert order_by is added and used
+        mock_get_session.return_value.query.return_value.order_by.assert_called_with('orderval')
