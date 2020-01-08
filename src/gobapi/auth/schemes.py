@@ -23,13 +23,6 @@ GOB_AUTH_SCHEME = {
                     },
                 }
             },
-            "kadastralesecties": {
-                "attributes": {
-                    "code": {
-                        "roles": [BRK_DATA_TOTAAL]
-                    },
-                }
-            },
             "kadastralesubjecten": {
                 "roles": [BRK_DATA_TOTAAL, BRK_DATA_BEPERKT],
                 "attributes": {
