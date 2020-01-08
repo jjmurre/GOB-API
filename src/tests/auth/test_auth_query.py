@@ -97,6 +97,16 @@ class TestAuthorizedQuery(TestCase):
         q.set_catalog_collection("any catalog", "some other collection")
         self.assertEqual(q._authority.get_suppressed_columns(), [])
 
+        q.set_catalog_collection("secure catalog collection", "secure collection")
+        q._authority.get_roles = lambda : [role_a]
+        q._authority._attributes = 'all attributes'
+        self.assertEqual(q._authority.get_suppressed_columns(), [])
+
+        q.set_catalog_collection("secure catalog collection", "secure collection")
+        q._authority.get_roles = lambda : []
+        q._authority._attributes = 'all attributes'
+        self.assertEqual(q._authority.get_suppressed_columns(), 'all attributes')
+
 class TestAuthorizedQueryIter(TestCase):
 
     @patch("gobapi.auth.auth_query.super")
@@ -138,6 +148,12 @@ class TestAuthority(TestCase):
         row = {'a': 1, 'b': 2, 'c': 3}
         authority.filter_row(row)
         self.assertEqual(row, {'a': 1, 'b': None, 'c': 3})
+
+        authority.allows_access = lambda: False
+        row = {'a': 1, 'b': 2, 'c': 3}
+        authority.filter_row(row)
+        self.assertEqual(row, {'a': None, 'b': None, 'c': None})
+
 
     @patch("gobapi.auth.auth_query.request")
     @patch("gobapi.auth.auth_query.User")
