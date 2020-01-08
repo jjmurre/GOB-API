@@ -2,6 +2,7 @@ from sqlalchemy.orm import Query
 from flask import request
 
 from gobcore.secure.user import User
+from gobcore.model import GOBModel
 
 from gobcore.secure.config import REQUEST_ROLES
 from gobapi.auth.schemes import GOB_AUTH_SCHEME
@@ -19,6 +20,8 @@ class Authority():
         """
         self._catalog = catalog_name
         self._collection = collection_name
+        collection = GOBModel().get_collection(self._catalog, self._collection)
+        self._attributes = [attr for attr in collection['fields']] if collection else []
         self._auth_scheme = GOB_AUTH_SCHEME
 
     def get_roles(self):
@@ -40,7 +43,7 @@ class Authority():
         collection_scheme = catalog_scheme['collections'].get(self._collection)
         if not collection_scheme:
             return {}
-        return collection_scheme['attributes']
+        return collection_scheme.get('attributes', {})
 
     def allows_access(self):
         """
@@ -67,15 +70,22 @@ class Authority():
         """
         The suppressed columns are the columns that require a role that the user doesn't have
         """
-        return [attr for attr, auth in self.get_checked_columns().items() if not self._is_authorized_for(auth)]
+        if self.allows_access():
+            return [attr for attr, auth in self.get_checked_columns().items() if not self._is_authorized_for(auth)]
+        else:
+            return self._attributes
 
     def filter_row(self, row):
         """
         Set all columns in the row that should be suppressed to None
         """
-        suppressed_columns = self.get_suppressed_columns()
-        for column in [c for c in suppressed_columns if c in row]:
-            row[column] = None
+        if self.allows_access():
+            suppressed_columns = self.get_suppressed_columns()
+            for column in [c for c in suppressed_columns if c in row]:
+                row[column] = None
+        else:
+            for key in row.keys():
+                row[key] = None
         return row
 
     @classmethod
