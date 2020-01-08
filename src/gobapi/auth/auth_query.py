@@ -80,10 +80,25 @@ class Authority():
         Set all columns in the row that should be suppressed to None
         """
         if self.allows_access():
+            """
+            Note:    This is a best-effort solution. For regular REST and GraphQL traffic it is OK
+                     For other API calls the logic might be inadequate
+            Example: Someone calls the API for gebieden/stadsdelen/?view=enhanced_view. The enhanced view can be any
+                     query, including renaming fields and joins with other tables.
+                     Because the user has access only the suppressed columns will be removed from the result.
+                     Access => suppress all columns on basis of their name
+            """
             suppressed_columns = self.get_suppressed_columns()
             for column in [c for c in suppressed_columns if c in row]:
                 row[column] = None
         else:
+            """
+            Note:    if someone does not have access to a catalog/collection then the result should always be cleared.
+            Example: Someone calls the API for gebieden/stadsdelen/?view=enhanced_view. The enhanced view can be any
+                     query, including renaming fields and joins with other tables.
+                     The most secure solution is to simply clear the row.
+                     No access => no data
+            """
             for key in row.keys():
                 row[key] = None
         return row
