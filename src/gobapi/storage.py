@@ -484,6 +484,21 @@ def get_entity_refs_after(catalog: str, collection: str, last_eventid: int) -> L
     return ids
 
 
+def get_max_eventid(catalog: str, collection: str) -> int:
+    """Returns max eventid present in the object table for given catalog and collection
+
+    :param catalog:
+    :param collection:
+    :return:
+    """
+    assert _Base
+    session = get_session()
+
+    table, _ = get_table_and_model(catalog, collection)
+
+    return session.query(func.max(getattr(table, FIELD.LAST_EVENT))).scalar()
+
+
 def query_entities(catalog, collection, view):
     assert _Base
     session = get_session()

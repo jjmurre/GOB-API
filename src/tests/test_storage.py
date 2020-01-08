@@ -13,7 +13,7 @@ from unittest import mock, TestCase
 
 from gobapi.storage import _get_convert_for_state, filter_deleted, connect, _format_reference, _get_table, \
     _to_gob_value, _add_resolve_attrs_to_columns, _get_convert_for_table, _add_relation_dates_to_manyreference, \
-    _flatten_join_result, get_entity_refs_after, dump_entities
+    _flatten_join_result, get_entity_refs_after, dump_entities, get_max_eventid
 from gobapi.auth.auth_query import AuthorizedQuery
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
@@ -905,6 +905,24 @@ class TestStorage(TestCase):
         mock_get_session.return_value.query.return_value.filter.assert_called_with(False)
 
         mock_get_table_and_model.assert_called_with('catalog', 'collection')
+
+    @mock.patch("gobapi.storage._Base", mock.MagicMock())
+    @mock.patch("gobapi.storage.get_table_and_model")
+    @mock.patch("gobapi.storage.get_session")
+    @mock.patch("gobapi.storage.func.max", lambda x: 'max(' + str(x) + ')')
+    def test_get_max_eventid(self, mock_get_session, mock_get_table_and_model):
+        table = type('MockTable', (object,), {'_last_event': 82404})
+
+        mock_get_table_and_model.return_value = table, 'model'
+
+        result = get_max_eventid('catalog', 'collection')
+        mock_get_table_and_model.assert_called_with('catalog', 'collection')
+
+        # Max of _last_event is queried
+        mock_get_session.return_value.query.assert_called_with('max(82404)')
+
+        # Scalar value is returned
+        self.assertEqual(mock_get_session.return_value.query.return_value.scalar.return_value, result)
 
     @mock.patch("gobapi.storage._Base", mock.MagicMock())
     @mock.patch("gobapi.storage.get_table_and_model")
