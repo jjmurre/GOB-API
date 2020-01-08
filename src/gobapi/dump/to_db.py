@@ -14,7 +14,7 @@ from gobapi.dump.config import get_field_specifications, get_reference_fields, S
 from gobapi.dump.sql import _create_schema, _create_table, _rename_table, _create_index, get_max_eventid
 from gobapi.dump.csv import csv_entities
 from gobapi.dump.csv_stream import CSVStream
-from gobapi.storage import get_entity_refs_after, get_table_and_model
+from gobapi.storage import get_entity_refs_after, get_table_and_model, get_max_eventid as get_src_max_eventid
 
 STREAM_PER = 10000              # Stream per STREAM_PER lines
 COMMIT_PER = 10 * STREAM_PER    # Commit once per COMMIT_PER lines
@@ -118,6 +118,9 @@ class DbDumper:
             return self._get_max_eventid(self.collection_name)
         return None
 
+    def _max_eventid_src(self):
+        return get_src_max_eventid(self.catalog_name, self.collection_name)
+
     def _prepare_destination(self):
         yield f"Create schema {self.schema} if not exists\n"
         create_schema = _create_schema(self.schema)
@@ -193,15 +196,21 @@ class DbDumper:
         """
         yield from self._prepare_destination()
 
-        max_eventid = None if full_dump else self._max_eventid_dst()
+        dst_max_eventid = None if full_dump else self._max_eventid_dst()
+        src_max_eventid = self._max_eventid_src()
 
-        if max_eventid is not None and self._table_columns_equal(self.collection_name, self.tmp_collection_name):
+        if src_max_eventid is not None and dst_max_eventid is not None and src_max_eventid < dst_max_eventid:
+            yield "Max event id in dst table is greater than max eventid in src. Forcing full dump\n"
+
+            dst_max_eventid = None
+
+        if dst_max_eventid is not None and self._table_columns_equal(self.collection_name, self.tmp_collection_name):
             yield "Have earlier dump and columns have not changed. Do sync dump\n"
             # Already have records in destination table, and model has not changed. Do sync dump
 
             self._copy_table_into(self.collection_name, self.tmp_collection_name)
 
-            source_ids_to_update = get_entity_refs_after(self.catalog_name, self.collection_name, max_eventid)
+            source_ids_to_update = get_entity_refs_after(self.catalog_name, self.collection_name, dst_max_eventid)
 
             if source_ids_to_update:
                 yield f"Delete {len(source_ids_to_update)} entities from dst database that are going to be updated\n"
@@ -210,7 +219,7 @@ class DbDumper:
             entities, model = dump_entities(
                 self.catalog_name,
                 self.collection_name,
-                filter=self._filter_last_events_lambda(max_eventid),
+                filter=self._filter_last_events_lambda(dst_max_eventid),
                 order_by=FIELD.LAST_EVENT
             )
         else:

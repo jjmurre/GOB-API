@@ -146,6 +146,12 @@ class TestDbDumper(TestCase):
         db_dumper._table_exists.assert_called_with(self.collection_name)
         db_dumper._get_max_eventid.assert_called_with(self.collection_name)
 
+    @patch("gobapi.dump.to_db.get_src_max_eventid")
+    def test_max_eventid_src(self, mock_get_src_max_eventid, mock_create_engine, mock_url):
+        db_dumper = self._get_dumper()
+        self.assertEqual(mock_get_src_max_eventid.return_value, db_dumper._max_eventid_src())
+        mock_get_src_max_eventid.assert_called_with(self.catalog_name, self.collection_name)
+
     @patch("gobapi.dump.to_db._create_schema")
     @patch("gobapi.dump.to_db._create_table")
     def test_prepare_destination(self, mock_table, mock_schema, mock_create_engine, mock_url):
@@ -270,6 +276,7 @@ class TestDbDumper(TestCase):
         db_dumper._create_indexes = MagicMock(return_value="")
         db_dumper._copy_table_into = MagicMock()
         db_dumper._delete_dst_entities = MagicMock()
+        db_dumper._max_eventid_src = MagicMock(return_value=None)
         return db_dumper
 
     @patch('gobapi.dump.to_db.dump_entities')
@@ -308,6 +315,30 @@ class TestDbDumper(TestCase):
         result = list(db_dumper.dump_to_db())
         db_dumper._copy_table_into.assert_not_called()
         self.assertIn('Do full dump\n', result)
+        mock_dump_entities.assert_called_with(db_dumper.catalog_name,
+                                              db_dumper.collection_name,
+                                              order_by=FIELD.LAST_EVENT)
+
+    @patch('gobapi.dump.to_db.dump_entities')
+    def test_dump_to_db_full_dst_eventid_greater(self, mock_dump_entities, mock_create_engine, mock_url):
+        """In case the event id in the destination database is greater than the event id in the source database,
+        events are removed from the source database.
+
+        Test that a full dump is done in case this happens, because it is not possible to sync in this case.
+
+        :param mock_dump_entities:
+        :param mock_create_engine:
+        :param mock_url:
+        :return:
+        """
+        mock_dump_entities.return_value = [], {}
+        db_dumper = self._get_dumper_for_dump_to_db()
+        db_dumper._max_eventid_src.return_value = 2
+        db_dumper._max_eventid_dst = MagicMock(return_value=3)
+
+        result = list(db_dumper.dump_to_db())
+        db_dumper._copy_table_into.assert_not_called()
+
         mock_dump_entities.assert_called_with(db_dumper.catalog_name,
                                               db_dumper.collection_name,
                                               order_by=FIELD.LAST_EVENT)
