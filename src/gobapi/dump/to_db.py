@@ -53,9 +53,6 @@ class DbDumper:
         self.model['catalog'] = catalog_name
         self.model['collection'] = collection_name
 
-    def __del__(self):
-        self.engine.dispose()
-
     def _table_exists(self, table_name: str) -> bool:
         """Checks if table_name exist"""
 
