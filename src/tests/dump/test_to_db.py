@@ -33,7 +33,7 @@ class TestDbDumper(TestCase):
         }
         return DbDumper(self.catalog_name, self.collection_name, config)
 
-    def test_init_del(self, mock_create_engine, mock_url):
+    def test_init(self, mock_create_engine, mock_url):
         db_dumper = self._get_dumper()
 
         mock_url.assert_called_with(config_key='config_value')
@@ -44,12 +44,6 @@ class TestDbDumper(TestCase):
         self.assertEqual(self.catalog_name, db_dumper.schema)
         self.assertNotEqual(db_dumper.collection_name, db_dumper.tmp_collection_name)
         self.assertTrue(db_dumper.collection_name in db_dumper.tmp_collection_name)
-
-        engine = mock_create_engine.return_value
-        engine.dispose.assert_not_called()
-
-        del db_dumper
-        engine.dispose.assert_called_once()
 
         db_dumper2 = DbDumper(self.catalog_name, self.collection_name, {'db': {}, 'schema': 'schema'})
         self.assertEqual('schema', db_dumper2.schema)
