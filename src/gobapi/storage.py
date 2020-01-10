@@ -476,12 +476,9 @@ def get_entity_refs_after(catalog: str, collection: str, last_eventid: int) -> L
 
     id = getattr(table, FIELD.ID) + '_' \
         + str(getattr(table, FIELD.SEQNR)) if hasattr(table, FIELD.SEQNR) else getattr(table, FIELD.ID)
-    ids = [
-        row[0] for row in
-        session.query(id).filter(getattr(table, FIELD.LAST_EVENT) > last_eventid).all()
-    ]
-
-    return ids
+    query = session.query(id).filter(getattr(table, FIELD.LAST_EVENT) > last_eventid)
+    query.set_catalog_collection(catalog, collection)
+    return [row[0] for row in query.all()]
 
 
 def get_max_eventid(catalog: str, collection: str) -> int:
@@ -496,7 +493,9 @@ def get_max_eventid(catalog: str, collection: str) -> int:
 
     table, _ = get_table_and_model(catalog, collection)
 
-    return session.query(func.max(getattr(table, FIELD.LAST_EVENT))).scalar()
+    query = session.query(func.max(getattr(table, FIELD.LAST_EVENT)))
+    query.set_catalog_collection(catalog, collection)
+    return query.scalar()
 
 
 def query_entities(catalog, collection, view):

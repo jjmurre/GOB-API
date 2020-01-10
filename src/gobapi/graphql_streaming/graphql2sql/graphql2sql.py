@@ -11,6 +11,7 @@ from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
 from gobcore.model.relations import get_relation_name
 from gobcore.typesystem import gob_types, is_gob_geo_type
+from gobapi.auth.auth_query import Authority
 
 
 class GraphQLVisitor(BaseVisitor):
@@ -128,6 +129,10 @@ class GraphQLVisitor(BaseVisitor):
         :return: fieldname, alias
         """
         return ctx.NAME(1).getText(), ctx.NAME(0).getText()
+
+
+class NoAccessException (Exception):
+    pass
 
 
 class SqlGenerator:
@@ -280,6 +285,9 @@ class SqlGenerator:
           f"'{base_info['catalog_name']}' AS {CATALOG_NAME}",
           f"'{base_info['collection_name']}' AS {COLLECTION_NAME}",
         ])
+        authority = Authority(base_info['catalog_name'], base_info['collection_name'])
+        if not authority.allows_access():
+            raise NoAccessException
 
         arguments = self._get_arguments_with_defaults(self.selects[base_collection]['arguments'])
 

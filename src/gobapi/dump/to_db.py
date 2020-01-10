@@ -193,8 +193,13 @@ class DbDumper:
         """
         yield from self._prepare_destination()
 
-        dst_max_eventid = None if full_dump else self._max_eventid_dst()
-        src_max_eventid = self._max_eventid_src()
+        try:
+            dst_max_eventid = None if full_dump else self._max_eventid_dst()
+            src_max_eventid = self._max_eventid_src()
+        except Exception:
+            yield "No last event id found. Forcing full dump\n"
+            dst_max_eventid = None
+            src_max_eventid = None
 
         if src_max_eventid is not None and dst_max_eventid is not None and src_max_eventid < dst_max_eventid:
             yield "Max event id in dst table is greater than max eventid in src. Forcing full dump\n"

@@ -3,7 +3,7 @@ import re
 from unittest import TestCase
 from unittest.mock import MagicMock, patch, call
 
-from gobapi.graphql_streaming.graphql2sql.graphql2sql import GraphQL2SQL, SqlGenerator, GraphQLVisitor, GraphQLParser
+from gobapi.graphql_streaming.graphql2sql.graphql2sql import GraphQL2SQL, SqlGenerator, GraphQLVisitor, GraphQLParser, NoAccessException
 from gobapi.graphql_streaming.utils import to_snake
 
 
@@ -641,6 +641,20 @@ ORDER BY colb_0._gobid
         mock_resolve.side_effect = lambda n : to_snake(n).split('_')
 
         for inp, outp in self.test_cases:
+            graphql2sql = GraphQL2SQL(inp)
+            self.assertResult(inp, outp, graphql2sql.sql())
+
+    @patch("gobapi.graphql_streaming.graphql2sql.graphql2sql.resolve_schema_collection_name")
+    @patch("gobapi.graphql_streaming.graphql2sql.graphql2sql.Authority")
+    def test_graphql2sql_no_access(self, mock_authority, mock_resolve, mock_model):
+        mocked_authority = MagicMock()
+        mocked_authority.allows_access.return_value = False
+        mock_authority.return_value = mocked_authority
+        mock_model.return_value = MockModel()
+        mock_resolve.side_effect = lambda n : to_snake(n).split('_')
+
+        with self.assertRaises(NoAccessException):
+            inp, outp = self.test_cases[0]
             graphql2sql = GraphQL2SQL(inp)
             self.assertResult(inp, outp, graphql2sql.sql())
 

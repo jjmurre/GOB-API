@@ -6,7 +6,7 @@ from sqlalchemy.sql import text
 from gobcore.exceptions import GOBException
 from gobcore.model.metadata import FIELD
 
-from gobapi.graphql_streaming.graphql2sql.graphql2sql import GraphQL2SQL
+from gobapi.graphql_streaming.graphql2sql.graphql2sql import GraphQL2SQL, NoAccessException
 from gobapi.graphql_streaming.resolve import Resolver
 from gobapi.response import stream_response
 from gobapi.utils import dict_to_camelcase
@@ -289,7 +289,10 @@ class GraphQLStreamingApi():
             request_data = json.loads(request.data.decode('utf-8'))
             query = request_data['query']
         graphql2sql = GraphQL2SQL(query)
-        sql = graphql2sql.sql()
+        try:
+            sql = graphql2sql.sql()
+        except NoAccessException as e:
+            return "Forbidden", 403
         session = get_session()
         result_rows = session.execute(text(sql))
 

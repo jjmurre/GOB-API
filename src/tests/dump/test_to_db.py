@@ -338,6 +338,52 @@ class TestDbDumper(TestCase):
                                               order_by=FIELD.LAST_EVENT)
 
     @patch('gobapi.dump.to_db.dump_entities')
+    def test_dump_to_db_full_no_last_src_eventid(self, mock_dump_entities, mock_create_engine, mock_url):
+        """In case that no src event id exists a full dump should occur
+
+        :param mock_dump_entities:
+        :param mock_create_engine:
+        :param mock_url:
+        :return:
+        """
+        def fail_on_eventid():
+            raise Exception
+
+        mock_dump_entities.return_value = [], {}
+        db_dumper = self._get_dumper_for_dump_to_db()
+        db_dumper._max_eventid_src = fail_on_eventid
+
+        result = list(db_dumper.dump_to_db())
+        db_dumper._copy_table_into.assert_not_called()
+
+        mock_dump_entities.assert_called_with(db_dumper.catalog_name,
+                                              db_dumper.collection_name,
+                                              order_by=FIELD.LAST_EVENT)
+
+    @patch('gobapi.dump.to_db.dump_entities')
+    def test_dump_to_db_full_no_last_src_eventid(self, mock_dump_entities, mock_create_engine, mock_url):
+        """In case that no dst event id exists a full dump should occur
+
+        :param mock_dump_entities:
+        :param mock_create_engine:
+        :param mock_url:
+        :return:
+        """
+        def fail_on_eventid():
+            raise Exception
+
+        mock_dump_entities.return_value = [], {}
+        db_dumper = self._get_dumper_for_dump_to_db()
+        db_dumper._max_eventid_dst = fail_on_eventid
+
+        result = list(db_dumper.dump_to_db())
+        db_dumper._copy_table_into.assert_not_called()
+
+        mock_dump_entities.assert_called_with(db_dumper.catalog_name,
+                                              db_dumper.collection_name,
+                                              order_by=FIELD.LAST_EVENT)
+
+    @patch('gobapi.dump.to_db.dump_entities')
     @patch('gobapi.dump.to_db.get_entity_refs_after')
     def test_dump_to_db_partial(self, mock_get_entity_refs, mock_dump_entities, mock_create_engine, mock_url):
         mock_dump_entities.return_value = [], {}
