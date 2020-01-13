@@ -27,8 +27,11 @@ class TestGraphQLStreamingApi(TestCase):
 
         self.api.entrypoint()
         mock_graphql2sql.assert_called_with("some query")
-        mock_get_session.return_value.execute.assert_called_with('text_parsed query')
-        mock_response_builder.assert_called_with(mock_get_session.return_value.execute.return_value,
+        mock_get_session.return_value.connection.assert_called()
+        mock_get_session.return_value.connection.return_value.execution_options.assert_called_with(stream_results=True)
+        execute = mock_get_session.return_value.connection.return_value.execution_options.return_value.execute
+        execute.assert_called_with('text_parsed query')
+        mock_response_builder.assert_called_with(execute.return_value,
                                                  graphql2sql_instance.relations_hierarchy,
                                                  graphql2sql_instance.selections)
 
