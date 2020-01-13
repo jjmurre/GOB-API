@@ -207,8 +207,11 @@ def _extract_tuples(lst: List[dict], attrs: tuple):
     :param attrs:
     :return:
     """
-    tuples = [tuple([item[t] for t in attrs if t in item]) for item in lst]
-    return [t for t in tuples if len(t) == len(attrs)]  # Remove short tuples
+    if lst:
+        tuples = [tuple([item[t] for t in attrs if t in item]) for item in lst]
+        return [t for t in tuples if len(t) == len(attrs)]  # Remove short tuples
+    else:
+        return []
 
 
 def _get_catalog_collection_name_from_table_name(table_name):

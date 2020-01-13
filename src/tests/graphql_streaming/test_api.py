@@ -1,7 +1,7 @@
 from unittest import TestCase
 from unittest.mock import MagicMock, patch, call
 
-from gobapi.graphql_streaming.api import GraphQLStreamingApi, GraphQLStreamingResponseBuilder
+from gobapi.graphql_streaming.api import GraphQLStreamingApi, GraphQLStreamingResponseBuilder, NoAccessException
 
 from gobcore.exceptions import GOBException
 from gobcore.model.metadata import FIELD
@@ -27,12 +27,30 @@ class TestGraphQLStreamingApi(TestCase):
 
         self.api.entrypoint()
         mock_graphql2sql.assert_called_with("some query")
-        mock_get_session.return_value.execute.assert_called_with('text_parsed query')
-        mock_response_builder.assert_called_with(mock_get_session.return_value.execute.return_value,
+        mock_get_session.return_value.connection.assert_called()
+        mock_get_session.return_value.connection.return_value.execution_options.assert_called_with(stream_results=True)
+        execute = mock_get_session.return_value.connection.return_value.execution_options.return_value.execute
+        execute.assert_called_with('text_parsed query')
+        mock_response_builder.assert_called_with(execute.return_value,
                                                  graphql2sql_instance.relations_hierarchy,
                                                  graphql2sql_instance.selections)
 
         mock_response.assert_called_with(mock_response_builder.return_value, mimetype='application/x-ndjson')
+
+    @patch("gobapi.graphql_streaming.api.request")
+    @patch("gobapi.graphql_streaming.api.GraphQL2SQL")
+    @patch("gobapi.graphql_streaming.api.text", lambda x: 'text_' + x)
+    def test_entrypoint_no_access(self, mock_graphql2sql, mock_request):
+        def no_access():
+            raise NoAccessException
+
+        mock_request.data.decode.return_value = '{"query": "some query"}'
+        mock_request.args.get.return_value = None
+        graphql2sql_instance = mock_graphql2sql.return_value
+        graphql2sql_instance.sql = no_access
+
+        result = self.api.entrypoint()
+        self.assertEqual(result, ("Forbidden", 403))
 
 
 class TestGraphQLStreamingResponseBuilder(TestCase):

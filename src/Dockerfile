@@ -16,9 +16,6 @@ RUN rm requirements.txt
 # Copy gob api module
 COPY gobapi gobapi
 
-# Copy dump utility
-COPY dump.py dump.py
-
 # Copy deploy dir
 COPY deploy /deploy/
 
