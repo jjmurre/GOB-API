@@ -294,7 +294,8 @@ class GraphQLStreamingApi():
         except NoAccessException as e:
             return "Forbidden", 403
         session = get_session()
-        result_rows = session.execute(text(sql))
+        # use an ad-hoc Connection and stream results (instead of pre-buffered)
+        result_rows = session.connection().execution_options(stream_results=True).execute(text(sql))
 
         response_builder = stream_with_context(
             GraphQLStreamingResponseBuilder(result_rows, graphql2sql.relations_hierarchy, graphql2sql.selections))
