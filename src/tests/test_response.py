@@ -194,16 +194,20 @@ class TestStream(TestCase):
         mock_response.side_effect = lambda r: str(r)
         entities = [{'a': 'b'}, 5, "s"]
         convert = lambda e: json.dumps(e)
-        result = stream_entities(entities, convert)
-        json_result = ' '.join([r for r in result])
-        self.assertEqual(json.loads(json_result) , entities)
+        result = list(stream_entities(entities, convert))
+
+        # Trailing "\n" should be added to signal successful response
+        expected_result = ['['] + [json.dumps(entities[0])] + [',' + json.dumps(ent) for ent in entities[1:]] + [']\n', '\n']
+        self.assertEqual(expected_result, result)
 
     @patch('gobapi.response.stream_response')
     def test_ndjson_entities(self, mock_response):
         mock_response.side_effect = lambda r: str(r)
         entities = [{'a': 'b'}, 5, "s"]
         convert = lambda e: json.dumps(e)
-        result = ndjson_entities(entities, convert)
-        json_result = [json.loads(r) for r in result]
-        self.assertEqual(json_result, entities)
+        result = list(ndjson_entities(entities, convert))
+
+        # Trailing "\n" should be added to signal successful response
+        expected_result = [json.dumps(ent) + "\n" for ent in entities] + ["\n"]
+        self.assertEqual(expected_result, result)
 

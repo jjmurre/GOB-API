@@ -55,3 +55,33 @@ def object_to_camelcase(value):
         return dict_to_camelcase(value)
     else:
         return value
+
+
+def streaming_gob_response(func):
+    """Decorator for a function or method that returns a generator that serves as streaming response.
+
+    Decorator performs two actions:
+    - If Exception occurs, adds an "GOB_API_ERROR.... " line as last line.
+    - Adds an empty line as last line when all items are generated successfully. Client is expected to check for this
+    line to verify a successful response.
+
+    This decorator solves the problem that if an error occurs during generation of the response, or the process is
+    killed while generating the response, the client receives an incomplete response, but with code 200. The client
+    has no idea that an incomplete response is received. By checking the last line the client can always verify the
+    response.
+
+    :param func:
+    :return:
+    """
+    def wrapper(*args, **kwargs):
+        try:
+            yield from func(*args, *kwargs)
+            # Add new line to signal successful response
+            yield "\n"
+        except Exception as e:
+            yield f"GOB_API_ERROR. Caught Exception. Response aborted. See logs.\n"
+
+            # Re-raise so that this Exception is logged
+            raise e
+
+    return wrapper
