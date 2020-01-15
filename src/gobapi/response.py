@@ -17,7 +17,7 @@ import urllib
 
 from flask import request
 from gobapi.json import APIGobTypeJSONEncoder
-from gobapi.utils import dict_to_camelcase
+from gobapi.utils import dict_to_camelcase, streaming_gob_response
 
 
 def _error_response(error, msg):
@@ -91,15 +91,17 @@ def get_page_ref(page, num_pages):
         return f'{request.path}?{urllib.parse.urlencode(args)}'
 
 
+@streaming_gob_response
 def stream_entities(entities, convert):
     yield("[")
     empty = True
     for entity in entities:
         yield ("" if empty else ",") + stream_response(convert(entity))
         empty = False
-    yield("]")
+    yield("]\n")
 
 
+@streaming_gob_response
 def ndjson_entities(entities, convert):
     for entity in entities:
         yield stream_response(convert(entity)) + "\n"

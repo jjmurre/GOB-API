@@ -9,7 +9,7 @@ from gobcore.model.metadata import FIELD
 from gobapi.graphql_streaming.graphql2sql.graphql2sql import GraphQL2SQL, NoAccessException
 from gobapi.graphql_streaming.resolve import Resolver
 from gobapi.response import stream_response
-from gobapi.utils import dict_to_camelcase
+from gobapi.utils import dict_to_camelcase, streaming_gob_response
 
 import json
 
@@ -216,6 +216,7 @@ class GraphQLStreamingResponseBuilder:
             result[relation] = [v for v in [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO] if v in selection['fields']]
         return result
 
+    @streaming_gob_response
     def __iter__(self):
         """Main method. Use class as iterator.
 

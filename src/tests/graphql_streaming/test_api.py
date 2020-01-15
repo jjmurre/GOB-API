@@ -594,7 +594,8 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
         for row in builder:
             result.append(row)
 
-        expected_result = ['streamed_ab\n', 'streamed_c\n', 'streamed_d\n', 'streamed_ef\n']
+        # Trailing newline character for successful response is added by decorator
+        expected_result = ['streamed_ab\n', 'streamed_c\n', 'streamed_d\n', 'streamed_ef\n', '\n']
 
         self.assertEqual(expected_result, result)
         self.assertEqual('eval order', builder.evaluation_order)
