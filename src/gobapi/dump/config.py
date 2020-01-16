@@ -44,8 +44,8 @@ SQL_TYPE_CONVERSIONS = {
 }
 # Add constants for secure types (match on their base type)
 for t in GOB_SECURE_TYPES:
-    name = t.name
-    SQL_TYPE_CONVERSIONS[name] = SQL_TYPE_CONVERSIONS[f"GOB.{name.replace('Secure', '')}"]
+    # Type conversion GOB.Secure<<type>> = type conversion GOB.<<type>>
+    SQL_TYPE_CONVERSIONS[f"GOB.{t.name}"] = SQL_TYPE_CONVERSIONS[f"GOB.{t.name.replace('Secure', '')}"]
 
 SQL_QUOTATION_MARK = "'"
 
