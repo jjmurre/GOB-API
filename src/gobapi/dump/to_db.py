@@ -1,4 +1,5 @@
 import re
+import traceback
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
@@ -263,4 +264,5 @@ def dump_to_db(catalog_name, collection_name, config):
 
         yield "Export completed\n"
     except Exception as e:
-        yield f"ERROR: Export failed - {str(e)}\n"
+        print("Dump failed", traceback.format_exc(limit=-5))
+        yield f"ERROR: Dump failed - {str(e)}\n"

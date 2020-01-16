@@ -458,4 +458,4 @@ class TestModuleFunctions(TestCase):
         mock_dumper.side_effect = Exception
 
         result = "".join(list(dump_to_db('catalog_name', 'collection_name', {})))
-        self.assertIn("ERROR: Export failed", result)
+        self.assertIn("ERROR: Dump failed", result)
