@@ -875,7 +875,7 @@ class TestStorage(TestCase):
     def test_get_entity_refs_after(self, mock_get_session, mock_get_table_and_model):
 
         table_no_seqnr = type('MockTableNoSeqnr', (object,), {'_id': '230', '_last_event': 2000})
-        table_seqnr = type('MockTableWithSeqnr', (object,), {'_id': '230', '_last_event': 2000, 'volgnummer': 2})
+        table_seqnr = type('MockTableWithSeqnr', (object,), {'_id': '230', '_last_event': 2000, 'volgnummer': '2'})
         mock_get_session.return_value.query.return_value.filter.return_value.all.return_value = [
             ('id1',),
             ('id2',),
