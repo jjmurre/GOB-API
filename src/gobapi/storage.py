@@ -21,12 +21,12 @@ from sqlalchemy.sql import label, functions
 from gobcore.model import GOBModel, NotInModelException
 from gobcore.model.relations import get_relation_name
 from gobcore.model.sa.gob import Base, models
-from gobcore.typesystem import get_gob_type_from_sql_type, get_gob_type_from_info, GOB_SECURE_TYPES
+from gobcore.typesystem import get_gob_type_from_sql_type, get_gob_type_from_info
 from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS, FIELD
 
 from gobapi.config import GOB_DB, API_BASE_PATH
 from gobapi.session import set_session, get_session
-from gobapi.auth.auth_query import AuthorizedQuery, SUPPRESSED_COLUMNS, Authority
+from gobapi.auth.auth_query import AuthorizedQuery, SUPPRESSED_COLUMNS
 from gobapi.constants import API_FIELD
 
 session = None
@@ -145,13 +145,6 @@ def _to_gob_value(entity, field, spec):
     entity_value = getattr(entity, field, None)
     if isinstance(spec, dict):
         gob_type = get_gob_type_from_info(spec)
-
-        if gob_type in GOB_SECURE_TYPES:
-            # Instantiate secure object with value
-            secure_type = gob_type.from_value_secure(entity_value, spec)
-
-            # Return decrypted value
-            return Authority.get_secured_value(secure_type)
         return gob_type.from_value(entity_value, **spec)
     else:
         gob_type = get_gob_type_from_sql_type(spec)

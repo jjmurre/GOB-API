@@ -13,7 +13,6 @@ from gobcore.model import GOBModel
 from gobcore.model.relations import get_relation_name
 from gobcore.model.sa.gob import models, Base
 
-from gobapi import serialize
 from gobapi.utils import to_camelcase
 from gobapi.storage import filter_active, filter_deleted
 
@@ -74,24 +73,6 @@ class FilterConnectionField(SQLAlchemyConnectionField):
                 else:
                     query = query.filter(getattr(model, field) == value)
         return query
-
-
-def get_resolve_secure_attribute(name, GOBType):
-    """
-    Gets a resolver for a secure attribute
-
-    Secure attributes are serialized by a special secure serializer
-
-    :param name: name of the secure attribute
-    :param GOBType: the Secure GOBType class
-    :return: a resolver function for secure attributes
-    """
-
-    def resolve_attribute(obj, info, **kwargs):
-        value = getattr(obj, name)
-        return serialize.secure_value(GOBType(value))
-
-    return resolve_attribute
 
 
 def get_resolve_attribute_missing_relation(field_name):

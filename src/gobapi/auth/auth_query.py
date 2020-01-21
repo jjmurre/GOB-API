@@ -3,6 +3,7 @@ from flask import request
 
 from gobcore.secure.user import User
 from gobcore.model import GOBModel
+from gobcore.typesystem import get_gob_type_from_info, GOB_SECURE_TYPES, gob_types
 
 from gobcore.secure.config import REQUEST_ROLES
 from gobapi.auth.schemes import GOB_AUTH_SCHEME
@@ -23,6 +24,8 @@ class Authority():
         collection = GOBModel().get_collection(self._catalog, self._collection)
         self._attributes = [attr for attr in collection['fields']] if collection else []
         self._auth_scheme = GOB_AUTH_SCHEME
+        self._secured_columns = None
+        self._suppressed_columns = None
 
     def get_roles(self):
         """
@@ -70,12 +73,36 @@ class Authority():
         """
         The suppressed columns are the columns that require a role that the user doesn't have
         """
-        if self.allows_access():
-            return [attr for attr, auth in self.get_checked_columns().items() if not self._is_authorized_for(auth)]
-        else:
-            return self._attributes
+        if not self._suppressed_columns:
+            if self.allows_access():
+                cols = [attr for attr, auth in self.get_checked_columns().items() if not self._is_authorized_for(auth)]
+            else:
+                cols = self._attributes
+            self._suppressed_columns = cols
+        return self._suppressed_columns
 
-    def filter_row(self, row):
+    def get_secured_columns(self):
+        """
+        The secured columns are the columns that (may) require decryption
+        """
+        if not self._secured_columns:
+            collection = GOBModel().get_collection(self._catalog, self._collection)
+            if collection:
+                cols = {
+                    column: {
+                        'gob_type': get_gob_type_from_info(spec),
+                        'spec': spec
+                    }
+                    for column, spec in collection['fields'].items()
+                    if get_gob_type_from_info(spec) in GOB_SECURE_TYPES
+                    or issubclass(get_gob_type_from_info(spec), gob_types.JSON)
+                }
+            else:
+                cols = {}
+            self._secured_columns = cols
+        return self._secured_columns
+
+    def filter_row(self, row, mapping=None):
         """
         Set all columns in the row that should be suppressed to None
         """
@@ -88,9 +115,9 @@ class Authority():
                      Because the user has access only the suppressed columns will be removed from the result.
                      Access => suppress all columns on basis of their name
             """
-            suppressed_columns = self.get_suppressed_columns()
-            for column in [c for c in suppressed_columns if c in row]:
-                row[column] = None
+            mapping = mapping or {}
+            self._handle_suppressed_columns(mapping, row)
+            self._handle_secured_columns(mapping, row)
         else:
             """
             Note:    if someone does not have access to a catalog/collection then the result should always be cleared.
@@ -102,6 +129,48 @@ class Authority():
             for key in row.keys():
                 row[key] = None
         return row
+
+    def _handle_secured_columns(self, mapping, row):
+        """
+        Handle secure columns by resolving their values.
+        The exposed value is None if not authorized, else the decrypted value
+
+        :param mapping: mapping between column names in the row and column names in the GOB model
+        :param row: the row to process
+        :return:
+        """
+        for column, info in self.get_secured_columns().items():
+            column = mapping.get(column, column)
+            if column in row:
+                row[column] = self.exposed_value(row[column], info)
+
+    def _handle_suppressed_columns(self, mapping, row):
+        """
+        Handle suppressed columns by removing their values
+
+        :param mapping: mapping between column names in the row and column names in the GOB model
+        :param row: the row to process
+        :return:
+        """
+        for column in self.get_suppressed_columns():
+            column = mapping.get(column, column)
+            if column in row:
+                row[column] = None
+
+    @classmethod
+    def exposed_value(cls, entity_value, info):
+        """
+        Get the exposed value for any encrypted entity value.
+
+        :param entity_value:
+        :param info: dictionary containing gob_type and type_spec
+        :return: the decrypted value is the user is authorised, else None
+        """
+        if entity_value is None:
+            return entity_value
+        gob_type = info['gob_type']
+        secure_type = gob_type.from_value_secure(entity_value, info['spec'])
+        return cls.get_secured_value(secure_type)
 
     @classmethod
     def get_secured_value(cls, sec_type):
@@ -134,16 +203,27 @@ class AuthorizedQuery(Query):
         """
         if self._authority:
             suppressed_columns = self._authority.get_suppressed_columns()
+            secure_columns = self._authority.get_secured_columns()
         else:
             print("ERROR: UNAUTHORIZED ACCESS DETECTED")
             suppressed_columns = []
+            secure_columns = {}
 
         for entity in super().__iter__():
-            if suppressed_columns:
-                self.set_suppressed_columns(entity, suppressed_columns)
-                for column in [c for c in suppressed_columns if hasattr(entity, c)]:
-                    setattr(entity, column, None)
+            self._suppress_columns(entity, suppressed_columns)
+            self._handle_secure_columns(entity, secure_columns)
             yield entity
+
+    def _handle_secure_columns(self, entity, secure_columns):
+        for column, info in secure_columns.items():
+            if hasattr(entity, column):
+                entity_value = getattr(entity, column)
+                setattr(entity, column, Authority.exposed_value(entity_value, info))
+
+    def _suppress_columns(self, entity, suppressed_columns):
+        self.set_suppressed_columns(entity, suppressed_columns)
+        for column in [c for c in suppressed_columns if hasattr(entity, c)]:
+            setattr(entity, column, None)
 
     def set_suppressed_columns(self, entity, suppressed_columns):
         try:

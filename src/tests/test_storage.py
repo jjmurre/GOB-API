@@ -664,40 +664,6 @@ class TestStorage(TestCase):
         names = ["any"]
         self.assertEqual(_get_table(names, "any123"), "any")
 
-    @mock.patch("gobapi.storage.Authority")
-    @mock.patch("gobapi.storage.get_gob_type_from_info")
-    def test_to_gob_value_dict(self, mock_from_info, mock_authority):
-        entity = {
-            'field a': 'value a',
-        }
-        field = 'field a'
-        spec = {}
-        mock_type = mock.MagicMock()
-        mock_from_info.return_value = mock_type
-
-        with mock.patch("gobapi.storage.GOB_SECURE_TYPES", []):
-            result = _to_gob_value(entity, field, spec)
-
-        mock_authority.assert_not_called()
-        self.assertEqual(mock_type.from_value.return_value, result)
-
-    @mock.patch("gobapi.storage.Authority")
-    @mock.patch("gobapi.storage.get_gob_type_from_info")
-    def test_to_gob_value_secure(self, mock_from_info, mock_authority):
-        entity = {
-            'field a': 'value a',
-        }
-        field = 'field a'
-        spec = {}
-        mock_type = mock.MagicMock()
-        mock_from_info.return_value = mock_type
-
-        with mock.patch("gobapi.storage.GOB_SECURE_TYPES", [mock_type]):
-            result = _to_gob_value(entity, field, spec)
-
-        mock_authority.get_secured_value.assert_called_with(mock_type.from_value_secure.return_value)
-        self.assertEqual(mock_authority.get_secured_value.return_value, result)
-
     def test_add_resolve_attrs_to_columns(self):
         class MockColumn:
             def __init__(self, name):
