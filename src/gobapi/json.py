@@ -19,7 +19,7 @@ class APIGobTypeJSONEncoder(GobTypeJSONEncoder):
     """
     def default(self, obj):
         if isinstance(obj, GOB.JSON):
-            return object_to_camelcase(obj.get_value())
+            return object_to_camelcase(obj.to_value)
 
         if isinstance(obj, DateTime):
             dt = obj.to_value
