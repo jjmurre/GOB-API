@@ -225,7 +225,6 @@ def test_get_states(monkeypatch):
     # See if result matches expected outcome
     for index, row in enumerate(result[0]):
         for key, value in row.items():
-            print(index, key, value)
             assert(str(value) == str(expected_outcome[index][key]))
 
     # Test offset

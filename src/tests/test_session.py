@@ -5,7 +5,7 @@ from gobapi.session import _db_session, set_session, get_session, shutdown_sessi
 
 class MockG:
     def __init__(self):
-        print("INIT")
+        pass
 
 class TestSession(unittest.TestCase):
 

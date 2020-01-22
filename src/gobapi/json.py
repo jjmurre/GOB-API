@@ -1,6 +1,6 @@
 from gobcore.typesystem.json import GobTypeJSONEncoder
 from gobcore.typesystem.gob_types import DateTime
-from gobcore.typesystem import GOB_SECURE_TYPES, GOB
+from gobcore.typesystem import GOB
 
 from gobapi import serialize
 from gobapi.utils import object_to_camelcase
@@ -18,9 +18,8 @@ class APIGobTypeJSONEncoder(GobTypeJSONEncoder):
         json.dumps(gob_type, cls=APIGobTypeJSONEncoder)
     """
     def default(self, obj):
-        if any([isinstance(obj, t) for t in GOB_SECURE_TYPES + [GOB.JSON]]):
-            # secure values are serialized by special secure serializers, JSON values can contain secure values
-            return object_to_camelcase(serialize.secure_value(obj))
+        if isinstance(obj, GOB.JSON):
+            return object_to_camelcase(obj.to_value)
 
         if isinstance(obj, DateTime):
             dt = obj.to_value

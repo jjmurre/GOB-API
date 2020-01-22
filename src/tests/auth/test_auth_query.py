@@ -1,7 +1,7 @@
 from unittest import TestCase, mock
 from unittest.mock import patch, MagicMock
 
-from gobapi.auth.auth_query import Authority, AuthorizedQuery, GOB_AUTH_SCHEME, REQUEST_ROLES
+from gobapi.auth.auth_query import Authority, AuthorizedQuery, GOB_AUTH_SCHEME, REQUEST_ROLES, gob_types
 
 role_a = "a"
 role_b = "b"
@@ -107,6 +107,33 @@ class TestAuthorizedQuery(TestCase):
         q._authority._attributes = 'all attributes'
         self.assertEqual(q._authority.get_suppressed_columns(), 'all attributes')
 
+    @patch("gobapi.auth.auth_query.Authority")
+    @patch("gobapi.auth.auth_query.request", mock_request)
+    @patch("gobapi.auth.auth_query.GOB_AUTH_SCHEME", mock_scheme)
+    def test__handle_secure_columns(self, mock_authority):
+        mock_authority.exposed_value.return_value = 'exposed value'
+        q = AuthorizedQuery()
+        q.set_catalog_collection("any catalog", "any collection")
+        entity = None
+        q._handle_secure_columns(entity, {})
+        self.assertEqual(entity, None)
+
+        class Entity:
+
+            def __init__(self):
+                self.col1 = 'value1'
+                self.col2 = 'value2'
+
+        entity = Entity()
+        q._handle_secure_columns(entity, {'col1': 'info1'})
+        self.assertEqual(entity.col1, 'exposed value')
+        self.assertEqual(entity.col2, 'value2')
+
+        # Do not crash on unknown columns
+        q._handle_secure_columns(entity, {'col1': 'info1', 'unknown col': 'unknown value'})
+        self.assertEqual(entity.col1, 'exposed value')
+        self.assertEqual(entity.col2, 'value2')
+
 class TestAuthorizedQueryIter(TestCase):
 
     @patch("gobapi.auth.auth_query.super")
@@ -186,3 +213,63 @@ class TestAuthority(TestCase):
         authority._collection = "any collection"
         authority.get_roles = lambda : []
         self.assertTrue(authority.allows_access())
+
+
+    @patch("gobapi.auth.auth_query.GOBModel")
+    @patch("gobapi.auth.auth_query.GOB_SECURE_TYPES", ['secure type'])
+    @patch("gobapi.auth.auth_query.get_gob_type_from_info", lambda spec: 'secure type')
+    def test_get_secured_columns(self, mock_model):
+        mock_model.return_value.get_collection.return_value = {
+            'fields': {
+                'secure column': 'any spec'
+            }
+        }
+        authority = Authority('secure catalog', 'any col')
+        secure_columns = authority.get_secured_columns()
+        self.assertEqual(secure_columns, {'secure column': {'gob_type': 'secure type', 'spec': 'any spec'}})
+
+    @patch("gobapi.auth.auth_query.GOBModel")
+    @patch("gobapi.auth.auth_query.GOB_SECURE_TYPES", ['secure type'])
+    @patch("gobapi.auth.auth_query.get_gob_type_from_info", lambda spec: gob_types.JSON)
+    def test_get_secured_json_columns(self, mock_model):
+        mock_model.return_value.get_collection.return_value = {
+            'fields': {
+                'secure column': 'any spec'
+            }
+        }
+        authority = Authority('secure catalog', 'any col')
+        secure_columns = authority.get_secured_columns()
+        self.assertEqual(secure_columns, {'secure column': {'gob_type': gob_types.JSON, 'spec': 'any spec'}})
+
+    def test_handle_secured_columns(self):
+        authority = Authority('secure catalog', 'any col')
+        authority.get_secured_columns = lambda : {'col': 'any info'}
+        authority.exposed_value = lambda value, info: 'exposed value'
+
+        row = {}
+        authority._handle_secured_columns({}, row)
+        self.assertEqual(row, {})
+
+        row = {'col': 'any value', 'any other col': 'any value'}
+        authority._handle_secured_columns({}, row)
+        self.assertEqual(row, {'col': 'exposed value', 'any other col': 'any value'})
+
+        row = {'mapped col': 'any value', 'any other col': 'any value'}
+        mapping = {'col': 'mapped col'}
+        authority._handle_secured_columns(mapping, row)
+        self.assertEqual(row, {'mapped col': 'exposed value', 'any other col': 'any value'})
+
+    @patch("gobapi.auth.auth_query.User", MagicMock())
+    def test_exposed_value(self):
+        mock_type = MagicMock()
+        mock_type.get_value = lambda user: 'protected value'
+        mock_type.from_value_secure = lambda value, spec: mock_type
+        info = {
+            'gob_type': mock_type,
+            'spec': 'any spec'
+        }
+        value = Authority.exposed_value('any value', info)
+        self.assertEqual(value, 'protected value')
+
+        value = Authority.exposed_value(None, info)
+        self.assertEqual(value, None)

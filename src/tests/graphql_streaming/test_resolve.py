@@ -12,14 +12,10 @@ class TestResolve(unittest.TestCase):
 
     @mock.patch('gobapi.graphql_streaming.resolve.Authority')
     @mock.patch('gobapi.graphql_streaming.resolve.GOBModel')
-    @mock.patch('gobapi.graphql_streaming.resolve.get_gob_type')
     @mock.patch('gobapi.graphql_streaming.resolve._SEC_TYPES', ['GOB.SecureString', 'GOB.SecureDateTime'])
-    def testResolverWithAttributes(self, mock_get_gob_type, mock_model_class, mock_authority_class):
+    def testResolverWithAttributes(self, mock_model_class, mock_authority_class):
         mock_model = mock.MagicMock()
         mock_model_class.return_value = mock_model
-
-        mock_gob_type = mock.MagicMock()
-        mock_get_gob_type.return_value = mock_gob_type
 
         mock_authority = mock.MagicMock()
         mock_authority_class.return_value = mock_authority
@@ -44,7 +40,6 @@ class TestResolve(unittest.TestCase):
 
         mock_gob_value = mock.MagicMock()
         mock_gob_value.get_value = lambda: "resolved value"
-        mock_gob_type.from_value.return_value = mock_gob_value
         mock_authority.get_secured_value.return_value = mock_gob_value.get_value()
         row = {
             '_catalog': 'cat',
@@ -59,13 +54,7 @@ class TestResolve(unittest.TestCase):
         mock_authority_class.assert_called_with('cat', 'col')
         self.assertEqual(mock_authority.filter_row.call_count, 2)  # for row and for result
         mock_model.get_collection.assert_called_with('cat', 'col')
-        self.assertEqual(resolver._attributes, {
-            'cat': {
-                'col': {'aB': mock.ANY, 'cD': mock.ANY}
-            }
-        })
-        self.assertEqual(mock_get_gob_type.call_count, 2)
-        self.assertEqual(result, {'aB': 'resolved value', 'cD': 'resolved value'})
+        self.assertEqual(resolver._attributes, {'cat': {'col': {'a_b': 'aB', 'c_d': 'cD', 'e_f': 'eF'}}})
 
     @mock.patch('gobapi.graphql_streaming.resolve.GOBModel')
     def test_init_catalog_collection(self, mock_model_class):
@@ -74,8 +63,8 @@ class TestResolve(unittest.TestCase):
 
         mock_model.get_collection.return_value = {
             'attributes': {
-                'a': 1,
-                'b': 2
+                'a_b': 1,
+                'b_c': 2
             }
         }
 
@@ -84,13 +73,12 @@ class TestResolve(unittest.TestCase):
         self.assertEqual(resolver._attributes, {None: {None: {}}})
 
         resolver = Resolver()
-        resolver._resolve_type = lambda col, attr: "resolved"
 
         resolver._init_catalog_collection('cat', 'col')
-        self.assertEqual(resolver._attributes, {'cat': {'col': {'a': 'resolved', 'b': 'resolved'}}})
+        self.assertEqual(resolver._attributes, {'cat': {'col': {'a_b': 'aB', 'b_c': 'bC'}}})
 
         resolver._init_catalog_collection('cat', 'col')
-        self.assertEqual(resolver._attributes, {'cat': {'col': {'a': 'resolved', 'b': 'resolved'}}})
+        self.assertEqual(resolver._attributes, {'cat': {'col': {'a_b': 'aB', 'b_c': 'bC'}}})
 
-        # resolver._init_catalog_collection('cat', None)
-        # self.assertEqual(resolver._attributes, {'cat': {'col': {}}})
+        resolver._init_catalog_collection('cat', None)
+        self.assertEqual(resolver._attributes, {'cat': {None: {}, 'col': {'a_b': 'aB', 'b_c': 'bC'}}})

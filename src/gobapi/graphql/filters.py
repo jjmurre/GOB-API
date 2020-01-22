@@ -13,8 +13,7 @@ from gobcore.model import GOBModel
 from gobcore.model.relations import get_relation_name
 from gobcore.model.sa.gob import models, Base
 
-from gobapi import serialize
-from gobapi.utils import to_camelcase
+from gobapi.utils import to_camelcase, dict_to_camelcase
 from gobapi.storage import filter_active, filter_deleted
 
 from gobapi.constants import API_FIELD
@@ -76,20 +75,19 @@ class FilterConnectionField(SQLAlchemyConnectionField):
         return query
 
 
-def get_resolve_secure_attribute(name, GOBType):
+def get_resolve_json_attribute(name):
     """
-    Gets a resolver for a secure attribute
+    Gets a resolver for a JSON type attribute
 
-    Secure attributes are serialized by a special secure serializer
+    JSON attributes are camelcased
 
-    :param name: name of the secure attribute
-    :param GOBType: the Secure GOBType class
-    :return: a resolver function for secure attributes
+    :param name: name of the JSON attribute
+    :return: a resolver function for JSON attributes
     """
 
     def resolve_attribute(obj, info, **kwargs):
         value = getattr(obj, name)
-        return serialize.secure_value(GOBType(value))
+        return dict_to_camelcase(value)
 
     return resolve_attribute
 

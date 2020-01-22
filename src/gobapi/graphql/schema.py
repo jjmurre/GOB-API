@@ -18,11 +18,11 @@ from gobcore.model import GOBModel
 from gobcore.model.relations import get_fieldnames_for_missing_relations
 from gobcore.model.sa.gob import models
 from gobcore.model.metadata import FIELD
-from gobcore.typesystem import GOB_SECURE_TYPES, get_gob_type
+from gobcore.typesystem import get_gob_type_from_info, gob_types
 
 from gobapi.constants import API_FIELD, API_FIELD_DESCRIPTION
 from gobapi.graphql import graphene_type, exclude_fields
-from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute, get_resolve_secure_attribute, \
+from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute, get_resolve_json_attribute, \
     get_resolve_inverse_attribute, get_resolve_attribute_missing_relation
 from gobapi.graphql.scalars import DateTime, GeoJSON
 
@@ -49,11 +49,9 @@ def get_inverse_references(catalogue, collection):
         return {}
 
 
-def get_collection_secure_attributes(collection):
-    SEC_TYPES = [f"GOB.{type.name}" for type in GOB_SECURE_TYPES]
-
+def get_collection_json_attributes(collection):
     attrs = collection["attributes"]
-    return {key: value for key, value in attrs.items() if value["type"] in SEC_TYPES}
+    return {key: value for key, value in attrs.items() if issubclass(get_gob_type_from_info(value), gob_types.JSON)}
 
 
 def _get_sorted_references(model):
@@ -156,7 +154,7 @@ def get_graphene_query():
         catalog_name, collection_name = re.findall(pattern, ref)[0]
         collection = model.get_collection(catalog_name, collection_name)
 
-        sec_attributes = get_collection_secure_attributes(collection)
+        json_attributes = get_collection_json_attributes(collection)
 
         # Get all references for the collection
         ref_items = get_collection_references(collection)
@@ -180,7 +178,7 @@ def get_graphene_query():
             "__repr__": lambda self: f"SQLAlchemyObjectType {model_name}",
             **{connection["field_name"]: connection["connection_field"] for connection in connections},
             **{connection["field_name"]: connection["connection_field"] for connection in inverse_connections},
-            **get_secure_resolvers(catalog_name, collection_name, sec_attributes),
+            **get_json_resolvers(catalog_name, collection_name, json_attributes),
             **get_relation_resolvers(connections),
             **get_inverse_relation_resolvers(inverse_connections),
             **get_missing_relation_resolvers(missing_rels),
@@ -263,12 +261,8 @@ def get_inverse_connection_field(key):
     return connection_field
 
 
-def get_secure_resolvers(src_catalog_name, src_collection_name, attributes):
-    resolvers = {}
-    for name, type_info in attributes.items():
-        GOBType = get_gob_type(type_info["type"])
-        resolvers[f"resolve_{name}"] = get_resolve_secure_attribute(name, GOBType)
-    return resolvers
+def get_json_resolvers(src_catalog_name, src_collection_name, attributes):
+    return {f"resolve_{name}": get_resolve_json_attribute(name) for name, type_info in attributes.items()}
 
 
 def get_inverse_relation_resolvers(inverse_connections):

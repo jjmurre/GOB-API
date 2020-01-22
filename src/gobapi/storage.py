@@ -16,12 +16,12 @@ from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy_filters import apply_filters
-from sqlalchemy.sql import label
+from sqlalchemy.sql import label, functions
 
 from gobcore.model import GOBModel, NotInModelException
 from gobcore.model.relations import get_relation_name
 from gobcore.model.sa.gob import Base, models
-from gobcore.typesystem import get_gob_type_from_sql_type, get_gob_type_from_info, GOB_SECURE_TYPES
+from gobcore.typesystem import get_gob_type_from_sql_type, get_gob_type_from_info, GOB_SECURE_TYPES, GOB
 from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS, FIELD
 
 from gobapi.config import GOB_DB, API_BASE_PATH
@@ -141,15 +141,13 @@ def _create_reference(entity, field, spec, entity_catalog=None, entity_collectio
     return embedded
 
 
-def _to_gob_value(entity, field, spec):
+def _to_gob_value(entity, field, spec, resolve_secure=False):
     entity_value = getattr(entity, field, None)
     if isinstance(spec, dict):
         gob_type = get_gob_type_from_info(spec)
-
-        if gob_type in GOB_SECURE_TYPES:
+        if resolve_secure and (gob_type in GOB_SECURE_TYPES or issubclass(gob_type, GOB.JSON)):
             # Instantiate secure object with value
             secure_type = gob_type.from_value_secure(entity_value, spec)
-
             # Return decrypted value
             return Authority.get_secured_value(secure_type)
         return gob_type.from_value(entity_value, **spec)
@@ -314,6 +312,7 @@ def _get_convert_for_table(table, filter=None):
                 entity,
                 column.name,
                 getattr(column, 'attribute', type(column.type)),
+                resolve_secure=True
             )
             # If 'public_name' is set, replace column name (for example brk:sjt:heeft_bsn_voor) with 'public_name',
             # (for example heeft_bsn_voor). Set by _add_resolve_attrs_to_columns
@@ -474,8 +473,8 @@ def get_entity_refs_after(catalog: str, collection: str, last_eventid: int) -> L
 
     table, _ = get_table_and_model(catalog, collection)
 
-    id = getattr(table, FIELD.ID) + '_' \
-        + getattr(table, FIELD.SEQNR) if hasattr(table, FIELD.SEQNR) else getattr(table, FIELD.ID)
+    id = functions.concat(getattr(table, FIELD.ID), '_', getattr(table, FIELD.SEQNR)) if hasattr(table, FIELD.SEQNR) \
+        else getattr(table, FIELD.ID)
     query = session.query(id).filter(getattr(table, FIELD.LAST_EVENT) > last_eventid)
     query.set_catalog_collection(catalog, collection)
     return [row[0] for row in query.all()]

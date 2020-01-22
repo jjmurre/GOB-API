@@ -8,7 +8,7 @@ from graphene_sqlalchemy import SQLAlchemyConnectionField
 from gobcore.typesystem.gob_secure_types import SecureString
 from gobcore.model.sa.gob import models, Base
 from gobapi.graphql.filters import FilterConnectionField, get_resolve_attribute, \
-    get_resolve_secure_attribute, get_resolve_inverse_attribute, \
+    get_resolve_inverse_attribute, get_resolve_json_attribute, \
     get_resolve_attribute_missing_relation, add_bronwaardes_to_results, gobmodel, _extract_tuples, models, \
     get_fields_in_query, flatten_join_query_result, _extract_relation_model, add_relation_join_query
 from gobapi import storage
@@ -196,17 +196,6 @@ def test_add_bronwaardes_to_results(monkeypatch):
 
 
 class TestFilters(TestCase):
-
-    @patch("gobapi.graphql.filters.serialize.secure_value")
-    def test_resolve_secure_attribute(self, mock_serialize_secure_value):
-        m = Model("field", json.dumps({
-            "i": 0,
-            "l": 0,
-            "v": "some value"
-        }))
-        f = get_resolve_secure_attribute("field", SecureString)
-        mock_serialize_secure_value.return_value = "serialized secure value"
-        self.assertEqual(f(m, None, field=1), "serialized secure value")
 
     def test_extract_tuples(self):
         input = [{'a': 1, 'b': 2, 'c': 3}, {'a': 4, 'b': 5, 'c': 6}, {'a': 7, 'b': 8}]
@@ -581,3 +570,15 @@ class TestFilters(TestCase):
         add_columns_res = join_res.add_columns.return_value
 
         self.assertEqual(result, add_columns_res)
+
+    def test_resolve_json_attribute(self):
+        class Obj:
+            someattr = {'a': 'a', 'a_b': 'a_b'}
+
+        a = Obj()
+
+        f = get_resolve_json_attribute('someattr')
+        assert(f(a, None) == {'a': 'a', 'aB': 'a_b'})
+
+        a.someattr = None
+        assert(f(a, None) == None)

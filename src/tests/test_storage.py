@@ -146,6 +146,11 @@ class MockTable():
 
     columns = [MockColumn('identificatie'), MockColumn('attribute'), MockColumn('meta')]
 
+class SecureType:
+
+    @classmethod
+    def from_value_secure(cls, *args, **kwargs):
+        return SecureType()
 
 class MockSession:
     def __init__(self, engine):
@@ -664,40 +669,6 @@ class TestStorage(TestCase):
         names = ["any"]
         self.assertEqual(_get_table(names, "any123"), "any")
 
-    @mock.patch("gobapi.storage.Authority")
-    @mock.patch("gobapi.storage.get_gob_type_from_info")
-    def test_to_gob_value_dict(self, mock_from_info, mock_authority):
-        entity = {
-            'field a': 'value a',
-        }
-        field = 'field a'
-        spec = {}
-        mock_type = mock.MagicMock()
-        mock_from_info.return_value = mock_type
-
-        with mock.patch("gobapi.storage.GOB_SECURE_TYPES", []):
-            result = _to_gob_value(entity, field, spec)
-
-        mock_authority.assert_not_called()
-        self.assertEqual(mock_type.from_value.return_value, result)
-
-    @mock.patch("gobapi.storage.Authority")
-    @mock.patch("gobapi.storage.get_gob_type_from_info")
-    def test_to_gob_value_secure(self, mock_from_info, mock_authority):
-        entity = {
-            'field a': 'value a',
-        }
-        field = 'field a'
-        spec = {}
-        mock_type = mock.MagicMock()
-        mock_from_info.return_value = mock_type
-
-        with mock.patch("gobapi.storage.GOB_SECURE_TYPES", [mock_type]):
-            result = _to_gob_value(entity, field, spec)
-
-        mock_authority.get_secured_value.assert_called_with(mock_type.from_value_secure.return_value)
-        self.assertEqual(mock_authority.get_secured_value.return_value, result)
-
     def test_add_resolve_attrs_to_columns(self):
         class MockColumn:
             def __init__(self, name):
@@ -800,7 +771,7 @@ class TestStorage(TestCase):
             'columnb': 'col_b_value',
         }
 
-        mock_to_gob_value.side_effect = lambda e, n, t: 'gobval(' + e.get(n) + ')'
+        mock_to_gob_value.side_effect = lambda e, n, t, resolve_secure: 'gobval(' + e.get(n) + ')'
         mock_resolve_attrs.side_effect = lambda x: x
 
         result = convert(entity)
@@ -810,8 +781,8 @@ class TestStorage(TestCase):
         }, result)
 
         mock_to_gob_value.assert_has_calls([
-            mock.call(entity, 'columna', type('the type')),
-            mock.call(entity, 'columnb', 'the attribute'),
+            mock.call(entity, 'columna', type('the type'), resolve_secure=True),
+            mock.call(entity, 'columnb', 'the attribute', resolve_secure=True),
         ])
         mock_resolve_attrs.assert_called_with(table.columns)
 
@@ -872,6 +843,7 @@ class TestStorage(TestCase):
     @mock.patch("gobapi.storage._Base", mock.MagicMock())
     @mock.patch("gobapi.storage.get_table_and_model")
     @mock.patch("gobapi.storage.get_session")
+    @mock.patch("gobapi.storage.functions.concat", lambda *args: "".join(args))
     def test_get_entity_refs_after(self, mock_get_session, mock_get_table_and_model):
 
         table_no_seqnr = type('MockTableNoSeqnr', (object,), {'_id': '230', '_last_event': 2000})
@@ -964,3 +936,15 @@ class TestStorage(TestCase):
 
         # Assert order_by is added and used
         mock_get_session.return_value.query.return_value.order_by.assert_called_with('orderval')
+
+    @mock.patch("gobapi.storage.GOB_SECURE_TYPES", [SecureType])
+    @mock.patch("gobapi.storage.get_gob_type_from_info")
+    @mock.patch("gobapi.storage.Authority")
+    def test_to_gob_value(self, mock_Authority, mock_get_type):
+        mock_type = mock.MagicMock()
+        mock_get_type.return_value = SecureType
+        mock_Authority.get_secured_value.return_value = "secure value"
+        entity = None
+        spec = {}
+        result = _to_gob_value(entity, 'field', spec, resolve_secure=True)
+        self.assertEqual(result, "secure value")

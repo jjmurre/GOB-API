@@ -41,10 +41,7 @@ def dict_to_camelcase(d):
     :param d:
     :return:
     """
-    obj = {}
-    for key, value in d.items():
-        obj[to_camelcase(key)] = object_to_camelcase(value)
-    return obj
+    return d if d is None else {to_camelcase(key): object_to_camelcase(value) for key, value in d.items()}
 
 
 def object_to_camelcase(value):
