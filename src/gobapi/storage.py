@@ -16,7 +16,7 @@ from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy_filters import apply_filters
-from sqlalchemy.sql import label
+from sqlalchemy.sql import label, functions
 
 from gobcore.model import GOBModel, NotInModelException
 from gobcore.model.relations import get_relation_name
@@ -474,8 +474,8 @@ def get_entity_refs_after(catalog: str, collection: str, last_eventid: int) -> L
 
     table, _ = get_table_and_model(catalog, collection)
 
-    id = getattr(table, FIELD.ID) + '_' \
-        + getattr(table, FIELD.SEQNR) if hasattr(table, FIELD.SEQNR) else getattr(table, FIELD.ID)
+    id = functions.concat(getattr(table, FIELD.ID), '_', getattr(table, FIELD.SEQNR)) if hasattr(table, FIELD.SEQNR) \
+        else getattr(table, FIELD.ID)
     query = session.query(id).filter(getattr(table, FIELD.LAST_EVENT) > last_eventid)
     query.set_catalog_collection(catalog, collection)
     return [row[0] for row in query.all()]

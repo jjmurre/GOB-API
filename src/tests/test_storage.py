@@ -872,6 +872,7 @@ class TestStorage(TestCase):
     @mock.patch("gobapi.storage._Base", mock.MagicMock())
     @mock.patch("gobapi.storage.get_table_and_model")
     @mock.patch("gobapi.storage.get_session")
+    @mock.patch("gobapi.storage.functions.concat", lambda *args: "".join(args))
     def test_get_entity_refs_after(self, mock_get_session, mock_get_table_and_model):
 
         table_no_seqnr = type('MockTableNoSeqnr', (object,), {'_id': '230', '_last_event': 2000})
