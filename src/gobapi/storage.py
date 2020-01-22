@@ -21,12 +21,12 @@ from sqlalchemy.sql import label, functions
 from gobcore.model import GOBModel, NotInModelException
 from gobcore.model.relations import get_relation_name
 from gobcore.model.sa.gob import Base, models
-from gobcore.typesystem import get_gob_type_from_sql_type, get_gob_type_from_info
+from gobcore.typesystem import get_gob_type_from_sql_type, get_gob_type_from_info, GOB_SECURE_TYPES, GOB
 from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS, FIELD
 
 from gobapi.config import GOB_DB, API_BASE_PATH
 from gobapi.session import set_session, get_session
-from gobapi.auth.auth_query import AuthorizedQuery, SUPPRESSED_COLUMNS
+from gobapi.auth.auth_query import AuthorizedQuery, SUPPRESSED_COLUMNS, Authority
 from gobapi.constants import API_FIELD
 
 session = None
@@ -141,10 +141,15 @@ def _create_reference(entity, field, spec, entity_catalog=None, entity_collectio
     return embedded
 
 
-def _to_gob_value(entity, field, spec):
+def _to_gob_value(entity, field, spec, resolve_secure=False):
     entity_value = getattr(entity, field, None)
     if isinstance(spec, dict):
         gob_type = get_gob_type_from_info(spec)
+        if resolve_secure and (gob_type in GOB_SECURE_TYPES or issubclass(gob_type, GOB.JSON)):
+            # Instantiate secure object with value
+            secure_type = gob_type.from_value_secure(entity_value, spec)
+            # Return decrypted value
+            return Authority.get_secured_value(secure_type)
         return gob_type.from_value(entity_value, **spec)
     else:
         gob_type = get_gob_type_from_sql_type(spec)
@@ -307,6 +312,7 @@ def _get_convert_for_table(table, filter=None):
                 entity,
                 column.name,
                 getattr(column, 'attribute', type(column.type)),
+                resolve_secure=True
             )
             # If 'public_name' is set, replace column name (for example brk:sjt:heeft_bsn_voor) with 'public_name',
             # (for example heeft_bsn_voor). Set by _add_resolve_attrs_to_columns

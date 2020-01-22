@@ -216,9 +216,11 @@ class AuthorizedQuery(Query):
 
     def _handle_secure_columns(self, entity, secure_columns):
         for column, info in secure_columns.items():
-            if hasattr(entity, column):
+            try:
                 entity_value = getattr(entity, column)
                 setattr(entity, column, Authority.exposed_value(entity_value, info))
+            except AttributeError:
+                pass
 
     def _suppress_columns(self, entity, suppressed_columns):
         self.set_suppressed_columns(entity, suppressed_columns)

@@ -129,6 +129,11 @@ class TestAuthorizedQuery(TestCase):
         self.assertEqual(entity.col1, 'exposed value')
         self.assertEqual(entity.col2, 'value2')
 
+        # Do not crash on unknown columns
+        q._handle_secure_columns(entity, {'col1': 'info1', 'unknown col': 'unknown value'})
+        self.assertEqual(entity.col1, 'exposed value')
+        self.assertEqual(entity.col2, 'value2')
+
 class TestAuthorizedQueryIter(TestCase):
 
     @patch("gobapi.auth.auth_query.super")
