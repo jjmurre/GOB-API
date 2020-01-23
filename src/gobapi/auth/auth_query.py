@@ -3,7 +3,7 @@ from flask import request
 
 from gobcore.secure.user import User
 from gobcore.model import GOBModel
-from gobcore.typesystem import get_gob_type_from_info, GOB_SECURE_TYPES, gob_types
+from gobcore.typesystem import get_gob_type_from_info, gob_types, gob_secure_types
 
 from gobcore.secure.config import REQUEST_ROLES
 from gobapi.auth.schemes import GOB_AUTH_SCHEME
@@ -81,6 +81,20 @@ class Authority():
             self._suppressed_columns = cols
         return self._suppressed_columns
 
+    def _is_secure_type(self, spec):
+        """
+        Tells if spec is a secure type
+        Either a plain secure type or a JSON that contains a secure type
+
+        :param spec:
+        :return:
+        """
+        gob_type = get_gob_type_from_info(spec)
+        if issubclass(gob_type, gob_secure_types.Secure):
+            return True
+        elif issubclass(get_gob_type_from_info(spec), gob_types.JSON):
+            return any([self._is_secure_type(attr) for attr in spec['attributes'].values()])
+
     def get_secured_columns(self):
         """
         The secured columns are the columns that (may) require decryption
@@ -94,8 +108,7 @@ class Authority():
                         'spec': spec
                     }
                     for column, spec in collection['fields'].items()
-                    if get_gob_type_from_info(spec) in GOB_SECURE_TYPES
-                    or issubclass(get_gob_type_from_info(spec), gob_types.JSON)
+                    if self._is_secure_type(spec)
                 }
             else:
                 cols = {}
