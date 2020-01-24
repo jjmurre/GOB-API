@@ -121,10 +121,10 @@ class TestDbDumper(TestCase):
         db_dumper.engine.execute = MagicMock()
 
         self.assertEqual(db_dumper.engine.execute.return_value,
-                         db_dumper._delete_dst_entities('table_name', ['ref1', 'ref2']))
+                         db_dumper._delete_dst_entities('table_name', ["ref'1", 'ref2']))
 
         db_dumper.engine.execute.assert_called_with(
-            'DELETE FROM "schema"."table_name" WHERE ref IN (\'ref1\',\'ref2\')'
+            'DELETE FROM "schema"."table_name" WHERE ref IN (\'ref\'\'1\',\'ref2\')'
         )
 
     def test_max_eventid_dst(self, mock_create_engine, mock_url):
