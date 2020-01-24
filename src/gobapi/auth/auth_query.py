@@ -92,7 +92,7 @@ class Authority():
         gob_type = get_gob_type_from_info(spec)
         if issubclass(gob_type, gob_secure_types.Secure):
             return True
-        elif issubclass(get_gob_type_from_info(spec), gob_types.JSON):
+        elif issubclass(gob_type, gob_types.JSON):
             return any([self._is_secure_type(attr) for attr in spec['attributes'].values()])
 
     def get_secured_columns(self):
