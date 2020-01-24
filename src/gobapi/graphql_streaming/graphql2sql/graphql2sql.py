@@ -191,7 +191,6 @@ class SqlGenerator:
         self.select_expressions = []
         self.joins = []
         self.relation_info = {}
-        self.where_filter = []
 
     def _collect_relation_info(self, relation_name: str, schema_collection_name: str):
         catalog_name, collection_name = resolve_schema_collection_name(schema_collection_name)
@@ -300,11 +299,8 @@ class SqlGenerator:
         select = ',\n'.join(self.select_expressions)
         table_select = '\n'.join(self.joins)
         order_by = f"ORDER BY {base_info['alias']}.{FIELD.GOBID}"
-        where = "\nAND ".join(self.where_filter)
 
-        if where:
-            where = "WHERE " + where
-        query = f"SELECT\n{select}\n{table_select}\n{where}\n{order_by}"
+        query = f"SELECT\n{select}\n{table_select}\n{order_by}"
 
         return query
 
@@ -426,6 +422,12 @@ LEFT JOIN {relation_table} {rel_table_alias} ON {rel_table_alias}.{FIELD.GOBID} 
         if filter_args:
             join_dst_table += f" AND ({') AND ('.join(filter_args)})"
 
+        if arguments['active']:
+
+            join_dst_table += f" AND {self._current_filter_expression(dst_relation['alias'])}"
+
+        join_dst_table += f" AND {dst_relation['alias']}.{FIELD.DATE_DELETED} IS NULL"
+
         return join_dst_table
 
     def _add_relation_joins(self, src_relation: dict, dst_relation: dict, relation_name: str, arguments: dict,
@@ -465,11 +467,6 @@ LEFT JOIN {relation_table} {rel_table_alias} ON {rel_table_alias}.{FIELD.GOBID} 
         join_relation_table = self._join_relation_table(src_relation, relation_name, rel_table_alias, arguments,
                                                         src_value_requested, src_attr_name, is_many, is_inverse)
         join_dst_table = self._join_dst_table(dst_relation, rel_table_alias, arguments, is_inverse)
-
-        if arguments['active']:
-            self.where_filter.append(self._current_filter_expression(dst_relation['alias']))
-
-        self.where_filter.append(f"{dst_relation['alias']}.{FIELD.DATE_DELETED} IS NULL")
 
         self.joins.append(join_relation_table)
         self.joins.append(join_dst_table)
