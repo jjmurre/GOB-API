@@ -3,7 +3,7 @@ from flask import request
 
 from gobcore.secure.user import User
 from gobcore.model import GOBModel
-from gobcore.typesystem import get_gob_type_from_info, GOB_SECURE_TYPES, gob_types
+from gobcore.typesystem import get_gob_type_from_info, gob_types, gob_secure_types
 
 from gobcore.secure.config import REQUEST_ROLES
 from gobapi.auth.schemes import GOB_AUTH_SCHEME
@@ -94,8 +94,7 @@ class Authority():
                         'spec': spec
                     }
                     for column, spec in collection['fields'].items()
-                    if get_gob_type_from_info(spec) in GOB_SECURE_TYPES
-                    or issubclass(get_gob_type_from_info(spec), gob_types.JSON)
+                    if self.is_secure_type(spec)
                 }
             else:
                 cols = {}
@@ -141,8 +140,10 @@ class Authority():
         """
         for column, info in self.get_secured_columns().items():
             column = mapping.get(column, column)
-            if column in row:
+            try:
                 row[column] = self.exposed_value(row[column], info)
+            except (AttributeError, KeyError):
+                pass
 
     def _handle_suppressed_columns(self, mapping, row):
         """
@@ -171,6 +172,38 @@ class Authority():
         gob_type = info['gob_type']
         secure_type = gob_type.from_value_secure(entity_value, info['spec'])
         return cls.get_secured_value(secure_type)
+
+    @classmethod
+    def is_secure_type(cls, spec):
+        """
+        Tells if spec is a secure type
+        Either a plain secure type or a JSON that contains a secure type
+
+        :param spec:
+        :return:
+        """
+        gob_type = get_gob_type_from_info(spec)
+        if issubclass(gob_type, gob_secure_types.Secure):
+            return True
+        elif issubclass(gob_type, gob_types.JSON):
+            attributes = spec.get('attributes', {})
+            return any([cls.is_secure_type(attr) for attr in attributes.values()])
+
+    @classmethod
+    def get_secure_type(cls, gob_type, spec, value):
+        """
+        Returns a Secure GOB type instance for the given type, spec and value
+
+        Example:
+        get_secure_type(GOB.SecureString, <<the gob model spec>>, <<any encrypted string value>>_
+        returns a GOB.SecureString instance with the given value
+
+        :param gob_type:
+        :param spec:
+        :param value:
+        :return:
+        """
+        return gob_type.from_value_secure(value, spec)
 
     @classmethod
     def get_secured_value(cls, sec_type):

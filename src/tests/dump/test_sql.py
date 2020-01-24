@@ -2,7 +2,7 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 from gobapi.dump.sql import _create_table, _create_schema, _import_csv, sql_entities, get_max_eventid, \
-    delete_entities_with_source_ids, _quoted_tablename, _rename_table, _create_index
+    delete_entities_with_source_ids, _quoted_tablename, _rename_table, _create_index, to_sql_string_value
 from gobapi.dump.config import REFERENCE_FIELDS
 
 
@@ -103,3 +103,13 @@ class TestSQL(TestCase):
             'DELETE FROM "schema"."collection" WHERE _source_id IN (\'source_id_a\',\'source_id_b\')',
             result
         )
+
+    def test_quote_sql_string(self):
+        result = to_sql_string_value("test")
+        self.assertEqual(result, "'test'")
+
+        result = to_sql_string_value("te'st")
+        self.assertEqual(result, "'te''st'")
+
+        result = to_sql_string_value("te''st")
+        self.assertEqual(result, "'te''''st'")

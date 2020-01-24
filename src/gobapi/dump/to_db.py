@@ -17,6 +17,8 @@ from gobapi.dump.csv import csv_entities
 from gobapi.dump.csv_stream import CSVStream
 from gobapi.storage import get_entity_refs_after, get_table_and_model, get_max_eventid as get_src_max_eventid
 
+from gobapi.dump.sql import to_sql_string_value
+
 STREAM_PER = 10000              # Stream per STREAM_PER lines
 COMMIT_PER = 10 * STREAM_PER    # Commit once per COMMIT_PER lines
 BUFFER_PER = 50000              # Copy read buffer size
@@ -105,7 +107,7 @@ class DbDumper:
         return max_eventid
 
     def _delete_dst_entities(self, table_name: str, refs: list):
-        refs_sql = ",".join([f"'{ref}'" for ref in refs])
+        refs_sql = ",".join([to_sql_string_value(ref) for ref in refs])
         query = f'DELETE FROM "{self.schema}"."{table_name}" WHERE {UNIQUE_ID} IN ({refs_sql})'
 
         result = self.engine.execute(query)

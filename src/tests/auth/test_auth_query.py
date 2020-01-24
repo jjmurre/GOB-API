@@ -1,7 +1,7 @@
 from unittest import TestCase, mock
 from unittest.mock import patch, MagicMock
 
-from gobapi.auth.auth_query import Authority, AuthorizedQuery, GOB_AUTH_SCHEME, REQUEST_ROLES, gob_types
+from gobapi.auth.auth_query import Authority, AuthorizedQuery, GOB_AUTH_SCHEME, REQUEST_ROLES, gob_types, gob_secure_types
 
 role_a = "a"
 role_b = "b"
@@ -214,10 +214,8 @@ class TestAuthority(TestCase):
         authority.get_roles = lambda : []
         self.assertTrue(authority.allows_access())
 
-
     @patch("gobapi.auth.auth_query.GOBModel")
-    @patch("gobapi.auth.auth_query.GOB_SECURE_TYPES", ['secure type'])
-    @patch("gobapi.auth.auth_query.get_gob_type_from_info", lambda spec: 'secure type')
+    @patch("gobapi.auth.auth_query.get_gob_type_from_info", lambda spec: gob_secure_types.SecureString)
     def test_get_secured_columns(self, mock_model):
         mock_model.return_value.get_collection.return_value = {
             'fields': {
@@ -226,20 +224,84 @@ class TestAuthority(TestCase):
         }
         authority = Authority('secure catalog', 'any col')
         secure_columns = authority.get_secured_columns()
-        self.assertEqual(secure_columns, {'secure column': {'gob_type': 'secure type', 'spec': 'any spec'}})
+        self.assertEqual(secure_columns, {'secure column': {'gob_type': gob_secure_types.SecureString, 'spec': 'any spec'}})
 
     @patch("gobapi.auth.auth_query.GOBModel")
-    @patch("gobapi.auth.auth_query.GOB_SECURE_TYPES", ['secure type'])
-    @patch("gobapi.auth.auth_query.get_gob_type_from_info", lambda spec: gob_types.JSON)
     def test_get_secured_json_columns(self, mock_model):
         mock_model.return_value.get_collection.return_value = {
             'fields': {
-                'secure column': 'any spec'
+                'secure column': {
+                    'type': 'GOB.JSON',
+                    'attributes': {
+                        'attr1': {
+                            'type': 'GOB.SecureString'
+                        },
+                        'attr2': {
+                            'type': 'GOB.String'
+                        }
+                    }
+                }
             }
         }
         authority = Authority('secure catalog', 'any col')
         secure_columns = authority.get_secured_columns()
-        self.assertEqual(secure_columns, {'secure column': {'gob_type': gob_types.JSON, 'spec': 'any spec'}})
+        expect = {
+            'secure column': {
+                'gob_type': gob_types.JSON,
+                'spec': {
+                    'type': 'GOB.JSON',
+                    'gob_type': gob_types.JSON,
+                    'attributes': {
+                        'attr1': {
+                            'type': 'GOB.SecureString',
+                            'gob_type': gob_secure_types.SecureString
+                        },
+                        'attr2': {
+                            'type': 'GOB.String',
+                            'gob_type': gob_types.String
+                        }
+                    },
+                }
+            }
+        }
+        print(secure_columns)
+        self.assertEqual(secure_columns, expect)
+
+    def test_is_secure_type(self):
+        authority = Authority('secure catalog', 'any col')
+
+        spec = {
+            "type": "GOB.String"
+        }
+        self.assertFalse(authority.is_secure_type(spec))
+
+        spec = {
+            "type": "GOB.SecureString"
+        }
+        self.assertTrue(authority.is_secure_type(spec))
+
+        spec = {
+            "type": "GOB.JSON",
+            "attributes": {
+                "attr": {
+                    "type": "GOB.String"
+                }
+            }
+        }
+        self.assertFalse(authority.is_secure_type(spec))
+
+        spec = {
+            "type": "GOB.JSON",
+            "attributes": {
+                "attr": {
+                    "type": "GOB.String"
+                },
+                "attr": {
+                    "type": "GOB.SecureString"
+                }
+            }
+        }
+        self.assertTrue(authority.is_secure_type(spec))
 
     def test_handle_secured_columns(self):
         authority = Authority('secure catalog', 'any col')
@@ -273,3 +335,11 @@ class TestAuthority(TestCase):
 
         value = Authority.exposed_value(None, info)
         self.assertEqual(value, None)
+
+    def test_get_secure_type(self):
+        mock_gob_type = mock.MagicMock()
+        mock_gob_type.from_value_secure.return_value = "secure GOB type"
+
+        result = Authority.get_secure_type(mock_gob_type, 'any spec', 'any value')
+        self.assertEqual(result, "secure GOB type")
+        mock_gob_type.from_value_secure.assert_called_with('any value', 'any spec')

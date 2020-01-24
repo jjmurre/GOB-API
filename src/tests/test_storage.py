@@ -937,14 +937,23 @@ class TestStorage(TestCase):
         # Assert order_by is added and used
         mock_get_session.return_value.query.return_value.order_by.assert_called_with('orderval')
 
-    @mock.patch("gobapi.storage.GOB_SECURE_TYPES", [SecureType])
     @mock.patch("gobapi.storage.get_gob_type_from_info")
     @mock.patch("gobapi.storage.Authority")
     def test_to_gob_value(self, mock_Authority, mock_get_type):
-        mock_type = mock.MagicMock()
-        mock_get_type.return_value = SecureType
+        # Assume that the spec refers to a secure type
+        mock_get_type.return_value = "secure type"
+
+        # Assume that the Authority confirms the type as secure
+        mock_Authority.is_secure_type.return_value = True
+
+        # Then get_secure_type and get_secured_value should be called
+        mock_Authority.get_secure_type.return_value = "secure GOB type"
         mock_Authority.get_secured_value.return_value = "secure value"
-        entity = None
+
+        # spec should be a dict to denote a GOB model spec
         spec = {}
-        result = _to_gob_value(entity, 'field', spec, resolve_secure=True)
+        result = _to_gob_value(None, 'field', spec, resolve_secure=True)
         self.assertEqual(result, "secure value")
+
+        mock_Authority.get_secure_type.assert_called_with("secure type", spec, None)
+        mock_Authority.get_secured_value.assert_called_with("secure GOB type")

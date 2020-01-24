@@ -59,6 +59,16 @@ def _create_field(name, type, description):
     }
 
 
+def to_sql_string_value(s):
+    """
+    Convert a python string into an SQL string ('...') value
+    :param s:
+    :return:
+    """
+    # Escape any single quotes as they are used to start and terminate a string value
+    return f"'{quote_sql_string(s)}'"
+
+
 def quote_sql_string(s):
     """
     Quote sql string by replacing sql quotation marks by 2 quotation marks, eg ' => ''
@@ -112,7 +122,7 @@ def get_max_eventid(schema, collection_name):
 
 def delete_entities_with_source_ids(schema, collection_name, source_ids):
     table_name = _quoted_tablename(schema, collection_name)
-    source_ids_sql = ",".join([f"'{source_id}'" for source_id in source_ids])
+    source_ids_sql = ",".join([to_sql_string_value(source_id) for source_id in source_ids])
     return f"DELETE FROM {table_name} WHERE {FIELD.SOURCE_ID} IN ({source_ids_sql})"
 
 

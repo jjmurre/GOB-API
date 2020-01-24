@@ -257,8 +257,7 @@ FROM (
 ) cola_0
 LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0 ON rel_0.src_id = cola_0._id AND rel_0.bronwaarde = cola_0.some_nested_relation->>'bronwaarde'
 LEFT JOIN catalog_collectionb colb_0 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer AND (colb_0.some_property = 'someval')
-WHERE (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW())
-AND colb_0._date_deleted IS NULL
+AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
 ORDER BY cola_0._gobid
          '''
 
@@ -305,7 +304,7 @@ ON rel_0.src_id = colc_0._id
 AND rel_0.bronwaarde = colc_0.relation_to_b->>'bronwaarde' AND rel_0.src_volgnummer = colc_0.volgnummer
 LEFT JOIN catalog_collectionb colb_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer AND (colb_0.some_property = 'someval')
-WHERE (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
+AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
 ORDER BY colc_0._gobid
          '''
 
@@ -350,7 +349,7 @@ LEFT JOIN mv_catalog_collectionc_relation_to_b rel_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer
 LEFT JOIN catalog_collectionc colc_0
 ON rel_0.src_id = colc_0._id AND rel_0.src_volgnummer = colc_0.volgnummer AND (colc_0.some_property = 'someval')
-WHERE (colc_0._expiration_date IS NULL OR colc_0._expiration_date > NOW()) AND colc_0._date_deleted IS NULL
+AND (colc_0._expiration_date IS NULL OR colc_0._expiration_date > NOW()) AND colc_0._date_deleted IS NULL
 ORDER BY colb_0._gobid
          '''
 
@@ -399,7 +398,7 @@ LEFT JOIN mv_catalog_collectiona_some_nested_many_relation rel_0
 ON rel_0.src_id = cola_0._id AND rel_0.bronwaarde = rel_bw_0.item->>'bronwaarde'
 LEFT JOIN catalog_collectionb colb_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer AND (colb_0.filter_arg = 'filterval')
-WHERE (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
+AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
 ORDER BY cola_0._gobid
          '''
         ),
@@ -440,7 +439,7 @@ FROM (
 LEFT JOIN mv_catalog_collectiona_some_nested_many_relation rel_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer
 LEFT JOIN catalog_collectiona cola_0 ON rel_0.src_id = cola_0._id AND (cola_0.some_property = 'someval')
-WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW()) AND cola_0._date_deleted IS NULL
+AND (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW()) AND cola_0._date_deleted IS NULL
 ORDER BY colb_0._gobid
          '''
         ),
@@ -481,7 +480,7 @@ FROM (
 LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer
 LEFT JOIN catalog_collectiona cola_0 ON rel_0.src_id = cola_0._id AND (cola_0.some_property = 'someval')
-WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW()) AND cola_0._date_deleted IS NULL
+AND (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW()) AND cola_0._date_deleted IS NULL
 ORDER BY colb_0._gobid
          '''
         ),
@@ -523,7 +522,7 @@ LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0
 ON rel_0.src_id = cola_0._id
 LEFT JOIN catalog_collectionb colb_0 ON rel_0.dst_id = colb_0._id
 AND rel_0.dst_volgnummer = colb_0.volgnummer AND (colb_0.some_property = 'someval')
-WHERE (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
+AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
 ORDER BY cola_0._gobid
          '''
         ),
@@ -570,7 +569,7 @@ ON rel_0._gobid IN (
 )
 LEFT JOIN catalog_collectionb colb_0 ON rel_0.dst_id = colb_0._id
 AND rel_0.dst_volgnummer = colb_0.volgnummer
-WHERE (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
+AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
 ORDER BY cola_0._gobid
          '''
         ),
@@ -614,7 +613,7 @@ LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0 ON rel_0._gobid IN (
     LIMIT 1
 )
 LEFT JOIN catalog_collectiona cola_0 ON rel_0.src_id = cola_0._id AND (cola_0.some_property = 'someval')
-WHERE (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW()) AND cola_0._date_deleted IS NULL
+AND (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW()) AND cola_0._date_deleted IS NULL
 ORDER BY colb_0._gobid
          '''
         ),
