@@ -21,7 +21,7 @@ from sqlalchemy.sql import label, functions
 from gobcore.model import GOBModel, NotInModelException
 from gobcore.model.relations import get_relation_name
 from gobcore.model.sa.gob import Base, models
-from gobcore.typesystem import get_gob_type_from_sql_type, get_gob_type_from_info, GOB_SECURE_TYPES, GOB
+from gobcore.typesystem import get_gob_type_from_sql_type, get_gob_type_from_info
 from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS, FIELD
 
 from gobapi.config import GOB_DB, API_BASE_PATH
@@ -142,12 +142,27 @@ def _create_reference(entity, field, spec, entity_catalog=None, entity_collectio
 
 
 def _to_gob_value(entity, field, spec, resolve_secure=False):
+    """
+    Transforms a entity field value into a GOB type value
+
+    Attention:
+    Resolve secure is normally False as this is all handled by the Authority classes
+    For enhanced views however, this is not possible.
+    These queries are based upon a view and cannot directly be related to a GOB Model
+    If the field names of the view are properly named the decryption will be handled here
+
+    :param entity:
+    :param field:
+    :param spec:
+    :param resolve_secure:
+    :return:
+    """
     entity_value = getattr(entity, field, None)
     if isinstance(spec, dict):
         gob_type = get_gob_type_from_info(spec)
-        if resolve_secure and (gob_type in GOB_SECURE_TYPES or issubclass(gob_type, GOB.JSON)):
-            # Instantiate secure object with value
-            secure_type = gob_type.from_value_secure(entity_value, spec)
+        if resolve_secure and Authority.is_secure_type(spec):
+            # Transform the value into a secure type value
+            secure_type = Authority.get_secure_type(gob_type, spec, entity_value)
             # Return decrypted value
             return Authority.get_secured_value(secure_type)
         return gob_type.from_value(entity_value, **spec)

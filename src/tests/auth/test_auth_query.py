@@ -273,12 +273,12 @@ class TestAuthority(TestCase):
         spec = {
             "type": "GOB.String"
         }
-        self.assertFalse(authority._is_secure_type(spec))
+        self.assertFalse(authority.is_secure_type(spec))
 
         spec = {
             "type": "GOB.SecureString"
         }
-        self.assertTrue(authority._is_secure_type(spec))
+        self.assertTrue(authority.is_secure_type(spec))
 
         spec = {
             "type": "GOB.JSON",
@@ -288,7 +288,7 @@ class TestAuthority(TestCase):
                 }
             }
         }
-        self.assertFalse(authority._is_secure_type(spec))
+        self.assertFalse(authority.is_secure_type(spec))
 
         spec = {
             "type": "GOB.JSON",
@@ -301,7 +301,7 @@ class TestAuthority(TestCase):
                 }
             }
         }
-        self.assertTrue(authority._is_secure_type(spec))
+        self.assertTrue(authority.is_secure_type(spec))
 
     def test_handle_secured_columns(self):
         authority = Authority('secure catalog', 'any col')
@@ -335,3 +335,11 @@ class TestAuthority(TestCase):
 
         value = Authority.exposed_value(None, info)
         self.assertEqual(value, None)
+
+    def test_get_secure_type(self):
+        mock_gob_type = mock.MagicMock()
+        mock_gob_type.from_value_secure.return_value = "secure GOB type"
+
+        result = Authority.get_secure_type(mock_gob_type, 'any spec', 'any value')
+        self.assertEqual(result, "secure GOB type")
+        mock_gob_type.from_value_secure.assert_called_with('any value', 'any spec')
