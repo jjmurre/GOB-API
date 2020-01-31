@@ -12,7 +12,7 @@ The API can be started by get_app().run()
 import json
 
 from flask_graphql import GraphQLView
-from flask import Flask, request, Response, stream_with_context
+from flask import Flask, request, Response, stream_with_context, jsonify, send_file
 from flask_cors import CORS
 
 from gobcore.model import GOBModel
@@ -24,6 +24,8 @@ from gobapi.dump.csv import csv_entities
 from gobapi.dump.sql import sql_entities
 from gobapi.dump.to_db import dump_to_db
 from gobapi.auth.routes import secure_route, public_route
+
+from gobapi.response_worker import ResponseWorker
 
 from gobapi.states import get_states
 from gobapi.storage import connect, get_entities, get_entity, query_entities, dump_entities, query_reference_entities
@@ -201,6 +203,22 @@ def _dump(catalog_name, collection_name):
             return f"Unrecognised content type '{content_type}'", 400
 
 
+def _worker(worker_id):
+    filename = ResponseWorker.getRequest(worker_id)
+    if filename:
+        return send_file(filename)
+    else:
+        return _worker_status(worker_id)
+
+
+def _worker_status(worker_id):
+    result = ResponseWorker.getRequestStatus(worker_id)
+    if result:
+        return jsonify(result)
+    else:
+        return f"Worker {worker_id} not found", 404
+
+
 def _collection(catalog_name, collection_name):
     """Returns the list of entities within the specified collection
 
@@ -228,8 +246,14 @@ def _collection(catalog_name, collection_name):
 
         if stream:
             entities, convert = query_entities(catalog_name, collection_name, view_name)
-            result = stream_with_context(stream_entities(entities, convert))
-            return Response(result, mimetype='application/json')
+            worker = ResponseWorker()
+            worker_response = worker.handleResponse(stream_entities(entities, convert))
+            result = stream_with_context(worker_response)
+            response = Response(result, mimetype='application/json')
+            response.headers['X-Worker-Id'] = worker.id
+            return response
+            # result = stream_with_context(stream_entities(entities, convert))
+            # return Response(result, mimetype='application/json')
         elif ndjson:
             entities, convert = query_entities(catalog_name, collection_name, view_name)
             result = stream_with_context(ndjson_entities(entities, convert))
@@ -419,7 +443,9 @@ def get_app():
         (PUBLIC, '/toestanden/', _states, ['GET']),
         (PUBLIC, '/graphql/', graphql, ['GET', 'POST']),
         (PUBLIC, '/graphql/streaming/', graphql_streaming.entrypoint, ['POST']),
-        (PUBLIC, '/dump/<catalog_name>/<collection_name>/', _dump, ['GET', 'POST'])
+        (PUBLIC, '/dump/<catalog_name>/<collection_name>/', _dump, ['GET', 'POST']),
+        (PUBLIC, '/worker/<worker_id>', _worker, ['GET']),
+        (PUBLIC, '/worker/status/<worker_id>', _worker_status, ['GET'])
     ]
     for paths, rule, view_func, methods in ROUTES:
         _add_route(app, paths, rule, view_func, methods)
