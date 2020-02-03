@@ -1,4 +1,4 @@
-from flask import request, Response, stream_with_context
+from flask import request
 
 from gobapi.session import get_session
 from sqlalchemy.sql import text
@@ -10,6 +10,7 @@ from gobapi.graphql_streaming.graphql2sql.graphql2sql import GraphQL2SQL, NoAcce
 from gobapi.graphql_streaming.resolve import Resolver
 from gobapi.response import stream_response
 from gobapi.utils import dict_to_camelcase, streaming_gob_response
+from gobapi.worker.response import WorkerResponse
 
 import json
 
@@ -298,7 +299,7 @@ class GraphQLStreamingApi():
         # use an ad-hoc Connection and stream results (instead of pre-buffered)
         result_rows = session.connection().execution_options(stream_results=True).execute(text(sql))
 
-        response_builder = stream_with_context(
-            GraphQLStreamingResponseBuilder(result_rows, graphql2sql.relations_hierarchy, graphql2sql.selections))
+        response_builder =\
+            GraphQLStreamingResponseBuilder(result_rows, graphql2sql.relations_hierarchy, graphql2sql.selections)
 
-        return Response(response_builder, mimetype='application/x-ndjson')
+        return WorkerResponse.stream_with_context(response_builder, mimetype='application/x-ndjson')
