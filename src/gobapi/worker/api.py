@@ -13,10 +13,10 @@ def worker_result(worker_id):
     :param worker_id:
     :return:
     """
-    filename = WorkerResponse.getResponseFile(worker_id)
+    filename = WorkerResponse.get_response_file(worker_id)
     if filename:
         return send_file(filename)
-    elif WorkerResponse.isWorking(worker_id):
+    elif WorkerResponse.is_working(worker_id):
         return f"Worker {worker_id} not finished", 204  # No Content
     else:
         return _worker_not_found(worker_id)
@@ -29,7 +29,7 @@ def worker_end(worker_id):
     :param worker_id:
     :return:
     """
-    status = WorkerResponse.getStatus(worker_id)
+    status = WorkerResponse.get_status(worker_id)
     if status:
         WorkerResponse.kill(worker_id)
         return "", 204  # No Content
@@ -44,7 +44,7 @@ def worker_status(worker_id):
     :param worker_id:
     :return:
     """
-    status = WorkerResponse.getStatus(worker_id)
+    status = WorkerResponse.get_status(worker_id)
     if status:
         return jsonify(status)
     else:

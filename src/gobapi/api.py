@@ -189,7 +189,7 @@ def _dump(catalog_name, collection_name):
 
         if format == "csv":
             result = csv_entities(entities, model)
-            return WorkerResponse.streamWithContext(result, mimetype='text/csv')
+            return WorkerResponse.stream_with_context(result, mimetype='text/csv')
         elif format == "sql":
             return Response(sql_entities(catalog_name, collection_name, model), mimetype='application/sql')
         else:
@@ -199,7 +199,7 @@ def _dump(catalog_name, collection_name):
         if content_type == 'application/json':
             config = json.loads(request.data)
             result = dump_to_db(catalog_name, collection_name, config)
-            return WorkerResponse.streamWithContext(result, mimetype='text/plain')
+            return WorkerResponse.stream_with_context(result, mimetype='text/plain')
         else:
             return f"Unrecognised content type '{content_type}'", 400
 
@@ -232,11 +232,11 @@ def _collection(catalog_name, collection_name):
         if stream:
             entities, convert = query_entities(catalog_name, collection_name, view_name)
             result = stream_entities(entities, convert)
-            return WorkerResponse.streamWithContext(result, mimetype='application/json')
+            return WorkerResponse.stream_with_context(result, mimetype='application/json')
         elif ndjson:
             entities, convert = query_entities(catalog_name, collection_name, view_name)
             result = ndjson_entities(entities, convert)
-            return WorkerResponse.streamWithContext(result, mimetype='application/x-ndjson')
+            return WorkerResponse.stream_with_context(result, mimetype='application/x-ndjson')
         else:
             result, links = _entities(catalog_name, collection_name, page, page_size, view_name)
             return hal_response(data=result, links=links)

@@ -302,4 +302,4 @@ class GraphQLStreamingApi():
         response_builder =\
             GraphQLStreamingResponseBuilder(result_rows, graphql2sql.relations_hierarchy, graphql2sql.selections)
 
-        return WorkerResponse.streamWithContext(response_builder, mimetype='application/x-ndjson')
+        return WorkerResponse.stream_with_context(response_builder, mimetype='application/x-ndjson')
