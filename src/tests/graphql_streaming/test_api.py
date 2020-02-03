@@ -7,25 +7,24 @@ from gobcore.exceptions import GOBException
 from gobcore.model.metadata import FIELD
 
 
-@patch("gobapi.graphql_streaming.api.stream_with_context", lambda f: f)
+@patch("gobapi.graphql_streaming.api.WorkerResponse.streamWithContext", lambda f, mimetype: f)
 class TestGraphQLStreamingApi(TestCase):
 
     def setUp(self) -> None:
         self.api = GraphQLStreamingApi()
 
     @patch("gobapi.graphql_streaming.api.request")
-    @patch("gobapi.graphql_streaming.api.Response")
     @patch("gobapi.graphql_streaming.api.get_session")
     @patch("gobapi.graphql_streaming.api.GraphQL2SQL")
     @patch("gobapi.graphql_streaming.api.GraphQLStreamingResponseBuilder")
     @patch("gobapi.graphql_streaming.api.text", lambda x: 'text_' + x)
-    def test_entrypoint(self, mock_response_builder, mock_graphql2sql, mock_get_session, mock_response, mock_request):
+    def test_entrypoint(self, mock_response_builder, mock_graphql2sql, mock_get_session, mock_request):
         mock_request.data.decode.return_value = '{"query": "some query"}'
         mock_request.args.get.return_value = None
         graphql2sql_instance = mock_graphql2sql.return_value
         graphql2sql_instance.sql.return_value = 'parsed query'
 
-        self.api.entrypoint()
+        result = self.api.entrypoint()
         mock_graphql2sql.assert_called_with("some query")
         mock_get_session.return_value.connection.assert_called()
         mock_get_session.return_value.connection.return_value.execution_options.assert_called_with(stream_results=True)
@@ -34,8 +33,7 @@ class TestGraphQLStreamingApi(TestCase):
         mock_response_builder.assert_called_with(execute.return_value,
                                                  graphql2sql_instance.relations_hierarchy,
                                                  graphql2sql_instance.selections)
-
-        mock_response.assert_called_with(mock_response_builder.return_value, mimetype='application/x-ndjson')
+        self.assertEqual(result, mock_response_builder.return_value)
 
     @patch("gobapi.graphql_streaming.api.request")
     @patch("gobapi.graphql_streaming.api.GraphQL2SQL")

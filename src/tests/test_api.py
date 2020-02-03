@@ -454,7 +454,7 @@ def test_wsgi(monkeypatch):
     assert(not application == None)
 
 
-@patch('gobapi.api.stream_with_context', lambda f: f)
+@patch('gobapi.api.WorkerResponse.streamWithContext', lambda f, mimetype: f)
 class TestStreams(TestCase):
 
     @patch('gobapi.api.request', mockRequest)

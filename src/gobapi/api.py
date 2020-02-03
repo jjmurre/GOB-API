@@ -12,7 +12,7 @@ The API can be started by get_app().run()
 import json
 
 from flask_graphql import GraphQLView
-from flask import Flask, request, Response, stream_with_context
+from flask import Flask, request, Response
 from flask_cors import CORS
 
 from gobcore.model import GOBModel
@@ -188,8 +188,8 @@ def _dump(catalog_name, collection_name):
         entities, model = dump_entities(catalog_name, collection_name)
 
         if format == "csv":
-            result = stream_with_context(csv_entities(entities, model))
-            return Response(result, mimetype='text/csv')
+            result = csv_entities(entities, model)
+            return WorkerResponse.streamWithContext(result, mimetype='text/csv')
         elif format == "sql":
             return Response(sql_entities(catalog_name, collection_name, model), mimetype='application/sql')
         else:
@@ -198,8 +198,8 @@ def _dump(catalog_name, collection_name):
         content_type = request.content_type
         if content_type == 'application/json':
             config = json.loads(request.data)
-            result = stream_with_context(dump_to_db(catalog_name, collection_name, config))
-            return Response(result, mimetype='text/plain')
+            result = dump_to_db(catalog_name, collection_name, config)
+            return WorkerResponse.streamWithContext(result, mimetype='text/plain')
         else:
             return f"Unrecognised content type '{content_type}'", 400
 
@@ -231,13 +231,12 @@ def _collection(catalog_name, collection_name):
 
         if stream:
             entities, convert = query_entities(catalog_name, collection_name, view_name)
-            return WorkerResponse.response(stream_entities(entities, convert), mimetype='application/json')
-            # result = stream_with_context(stream_entities(entities, convert))
-            # return WorkerResponse.response(result, mimetype='application/json')
+            result = stream_entities(entities, convert)
+            return WorkerResponse.streamWithContext(result, mimetype='application/json')
         elif ndjson:
             entities, convert = query_entities(catalog_name, collection_name, view_name)
-            result = stream_with_context(ndjson_entities(entities, convert))
-            return WorkerResponse.response(result, mimetype='application/x-ndjson')
+            result = ndjson_entities(entities, convert)
+            return WorkerResponse.streamWithContext(result, mimetype='application/x-ndjson')
         else:
             result, links = _entities(catalog_name, collection_name, page, page_size, view_name)
             return hal_response(data=result, links=links)

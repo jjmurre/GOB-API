@@ -2,7 +2,7 @@ import os
 import time
 import uuid
 
-from threading import Thread, Event
+from threading import Thread
 from pathlib import Path
 
 from flask import request, Response, stream_with_context
@@ -32,7 +32,6 @@ class WorkerResponse():
     def writeResponse(self, rows):
         filename = self._getFilename(self.id)
         tmp_filename = self._getTmpFilename(self.id)
-        sentinel = self._getSentinelFilename(self.id)
 
         yield f"{self.id}\n"
 
@@ -51,16 +50,14 @@ class WorkerResponse():
         task.join()
 
         if not self.isFinished(self.id):
-            self._removeFile(sentinel)
-            self._removeFile(tmp_filename)
-            self._removeFile(filename)
+            self._cleanup(self.id)
             yield "FAILURE"
         elif self.isFinished(self.id):
             yield f"{self._getFileSize(filename)}\n"
             yield "OK"
 
     @classmethod
-    def response(cls, rows, mimetype):
+    def streamWithContext(cls, rows, mimetype):
         if request.headers.get(cls._WORKER_REQUEST):
             worker = WorkerResponse()
             response = Response(stream_with_context(worker.writeResponse(rows)), mimetype='text/plain')
@@ -70,49 +67,49 @@ class WorkerResponse():
             return Response(rows, mimetype)
 
     @classmethod
-    def isWorking(cls, id):
-        return os.path.isfile(cls._getTmpFilename(id)) and not cls.isAborting(id)
+    def isWorking(cls, worker_id):
+        return os.path.isfile(cls._getTmpFilename(worker_id)) and not cls.isAborting(worker_id)
 
     @classmethod
-    def isAborting(cls, id):
-        return os.path.isfile(cls._getSentinelFilename(id))
+    def isAborting(cls, worker_id):
+        return os.path.isfile(cls._getSentinelFilename(worker_id))
 
     @classmethod
-    def isFinished(cls, id):
-        return os.path.isfile(cls._getFilename(id))
+    def isFinished(cls, worker_id):
+        return os.path.isfile(cls._getFilename(worker_id))
 
     @classmethod
-    def getStatus(cls, id):
-        if cls.isFinished(id):
+    def getStatus(cls, worker_id):
+        if cls.isFinished(worker_id):
             status = "finished"
-            size = cls._getFileSize(cls._getFilename(id))
-        elif cls.isWorking(id):
+            size = cls._getFileSize(cls._getFilename(worker_id))
+        elif cls.isWorking(worker_id):
             status = "working"
-            size = cls._getFileSize(cls._getTmpFilename(id))
-        elif cls.isAborting(id):
+            size = cls._getFileSize(cls._getTmpFilename(worker_id))
+        elif cls.isAborting(worker_id):
             status = "aborting"
             size = None
         else:
             return None
 
         return {
-            "id": id,
+            "id": worker_id,
             "status": status,
             "size": size
         }
 
     @classmethod
-    def getResponseFile(cls, id):
-        filename = cls._getFilename(id)
+    def getResponseFile(cls, worker_id):
+        filename = cls._getFilename(worker_id)
         if os.path.isfile(filename):
             return filename
 
     @classmethod
-    def kill(cls, id):
-        if cls.isFinished(id):
-            os.remove(cls._getFilename(id))
-        elif cls.isWorking(id):
-            Path(cls._getSentinelFilename(id)).touch()
+    def kill(cls, worker_id):
+        if cls.isFinished(worker_id):
+            cls._cleanup(worker_id)
+        elif cls.isWorking(worker_id):
+            Path(cls._getSentinelFilename(worker_id)).touch()
 
     #
     # Private interface
@@ -138,24 +135,24 @@ class WorkerResponse():
             os.rename(tmp_filename, filename)
 
     @classmethod
-    def _getFilename(cls, id):
-        return cls._getBaseFilename(id)
+    def _getFilename(cls, worker_id):
+        return cls._getBaseFilename(worker_id)
 
     @classmethod
-    def _getTmpFilename(cls, id):
-        return cls._getBaseFilename(id) + ".tmp"
+    def _getTmpFilename(cls, worker_id):
+        return cls._getBaseFilename(worker_id) + ".tmp"
 
     @classmethod
-    def _getSentinelFilename(cls, id):
-        return cls._getBaseFilename(id) + ".stop"
+    def _getSentinelFilename(cls, worker_id):
+        return cls._getBaseFilename(worker_id) + ".stop"
 
     @classmethod
-    def _getBaseFilename(cls, id):
+    def _getBaseFilename(cls, worker_id):
         dir = os.path.join(GOB_SHARED_DIR, cls._WORKER_FILES_DIR)
         # Create the path if the path not yet exists
         path = Path(dir)
         path.mkdir(exist_ok=True)
-        return os.path.join(dir, id)
+        return os.path.join(dir, worker_id)
 
     @classmethod
     def _getFileSize(cls, filename):
@@ -170,3 +167,9 @@ class WorkerResponse():
             os.remove(filename)
         except FileNotFoundError:
             pass
+
+    @classmethod
+    def _cleanup(cls, worker_id):
+        cls._removeFile(cls._getSentinelFilename(worker_id))
+        cls._removeFile(cls._getTmpFilename(worker_id))
+        cls._removeFile(cls._getFilename(worker_id))
