@@ -126,7 +126,6 @@ class WorkerResponse():
                 f.write(row)
                 if os.path.isfile(sentinel):
                     break
-                # time.sleep(10)
             else:
                 # no break or exception, all rows have successfully been written to file
                 success = True
