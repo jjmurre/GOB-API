@@ -61,7 +61,7 @@ class WorkerResponse():
         if request.headers.get(cls._WORKER_REQUEST):
             worker = WorkerResponse()
             response = Response(stream_with_context(worker.writeResponse(rows)), mimetype='text/plain')
-            response.headers['X-Worker-Id'] = worker.id
+            response.headers[cls._WORKER_ID_RESPONSE] = worker.id
             return response
         else:
             return Response(rows, mimetype)

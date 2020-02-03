@@ -299,11 +299,7 @@ class GraphQLStreamingApi():
         # use an ad-hoc Connection and stream results (instead of pre-buffered)
         result_rows = session.connection().execution_options(stream_results=True).execute(text(sql))
 
-        response_builder = GraphQLStreamingResponseBuilder(
-            result_rows,
-            graphql2sql.relations_hierarchy,
-            graphql2sql.selections)
-
-        print(WorkerResponse.streamWithContext(response_builder, mimetype='application/x-ndjson'))
+        response_builder =\
+            GraphQLStreamingResponseBuilder(result_rows, graphql2sql.relations_hierarchy, graphql2sql.selections)
 
         return WorkerResponse.streamWithContext(response_builder, mimetype='application/x-ndjson')
