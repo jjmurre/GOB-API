@@ -180,7 +180,7 @@ class TestConfig(TestCase):
         self.assertEqual(result, None)
 
 
-@patch('gobapi.api.WorkerResponse.streamWithContext', lambda f, mimetype: Response())
+@patch('gobapi.api.WorkerResponse.stream_with_context', lambda f, mimetype: Response())
 class TestDumpApi(TestCase):
 
     @patch('gobapi.api.dump_entities', lambda cat, col: ([], {}))
@@ -218,7 +218,7 @@ class TestDumpApi(TestCase):
     @patch('gobapi.api.dump_to_db')
     @patch('gobapi.api.json')
     @patch('gobapi.api.request')
-    @patch('gobapi.api.WorkerResponse.streamWithContext', lambda f, mimetype: f)
+    @patch('gobapi.api.WorkerResponse.stream_with_context', lambda f, mimetype: f)
     def test_dump_db(self, mock_request, mock_json, mock_dump):
         mock_request.method = 'POST'
         mock_request.content_type = 'application/json'

@@ -7,7 +7,7 @@ from gobcore.exceptions import GOBException
 from gobcore.model.metadata import FIELD
 
 
-@patch("gobapi.graphql_streaming.api.WorkerResponse.streamWithContext", lambda f, mimetype: f)
+@patch("gobapi.graphql_streaming.api.WorkerResponse.stream_with_context", lambda f, mimetype: f)
 class TestGraphQLStreamingApi(TestCase):
 
     def setUp(self) -> None:

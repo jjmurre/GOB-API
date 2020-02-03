@@ -25,7 +25,7 @@ class TestResponse(TestCase):
     @mock.patch("gobapi.worker.response.request")
     @mock.patch("gobapi.worker.response.Response")
     @mock.patch("gobapi.worker.response.stream_with_context")
-    def test_streamWithContext(self, mock_stream_with_context, mock_response, mock_request):
+    def test_stream_with_context(self, mock_stream_with_context, mock_response, mock_request):
         mock_request.headers = {}
         result = WorkerResponse.stream_with_context([], 'any mimetype')
         self.assertEqual(result, mock_response.return_value)
