@@ -385,6 +385,7 @@ def before_each_storage_test(monkeypatch):
     monkeypatch.setattr(sqlalchemy.orm, 'scoped_session', mock_scoped_session)
     monkeypatch.setattr(sqlalchemy_filters, 'apply_filters', lambda q, f: q)
     monkeypatch.setattr(gobapi.session, 'get_session', mock_scoped_session)
+    monkeypatch.setattr(gobapi.config, 'current_api_base_path', lambda: '/gob')
 
     monkeypatch.setattr(gobcore.model, 'GOBModel', mock_get_gobmodel)
     monkeypatch.setattr(gobcore.model.metadata, 'PUBLIC_META_FIELDS', mock_PUBLIC_META_FIELDS)
@@ -620,6 +621,7 @@ def test_filter_deleted(monkeypatch):
     assert('query' == filter_deleted('query', table))
 
 
+@mock.patch("gobapi.storage.current_api_base_path", lambda: '/gob')
 class TestStorage(TestCase):
 
     @mock.patch("gobapi.storage.create_engine")

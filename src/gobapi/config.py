@@ -6,6 +6,9 @@ and the specification of the model (get_gobmodel)
 """
 import os
 
+from flask import request
+from gobcore.exceptions import GOBException
+
 API_BASE_PATH = '/gob'
 API_SECURE_BASE_PATH = '/gob/secure'
 
@@ -21,3 +24,21 @@ GOB_DB = {
 API_INFRA_SERVICES = os.getenv(
     "API_INFRA_SERVICES", "MESSAGE_SERVICE"
 ).upper().split(",")
+
+
+def current_api_base_path():
+    request_base_path_key = 'gob_base_path'
+
+    if not hasattr(request, request_base_path_key):
+        paths = sorted([API_BASE_PATH, API_SECURE_BASE_PATH])
+        paths.reverse()
+
+        for path in paths:
+            if request.path.startswith(path):
+                setattr(request, request_base_path_key, path)
+                break
+
+    try:
+        return getattr(request, request_base_path_key)
+    except AttributeError:
+        raise GOBException(f"Could not determine base path from {request.path}")

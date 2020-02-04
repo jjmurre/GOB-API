@@ -24,7 +24,7 @@ from gobcore.model.sa.gob import Base, models
 from gobcore.typesystem import get_gob_type_from_sql_type, get_gob_type_from_info
 from gobcore.model.metadata import PUBLIC_META_FIELDS, PRIVATE_META_FIELDS, FIXED_COLUMNS, FIELD
 
-from gobapi.config import GOB_DB, API_BASE_PATH
+from gobapi.config import GOB_DB, current_api_base_path
 from gobapi.session import set_session, get_session
 from gobapi.auth.auth_query import AuthorizedQuery, SUPPRESSED_COLUMNS, Authority
 from gobapi.constants import API_FIELD
@@ -96,7 +96,7 @@ def get_table_and_model(catalog_name, collection_name, view=None):
 def _create_reference_link(reference, catalog, collection):
     identificatie = reference.get(FIELD.REFERENCE_ID)
     if identificatie:
-        return {'_links': {'self': {'href': f'{API_BASE_PATH}/{catalog}/{collection}/{identificatie}/'}}}
+        return {'_links': {'self': {'href': f'{current_api_base_path()}/{catalog}/{collection}/{identificatie}/'}}}
     else:
         return {}
 
@@ -113,7 +113,7 @@ def _format_reference(reference, catalog, collection):
 def _create_external_reference_link(entity, field, entity_catalog, entity_collection):
     identificatie = getattr(entity, FIELD.ID)
     field_path = field.replace('_', '-')
-    return {'href': f'{API_BASE_PATH}/{entity_catalog}/{entity_collection}/{identificatie}/{field_path}/'}
+    return {'href': f'{current_api_base_path()}/{entity_catalog}/{entity_collection}/{identificatie}/{field_path}/'}
 
 
 def _create_reference(entity, field, spec, entity_catalog=None, entity_collection=None):
@@ -248,7 +248,7 @@ def _get_convert_for_model(catalog, collection, model, meta=None, private_attrib
         # Add link to self in each entity
         id = getattr(entity, '_id')
         hal_entity['_links'] = {
-            'self': {'href': f'{API_BASE_PATH}/{catalog}/{collection}/{id}/'}
+            'self': {'href': f'{current_api_base_path()}/{catalog}/{collection}/{id}/'}
         }
         # Add references to other entities, exclude private_attributes unless specifically requested
         if model['references']:
