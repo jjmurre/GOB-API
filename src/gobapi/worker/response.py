@@ -64,7 +64,7 @@ class WorkerResponse():
             response.headers[cls._WORKER_ID_RESPONSE] = worker.id
             return response
         else:
-            return Response(stream_with_context(rows), mimetype)
+            return Response(stream_with_context(rows), mimetype=mimetype)
 
     @classmethod
     def is_working(cls, worker_id):

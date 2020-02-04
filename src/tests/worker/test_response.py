@@ -29,7 +29,7 @@ class TestResponse(TestCase):
         mock_request.headers = {}
         result = WorkerResponse.stream_with_context([], 'any mimetype')
         self.assertEqual(result, mock_response.return_value)
-        mock_response.assert_called_with(mock_stream_with_context.return_value, 'any mimetype')
+        mock_response.assert_called_with(mock_stream_with_context.return_value, mimetype='any mimetype')
 
         mock_request.headers = {
             WorkerResponse._WORKER_REQUEST: True
