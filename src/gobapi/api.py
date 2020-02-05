@@ -19,6 +19,7 @@ from gobcore.model import GOBModel
 from gobcore.views import GOBViews
 
 from gobapi.config import API_BASE_PATH, API_SECURE_BASE_PATH
+from gobapi.fat_file import fat_file
 from gobapi.response import hal_response, not_found, get_page_ref, ndjson_entities, stream_entities
 from gobapi.dump.csv import csv_entities
 from gobapi.dump.sql import sql_entities
@@ -425,7 +426,8 @@ def get_app():
         (PUBLIC, '/dump/<catalog_name>/<collection_name>/', _dump, ['GET', 'POST']),
         (PUBLIC, '/worker/<worker_id>', worker_result, ['GET']),
         (PUBLIC, '/worker/end/<worker_id>', worker_end, ['DELETE']),
-        (PUBLIC, '/worker/status/<worker_id>', worker_status, ['GET'])
+        (PUBLIC, '/worker/status/<worker_id>', worker_status, ['GET']),
+        (PUBLIC, '/fat_file/<gbs>', fat_file, ['GET'])
     ]
     for paths, rule, view_func, methods in ROUTES:
         _add_route(app, paths, rule, view_func, methods)
