@@ -1,8 +1,7 @@
 import os
-import time
+import datetime
 import uuid
 
-from threading import Thread
 from pathlib import Path
 
 from flask import request, Response, stream_with_context
@@ -18,9 +17,8 @@ class WorkerResponse():
     _WORKER_REQUEST = "X-Worker-Request"
     _WORKER_ID_RESPONSE = "X-Worker-Id"
 
-    # While the thread is working, report progress and check thread status once every seconds
-    _YIELD_INTERVAL = 60
-    _CHECK_THREAD = 1
+    # While working, report progress once every seconds
+    _YIELD_PROGRESS_INTERVAL = 60
 
     #
     # Public interface
@@ -28,33 +26,53 @@ class WorkerResponse():
 
     def __init__(self):
         self.id = str(uuid.uuid4())
+        self._last_progress = None
+
+    def yield_progress(self, filename):
+        """
+        Yield the size of the given filename every _YIELD_PROGRESS_INTERVAL seconds
+        :param filename:
+        :return:
+        """
+        now = datetime.datetime.now()
+        if not self._last_progress or (now - self._last_progress).seconds >= self._YIELD_PROGRESS_INTERVAL:
+            self._last_progress = now
+            yield f"{self._get_file_size(filename)}\n"
 
     def write_response(self, rows):
+        """
+        Generator method that writes the given rows to a file
+
+        :param rows:
+        :return:
+        """
         filename = self._get_filename(self.id)
         tmp_filename = self._get_tmp_filename(self.id)
+        sentinel = self._get_sentinel_filename(self.id)
 
         yield f"{self.id}\n"
 
-        task = Thread(target=lambda: self._write_response(rows))
-        task.start()
-
-        yield_interval = 0
-        while task.is_alive():
-            if yield_interval >= self._YIELD_INTERVAL:
-                yield f"{self._get_file_size(tmp_filename)}\n"
-                yield_interval = 0
+        success = False
+        with open(tmp_filename, "w") as f:
+            for row in rows:
+                f.write(row)
+                yield from self.yield_progress(tmp_filename)
+                if os.path.isfile(sentinel):
+                    yield f"ABORT\n"
+                    break
             else:
-                time.sleep(self._CHECK_THREAD)
-                yield_interval += self._CHECK_THREAD
+                # no break or exception, all rows have successfully been written to file
+                success = True
 
-        task.join()
+        if success:
+            os.rename(tmp_filename, filename)
 
-        if not self.is_finished(self.id):
-            self._cleanup(self.id)
-            yield "FAILURE"
-        elif self.is_finished(self.id):
+        if self.is_finished(self.id):
             yield f"{self._get_file_size(filename)}\n"
             yield "OK"
+        else:
+            self._cleanup(self.id)
+            yield "FAILURE"
 
     @classmethod
     def stream_with_context(cls, rows, mimetype):
@@ -114,24 +132,6 @@ class WorkerResponse():
     #
     # Private interface
     #
-
-    def _write_response(self, rows):
-        filename = self._get_filename(self.id)
-        tmp_filename = self._get_tmp_filename(self.id)
-        sentinel = self._get_sentinel_filename(self.id)
-
-        success = False
-        with open(tmp_filename, "w") as f:
-            for row in rows:
-                f.write(row)
-                if os.path.isfile(sentinel):
-                    break
-            else:
-                # no break or exception, all rows have successfully been written to file
-                success = True
-
-        if success:
-            os.rename(tmp_filename, filename)
 
     @classmethod
     def _get_filename(cls, worker_id):
