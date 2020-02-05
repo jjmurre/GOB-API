@@ -12,7 +12,7 @@ class TestResponse(TestCase):
 
     def test_writeResponse(self):
         worker_response = WorkerResponse()
-        WorkerResponse._YIELD_INTERVAL = 1
+        WorkerResponse._YIELD_PROGRESS_INTERVAL = 1
         worker_response._write_response = lambda rows: sleep(3)
         worker_response.is_finished = lambda id: False
         result = [r for r in worker_response.write_response([])]
@@ -110,16 +110,25 @@ class TestResponse(TestCase):
         WorkerResponse.kill(worker_id)
         mock_Path.return_value.touch.assert_called()
 
+    def test_yield_progress(self):
+        worker = WorkerResponse()
+        self.assertIsNone(worker._last_progress)
+        result = [progress for progress in worker.yield_progress('any filename')]
+        self.assertEqual(result, ["0\n"])
+        self.assertIsNotNone(worker._last_progress)
+        result = [progress for progress in worker.yield_progress('any filename')]
+        self.assertEqual(result, [])
+
     @mock.patch("builtins.open")
     @mock.patch("gobapi.worker.response.os.path.isfile")
     @mock.patch("gobapi.worker.response.os.rename")
-    def test__writeResponse(self, mock_rename, mock_isfile, mock_open):
+    def test_writeResponse(self, mock_rename, mock_isfile, mock_open):
         mock_isfile.return_value = True
         worker = WorkerResponse()
-        worker._write_response(['row'])
+        result = [r for r in worker.write_response(['row'])]
         mock_rename.assert_not_called()
 
         mock_isfile.return_value = False
         worker = WorkerResponse()
-        worker._write_response(['row'])
+        result = [r for r in worker.write_response(['row'])]
         mock_rename.assert_called()
