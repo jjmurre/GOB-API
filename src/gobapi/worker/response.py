@@ -50,14 +50,18 @@ class WorkerResponse():
         tmp_filename = self._get_tmp_filename(self.id)
         sentinel = self._get_sentinel_filename(self.id)
 
+        print(f"INFO: Worker {self.id} started")
         yield f"{self.id}\n"
 
         success = False
         with open(tmp_filename, "w") as f:
             for row in rows:
                 f.write(row)
+                if not self._last_progress:
+                    print(f"INFO: Worker {self.id} wrote first row")
                 yield from self.yield_progress(tmp_filename)
                 if os.path.isfile(sentinel):
+                    print(f"WARNING: Worker {self.id} aborted")
                     yield f"ABORT\n"
                     break
             else:
@@ -68,10 +72,12 @@ class WorkerResponse():
             os.rename(tmp_filename, filename)
 
         if self.is_finished(self.id):
+            print(f"INFO: Worker {self.id} OK")
             yield f"{self._get_file_size(filename)}\n"
             yield "OK"
         else:
             self._cleanup(self.id)
+            print(f"ERROR: Worker {self.id} FAILURE")
             yield "FAILURE"
 
     @classmethod

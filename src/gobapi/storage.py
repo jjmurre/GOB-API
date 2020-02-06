@@ -29,6 +29,8 @@ from gobapi.session import set_session, get_session
 from gobapi.auth.auth_query import AuthorizedQuery, SUPPRESSED_COLUMNS, Authority
 from gobapi.constants import API_FIELD
 
+import gobapi.profiled_query as profiled_query
+
 session = None
 _Base = None
 metadata = None
@@ -59,6 +61,7 @@ def connect():
     metadata = MetaData(engine)
 
     set_session(session)
+    profiled_query.activate()
 
 
 def _get_table(table_names, table_name):
