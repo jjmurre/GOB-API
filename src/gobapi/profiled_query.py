@@ -6,7 +6,7 @@ from sqlalchemy.engine import Engine
 
 class ProfiledQuery():
 
-    LONG_DURATION = 60 * 10  # 10 minutes or longer
+    LONG_DURATION = 60 * 30  # 30 minutes or longer
 
     def __init__(self, statement):
         self.statement = statement
@@ -31,12 +31,13 @@ class ProfiledQuery():
         def str_time(secs):
             return time.strftime("%H:%M:%S", time.localtime(secs))
 
-        return f"""ProfiledQuery Info
-Started:  {str_time(self.start_time)}
-Ended:    {str_time(self.end_time)}
-Duration: {round(self.duration * 60)} minutes
-Statement:
-{self.statement}
+        statement = self.statement.replace("\n", " ")
+
+        return f"""ProfiledQuery
+Statement: {statement}
+Duration:  {round(self.duration * 60)} minutes
+Started:   {str_time(self.start_time)}
+Ended:     {str_time(self.end_time)}
 """
 
 
