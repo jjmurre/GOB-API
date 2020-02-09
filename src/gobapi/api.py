@@ -31,6 +31,7 @@ from gobapi.worker.api import worker_result, worker_status, worker_end
 
 from gobapi.states import get_states
 from gobapi.storage import connect, get_entities, get_entity, query_entities, dump_entities, query_reference_entities
+from gobapi.dbinfo.api import get_db_info
 
 from gobapi.graphql.schema import schema
 from gobapi.session import shutdown_session
@@ -427,7 +428,8 @@ def get_app():
         (PUBLIC, '/worker/<worker_id>', worker_result, ['GET']),
         (PUBLIC, '/worker/end/<worker_id>', worker_end, ['DELETE']),
         (PUBLIC, '/worker/status/<worker_id>', worker_status, ['GET']),
-        (PUBLIC, '/fat_file/<gbs>', fat_file, ['GET'])
+        (PUBLIC, '/fat_file/<gbs>', fat_file, ['GET']),
+        (PUBLIC, '/info/<info_type>', get_db_info, ['GET'])
     ]
     for paths, rule, view_func, methods in ROUTES:
         _add_route(app, paths, rule, view_func, methods)

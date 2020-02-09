@@ -53,7 +53,7 @@ def connect():
                                           bind=engine,
                                           query_cls=AuthorizedQuery))
     _Base = automap_base()
-    _Base.prepare(engine, reflect=True)
+    _Base.prepare(engine, reflect=True)     # Long running statement !
 
     Base.metadata.bind = engine  # Bind engine to metadata of the base class
     Base.query = session.query_property()  # Used by graphql to execute queries
@@ -62,6 +62,11 @@ def connect():
 
     set_session(session)
     profiled_query.activate()
+
+
+def exec_statement(statement):
+    engine = session.get_bind()
+    return engine.execute(statement)
 
 
 def _get_table(table_names, table_name):
