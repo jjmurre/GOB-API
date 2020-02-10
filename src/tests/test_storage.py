@@ -13,7 +13,7 @@ from unittest import mock, TestCase
 
 from gobapi.storage import _get_convert_for_state, filter_deleted, connect, _format_reference, _get_table, \
     _to_gob_value, _add_resolve_attrs_to_columns, _get_convert_for_table, _add_relation_dates_to_manyreference, \
-    _flatten_join_result, get_entity_refs_after, dump_entities, get_max_eventid
+    _flatten_join_result, get_entity_refs_after, dump_entities, get_max_eventid, exec_statement
 from gobapi.auth.auth_query import AuthorizedQuery
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
@@ -959,3 +959,11 @@ class TestStorage(TestCase):
 
         mock_Authority.get_secure_type.assert_called_with("secure type", spec, None)
         mock_Authority.get_secured_value.assert_called_with("secure GOB type")
+
+    @mock.patch("gobapi.storage.session")
+    def test_exec_statement(self, mock_session):
+        mock_engine = mock.MagicMock()
+        mock_session.get_bind.return_value = mock_engine
+        result = exec_statement("any statement")
+        mock_engine.execute.assert_called_with("any statement")
+        self.assertEqual(result, mock_engine.execute.return_value)
