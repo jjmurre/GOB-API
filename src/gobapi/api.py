@@ -429,7 +429,7 @@ def get_app():
         (PUBLIC, '/worker/end/<worker_id>', worker_end, ['DELETE']),
         (PUBLIC, '/worker/status/<worker_id>', worker_status, ['GET']),
         (PUBLIC, '/fat_file/<gbs>', fat_file, ['GET']),
-        (PUBLIC, '/info/<info_type>', get_db_info, ['GET'])
+        (PUBLIC, '/info/<info_type>/', get_db_info, ['GET'])
     ]
     for paths, rule, view_func, methods in ROUTES:
         _add_route(app, paths, rule, view_func, methods)
