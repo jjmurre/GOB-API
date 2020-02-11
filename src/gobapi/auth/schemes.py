@@ -62,6 +62,16 @@ GOB_AUTH_SCHEME = {
                         "roles": [GOB_ADMIN]
                     }
                 }
+            },
+            "anydata": {
+                "attributes": {
+                    "auto": {
+                        "roles": [GOB_ADMIN]
+                    },
+                    "functie": {
+                        "roles": [GOB_ADMIN]
+                    }
+                }
             }
         }
     }
