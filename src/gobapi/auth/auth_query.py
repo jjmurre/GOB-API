@@ -186,7 +186,10 @@ class Authority():
         if issubclass(gob_type, gob_secure_types.Secure):
             return True
         elif issubclass(gob_type, gob_types.JSON):
-            attributes = spec.get('attributes', {})
+            attributes = {
+                **spec.get('attributes', {}),
+                **spec.get('secure', {})
+            }
             return any([cls.is_secure_type(attr) for attr in attributes.values()])
 
     @classmethod
