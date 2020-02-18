@@ -8,11 +8,12 @@ FROM
         state,
         ROUND((EXTRACT(EPOCH FROM NOW()) - EXTRACT(EPOCH FROM query_start)) / 60)::numeric::integer
             AS duration_minutes,
-        CONCAT(SUBSTRING(query, 1, 15), '...') -- Do not expose query !!
+        CONCAT(SUBSTRING(query, 1, 25), '...') -- Do not expose query !!
     FROM
         pg_stat_activity
     WHERE
-        state = 'active'
+        state = 'active' AND
+        backend_type = 'client backend'
     )
 AS
     t
