@@ -233,7 +233,7 @@ class SqlGenerator:
     def _current_filter_expression(self, table_id: str = None):
         table = f"{table_id}." if table_id else ""
 
-        return f"({table}{FIELD.EXPIRATION_DATE} IS NULL OR {table}{FIELD.EXPIRATION_DATE} > NOW())"
+        return f"(COALESCE({table}{FIELD.EXPIRATION_DATE}, '9999-12-31'::timestamp without time zone) > NOW())"
 
     def _build_from_table(self, arguments: dict, table_name: str, table_alias: str):
         """Builds from table expression for base relation with :table_name: and :arguments:
@@ -425,8 +425,6 @@ LEFT JOIN {relation_table} {rel_table_alias} ON {rel_table_alias}.{FIELD.GOBID} 
         if arguments['active']:
 
             join_dst_table += f" AND {self._current_filter_expression(dst_relation['alias'])}"
-
-        join_dst_table += f" AND {dst_relation['alias']}.{FIELD.DATE_DELETED} IS NULL"
 
         return join_dst_table
 

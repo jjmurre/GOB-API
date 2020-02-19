@@ -7,11 +7,12 @@ By using this module the API does not need to have any knowledge about the under
 """
 import datetime
 import re
+import warnings
 
 from typing import List
 from collections import defaultdict
 
-from sqlalchemy import create_engine, Table, MetaData, func, and_, or_, Integer, cast
+from sqlalchemy import create_engine, Table, MetaData, func, and_, or_, Integer, cast, exc as sa_exc
 from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.ext.automap import automap_base
@@ -52,8 +53,12 @@ def connect():
                                           autoflush=False,
                                           bind=engine,
                                           query_cls=AuthorizedQuery))
-    _Base = automap_base()
-    _Base.prepare(engine, reflect=True)     # Long running statement !
+
+    with warnings.catch_warnings():
+        # Ignore warnings for unsupported reflection for expression-based indexes
+        warnings.simplefilter("ignore", category=sa_exc.SAWarning)
+        _Base = automap_base()
+        _Base.prepare(engine, reflect=True)     # Long running statement !
 
     Base.metadata.bind = engine  # Bind engine to metadata of the base class
     Base.query = session.query_property()  # Used by graphql to execute queries

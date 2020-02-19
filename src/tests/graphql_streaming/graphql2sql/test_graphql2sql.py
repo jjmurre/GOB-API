@@ -98,7 +98,7 @@ class TestGraphQL2SQL(TestCase):
 SELECT cola_0._gobid, cola_0.identificatie, 'catalog' AS _catalog, 'collectiona' AS _collection
 FROM (
     SELECT * FROM catalog_collectiona
-    WHERE (_expiration_date IS NULL OR _expiration_date > NOW()) AND _date_deleted IS NULL
+    WHERE (COALESCE(_expiration_date, '9999-12-31'::timestamp without time zone) > NOW()) AND _date_deleted IS NULL
     ORDER BY _gobid
 ) cola_0
 ORDER BY cola_0._gobid
@@ -120,7 +120,7 @@ ORDER BY cola_0._gobid
     SELECT cola_0._gobid, cola_0.identificatie, cola_0._gobid AS cursor, 'catalog' AS _catalog, 'collectiona' AS _collection
     FROM (
         SELECT * FROM catalog_collectiona
-        WHERE (_expiration_date IS NULL OR _expiration_date > NOW()) AND _gobid > 2 AND _date_deleted IS NULL
+        WHERE (COALESCE(_expiration_date, '9999-12-31'::timestamp without time zone) > NOW()) AND _gobid > 2 AND _date_deleted IS NULL
         ORDER BY _gobid
     ) cola_0
     ORDER BY cola_0._gobid
@@ -142,7 +142,7 @@ ORDER BY cola_0._gobid
 SELECT geocoll_0._gobid, geocoll_0.identificatie, ST_AsText(geocoll_0.geofield) geofield, 'catalog' AS _catalog, 'collectionwithgeometry' AS _collection
 FROM (
     SELECT * FROM catalog_collectionwithgeometry
-    WHERE (_expiration_date IS NULL OR _expiration_date > NOW()) AND _date_deleted IS NULL
+    WHERE (COALESCE(_expiration_date, '9999-12-31'::timestamp without time zone) > NOW()) AND _date_deleted IS NULL
     ORDER BY _gobid
 ) geocoll_0
 ORDER BY geocoll_0._gobid
@@ -163,7 +163,7 @@ ORDER BY geocoll_0._gobid
 SELECT cola_0._gobid, cola_0.identificatie, 'catalog' AS _catalog, 'collectiona' AS _collection
 FROM (
     SELECT * FROM catalog_collectiona
-    WHERE (_expiration_date IS NULL OR _expiration_date > NOW())
+    WHERE (COALESCE(_expiration_date, '9999-12-31'::timestamp without time zone) > NOW())
     AND filterarg = 3 AND filterarg2 = 'strval' AND _date_deleted IS NULL
     ORDER BY _gobid
 ) cola_0
@@ -185,7 +185,7 @@ ORDER BY cola_0._gobid
 SELECT cola_0._gobid, cola_0.identificatie, 'catalog' AS _catalog, 'collectiona' AS _collection
 FROM (
     SELECT * FROM catalog_collectiona
-    WHERE (_expiration_date IS NULL OR _expiration_date > NOW()) AND _date_deleted IS NULL
+    WHERE (COALESCE(_expiration_date, '9999-12-31'::timestamp without time zone) > NOW()) AND _date_deleted IS NULL
     ORDER BY _gobid
     LIMIT 20
 ) cola_0
@@ -257,7 +257,7 @@ FROM (
 ) cola_0
 LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0 ON rel_0.src_id = cola_0._id AND rel_0.bronwaarde = cola_0.some_nested_relation->>'bronwaarde'
 LEFT JOIN catalog_collectionb colb_0 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer AND (colb_0.some_property = 'someval')
-AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
+AND (COALESCE(colb_0._expiration_date, '9999-12-31'::timestamp without time zone) > NOW())
 ORDER BY cola_0._gobid
          '''
 
@@ -304,7 +304,7 @@ ON rel_0.src_id = colc_0._id
 AND rel_0.bronwaarde = colc_0.relation_to_b->>'bronwaarde' AND rel_0.src_volgnummer = colc_0.volgnummer
 LEFT JOIN catalog_collectionb colb_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer AND (colb_0.some_property = 'someval')
-AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
+AND (COALESCE(colb_0._expiration_date, '9999-12-31'::timestamp without time zone) > NOW())
 ORDER BY colc_0._gobid
          '''
 
@@ -349,7 +349,7 @@ LEFT JOIN mv_catalog_collectionc_relation_to_b rel_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer
 LEFT JOIN catalog_collectionc colc_0
 ON rel_0.src_id = colc_0._id AND rel_0.src_volgnummer = colc_0.volgnummer AND (colc_0.some_property = 'someval')
-AND (colc_0._expiration_date IS NULL OR colc_0._expiration_date > NOW()) AND colc_0._date_deleted IS NULL
+AND (COALESCE(colc_0._expiration_date, '9999-12-31'::timestamp without time zone) > NOW())
 ORDER BY colb_0._gobid
          '''
 
@@ -398,7 +398,7 @@ LEFT JOIN mv_catalog_collectiona_some_nested_many_relation rel_0
 ON rel_0.src_id = cola_0._id AND rel_0.bronwaarde = rel_bw_0.item->>'bronwaarde'
 LEFT JOIN catalog_collectionb colb_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer AND (colb_0.filter_arg = 'filterval')
-AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
+AND (COALESCE(colb_0._expiration_date, '9999-12-31'::timestamp without time zone) > NOW())
 ORDER BY cola_0._gobid
          '''
         ),
@@ -432,14 +432,14 @@ cola_0._gobid,'identificatie', cola_0.identificatie, '_catalog', 'catalog', '_co
 FROM (
     SELECT *
     FROM catalog_collectionb
-    WHERE (_expiration_date IS NULL OR _expiration_date > NOW()) AND _date_deleted IS NULL
+    WHERE (COALESCE(_expiration_date, '9999-12-31'::timestamp without time zone) > NOW()) AND _date_deleted IS NULL
     ORDER BY _gobid
 
 ) colb_0
 LEFT JOIN mv_catalog_collectiona_some_nested_many_relation rel_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer
 LEFT JOIN catalog_collectiona cola_0 ON rel_0.src_id = cola_0._id AND (cola_0.some_property = 'someval')
-AND (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW()) AND cola_0._date_deleted IS NULL
+AND (COALESCE(cola_0._expiration_date, '9999-12-31'::timestamp without time zone) > NOW())
 ORDER BY colb_0._gobid
          '''
         ),
@@ -473,14 +473,14 @@ cola_0.identificatie, '_catalog', 'catalog', '_collection', 'collectiona') _inv_
 FROM (
     SELECT *
     FROM catalog_collectionb
-    WHERE (_expiration_date IS NULL OR _expiration_date > NOW()) AND _date_deleted IS NULL
+    WHERE (COALESCE(_expiration_date, '9999-12-31'::timestamp without time zone) > NOW()) AND _date_deleted IS NULL
     ORDER BY _gobid
 
 ) colb_0
 LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0
 ON rel_0.dst_id = colb_0._id AND rel_0.dst_volgnummer = colb_0.volgnummer
 LEFT JOIN catalog_collectiona cola_0 ON rel_0.src_id = cola_0._id AND (cola_0.some_property = 'someval')
-AND (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW()) AND cola_0._date_deleted IS NULL
+AND (COALESCE(cola_0._expiration_date, '9999-12-31'::timestamp without time zone) > NOW())
 ORDER BY colb_0._gobid
          '''
         ),
@@ -522,7 +522,7 @@ LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0
 ON rel_0.src_id = cola_0._id
 LEFT JOIN catalog_collectionb colb_0 ON rel_0.dst_id = colb_0._id
 AND rel_0.dst_volgnummer = colb_0.volgnummer AND (colb_0.some_property = 'someval')
-AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
+AND (COALESCE(colb_0._expiration_date, '9999-12-31'::timestamp without time zone) > NOW())
 ORDER BY cola_0._gobid
          '''
         ),
@@ -569,7 +569,7 @@ ON rel_0._gobid IN (
 )
 LEFT JOIN catalog_collectionb colb_0 ON rel_0.dst_id = colb_0._id
 AND rel_0.dst_volgnummer = colb_0.volgnummer
-AND (colb_0._expiration_date IS NULL OR colb_0._expiration_date > NOW()) AND colb_0._date_deleted IS NULL
+AND (COALESCE(colb_0._expiration_date, '9999-12-31'::timestamp without time zone) > NOW())
 ORDER BY cola_0._gobid
          '''
         ),
@@ -603,7 +603,7 @@ cola_0.identificatie, '_catalog', 'catalog', '_collection', 'collectiona') _inv_
 FROM (
     SELECT *
     FROM catalog_collectionb
-    WHERE (_expiration_date IS NULL OR _expiration_date > NOW()) AND _date_deleted IS NULL
+    WHERE (COALESCE(_expiration_date, '9999-12-31'::timestamp without time zone) > NOW()) AND _date_deleted IS NULL
     ORDER BY _gobid
 
 ) colb_0
@@ -613,7 +613,7 @@ LEFT JOIN mv_catalog_collectiona_some_nested_relation rel_0 ON rel_0._gobid IN (
     LIMIT 1
 )
 LEFT JOIN catalog_collectiona cola_0 ON rel_0.src_id = cola_0._id AND (cola_0.some_property = 'someval')
-AND (cola_0._expiration_date IS NULL OR cola_0._expiration_date > NOW()) AND cola_0._date_deleted IS NULL
+AND (COALESCE(cola_0._expiration_date, '9999-12-31'::timestamp without time zone) > NOW()) 
 ORDER BY colb_0._gobid
          '''
         ),
