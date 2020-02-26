@@ -3,23 +3,20 @@
 Filters provide for a way to dynamically filter collections on field values
 
 """
-from graphql.utils.ast_to_dict import ast_to_dict
 from graphene import Boolean
 from graphene_sqlalchemy import SQLAlchemyConnectionField
-from sqlalchemy import tuple_, and_
+from sqlalchemy import and_
 
 from gobcore.model.metadata import FIELD
 from gobcore.model import GOBModel
 from gobcore.model.relations import get_relation_name
 from gobcore.model.sa.gob import models, Base
 
-from gobapi.utils import to_camelcase, dict_to_camelcase
+from gobapi.utils import dict_to_camelcase
 from gobapi.storage import filter_active, filter_deleted
 
 from gobapi.constants import API_FIELD
 from gobapi.graphql_streaming.utils import resolve_schema_collection_name
-
-from typing import List
 
 gobmodel = GOBModel()
 
@@ -75,6 +72,149 @@ class FilterConnectionField(SQLAlchemyConnectionField):
         return query
 
 
+class RelationQuery:
+    """Fetches related objects through relation table and adds bronwaarde/geldigheid attributes.
+    Results are formatted so that Graphene knows how to handle them.
+
+    Usage:
+    query = RelationQuery(....)
+    results = query.get_results()
+
+    Optional step:
+    query.populate_source_info(results)
+
+    """
+    RELAY_ARGS = ['first', 'last', 'before', 'after', 'sort', 'active']
+    src_side = 'src'
+    dst_side = 'dst'
+    add_relation_table_columns = True
+
+    def __init__(self, src_object, dst_model, attribute_name, **kwargs):
+        self.src_object = src_object
+        self.dst_model = dst_model
+        self.attribute_name = attribute_name
+
+        self.kwargs = kwargs
+        self.kwargs.setdefault("active", Boolean(default_value=True))
+
+    def _add_relation_table_filters(self, query, relation_model):
+        """Add filters on relation table to query.
+
+        :param query:
+        :return:
+        """
+        # Ignore deleted relations and possibly active -> No need to filter for deleted/active dst objects too, as
+        # relations pointing to deleted objects will always be marked deleted as well. Same for expiration date
+        query = filter_deleted(query, relation_model)
+
+        if self.kwargs.get('active'):
+            query = filter_active(query, relation_model)
+
+        # Filter relation table rows
+        query = query.filter(getattr(self.src_object, FIELD.ID) == getattr(relation_model, f'{self.src_side}_id'))
+
+        if self.src_object.__has_states__:
+            query = query.filter(getattr(self.src_object, FIELD.SEQNR) ==
+                                 getattr(relation_model, f'{self.src_side}_volgnummer'))
+        return query
+
+    def _add_dst_table_join(self, query, relation_model):
+        """Adds destination table join to query.
+        Filtering on destination objects happens in this on clause (instead of in the where clause), so that we don't
+        filter out rows from the relation table; this way we can be sure we have a row for every bronwaarde and we
+        don't need to do extra work to fetch the bronwaardes without a matching destination object.
+
+        :param query:
+        :return:
+        """
+        join_args = [getattr(relation_model, f'{self.dst_side}_id') == getattr(self.dst_model, FIELD.ID)] + (
+            [getattr(relation_model, f'{self.dst_side}_volgnummer') == getattr(self.dst_model, FIELD.SEQNR)]
+            if self.dst_model.__has_states__
+            else []
+        )
+
+        for field, value in self.kwargs.items():
+            if field not in self.RELAY_ARGS:
+                if value == FILTER_ON_NULL_VALUE:
+                    join_args.append(getattr(self.dst_model, field).is_(None))
+                else:
+                    join_args.append(getattr(self.dst_model, field) == value)
+
+        return query.join(self.dst_model, and_(*join_args), isouter=True)
+
+    def _build_query(self):
+        relation_model = self._get_relation_model()
+        query = getattr(self.dst_model, 'query')
+
+        # Assure that query results are authorised
+        catalog, collection = resolve_schema_collection_name(self.dst_model.__tablename__)
+        query.set_catalog_collection(catalog, collection)
+
+        query = query.select_from(relation_model)
+
+        query = self._add_relation_table_filters(query, relation_model)
+        query = self._add_dst_table_join(query, relation_model)
+
+        if self.add_relation_table_columns:
+            query = query.add_columns(
+                getattr(relation_model, FIELD.SOURCE_VALUE),
+                getattr(relation_model, FIELD.START_VALIDITY).label(API_FIELD.START_VALIDITY_RELATION),
+                getattr(relation_model, FIELD.END_VALIDITY).label(API_FIELD.END_VALIDITY_RELATION),
+            )
+
+        return query
+
+    def get_results(self):
+        query = self._build_query()
+
+        return [self._flatten_join_query_result(result) if self.add_relation_table_columns else result
+                for result in query.all()]
+
+    def populate_source_info(self, results):
+        source_values = getattr(self.src_object, self.attribute_name)
+        source_values = [source_values] if isinstance(source_values, dict) else source_values
+
+        source_infos = {item[FIELD.SOURCE_VALUE]: item.get(FIELD.SOURCE_INFO) for item in source_values}
+
+        for result in results:
+            setattr(result, FIELD.SOURCE_INFO, source_infos.get(getattr(result, FIELD.SOURCE_VALUE)))
+
+    def _flatten_join_query_result(self, result):
+        """SQLAlchemy returns a named tuple when querying for extra columns besided the reference model.
+        This function adds all extra variables to the reference object, to be used in GraphQL
+
+        :param result:
+        """
+
+        # The first item in the result is the requested reference object
+        reference_object = result[0]
+
+        for key, value in result._asdict().items():
+            if isinstance(value, Base):
+                continue
+            else:
+                setattr(reference_object, key, value)
+        return reference_object
+
+    def _get_relation_model(self):
+        relation_owner = (self.src_object if self.src_side == 'src' else self.dst_model)
+
+        # Get the source catalogue and collection from the source object
+        owner_table_name = getattr(relation_owner, '__tablename__')
+        owner_catalog_name, owner_collection_name = _get_catalog_collection_name_from_table_name(owner_table_name)
+
+        relation_name = get_relation_name(gobmodel, owner_catalog_name, owner_collection_name, self.attribute_name)
+        relation_table_name = f"rel_{relation_name}"
+
+        return models[relation_table_name]
+
+
+class InverseRelationQuery(RelationQuery):
+    src_side = 'dst'
+    dst_side = 'src'
+    add_relation_table_columns = False
+
+
 def get_resolve_json_attribute(name):
     """
     Gets a resolver for a JSON type attribute
@@ -107,136 +247,16 @@ def get_resolve_attribute_missing_relation(field_name):
     return resolve_attribute
 
 
-def get_source_values_filter(result):
-    """Returns filters to find result out of a list of source_values
-
-    :param result:
-    :return:
-    """
-    filters = [
-        lambda item: FIELD.REFERENCE_ID in item and item[FIELD.REFERENCE_ID] == getattr(result, FIELD.ID),
-    ]
-
-    if result.__has_states__:
-        filters.append(lambda item: FIELD.SEQNR in item and item[FIELD.SEQNR] == getattr(result, FIELD.SEQNR))
-
-    return filters
-
-
-def set_result_values(result, source_item: dict):
-    """Adds bronwaarde and broninfo attributes to result, from source_item.
-
-    :param result:
-    :param source_item:
-    :return:
-    """
-    setattr(result, FIELD.SOURCE_VALUE, source_item[FIELD.SOURCE_VALUE])
-    setattr(result, FIELD.SOURCE_INFO, source_item.get(FIELD.SOURCE_INFO))
-
-
-def create_bronwaarde_result_objects(source_values: list, model):
-    """Creates empty result objects of type model for the list of source_values
-
-    :param source_values:
-    :param model:
-    :return:
-    """
-    result = []
-    expected_type = models[model.__tablename__]
-
-    for source_value in source_values:
-        source_value_result = expected_type()
-        set_result_values(source_value_result, source_value)
-        result.append(source_value_result)
-    return result
-
-
-def add_bronwaardes_to_results(src_attribute, model, obj, results: list):
-    """Adds bronwaardes to results from get_resolve_attribute.
-
-
-    The bronwaardes that are not matched with the results are added as new empty objects of the expected type with the
-    bronwaarde attribute set.
-
-    :param relation_table:
-    :param model:
-    :param obj:
-    :param results:
-    :return:
-    """
-    source_values = getattr(obj, src_attribute)
-    return_results = []
-
-    # Add bronwaarde to results
-    for result in results:
-        if isinstance(source_values, list):
-
-            # To find the item in source_values belonging to this result
-            filters = get_source_values_filter(result)
-            source_item_index = [idx for idx, item in enumerate(source_values) if all([f(item) for f in filters])]
-
-            if source_item_index:
-                source_item = source_values[source_item_index[0]]
-                set_result_values(result, source_item)
-                del source_values[source_item_index[0]]
-
-        else:
-            # Set the bronwaarde for single references
-            set_result_values(result, getattr(obj, src_attribute))
-
-        return_results.append(result)
-
-    if isinstance(source_values, list):
-        # Add bronwaardes with missing relations
-        return_results.extend(create_bronwaarde_result_objects(source_values, model))
-
-    return return_results
-
-
-def _extract_tuples(lst: List[dict], attrs: tuple):
-    """Extracts tuples from list of dicts in the format defined by attrs.
-
-    For example:
-    _extract_tuples([{'a': 1, 'b': 2, 'c': 3}, {'a': 4, 'b': 5, 'c': 6}], ('a', 'c')) -> [(1, 3), (4, 6)]
-
-    Ignores entries where one of the attributes is missing.
-
-    :param lst:
-    :param attrs:
-    :return:
-    """
-    if lst:
-        tuples = [tuple([item[t] for t in attrs if t in item]) for item in lst]
-        return [t for t in tuples if len(t) == len(attrs)]  # Remove short tuples
-    else:
-        return []
-
-
 def _get_catalog_collection_name_from_table_name(table_name):
     """Gets the catalog and collection name from the table name
 
     :param table_name:
     """
 
-    catalog_name = gobmodel.get_catalog_from_table_name(table_name)
-    collection_name = gobmodel.get_collection_from_table_name(table_name)
+    catalog_name = GOBModel().get_catalog_from_table_name(table_name)
+    collection_name = GOBModel().get_collection_from_table_name(table_name)
 
     return catalog_name, collection_name
-
-
-def _extract_relation_model(src_obj, dst_model, relation_name):
-
-    # Get the source catalogue and collection from the source object
-    src_table_name = getattr(src_obj, '__tablename__')
-    src_catalog_name, src_collection_name = _get_catalog_collection_name_from_table_name(src_table_name)
-
-    # Get the destination catalogue and collection from the destination model
-    dst_table_name = getattr(dst_model, '__tablename__')
-    dst_catalog_name, dst_collection_name = _get_catalog_collection_name_from_table_name(dst_table_name)
-
-    relation_table_name = f"rel_{get_relation_name(gobmodel, src_catalog_name, src_collection_name, relation_name)}"
-
-    return models[relation_table_name]
 
 
 def get_resolve_attribute(model, src_attribute_name):
@@ -265,112 +285,17 @@ def get_resolve_attribute(model, src_attribute_name):
         :param kwargs: any filter arguments, <name of field>: <value of field>
         :return: the list of referenced objects
         """
-        bronwaardes = getattr(obj, src_attribute_name)
+        query = RelationQuery(src_object=obj, dst_model=model, attribute_name=src_attribute_name, **kwargs)
+        results = query.get_results()
 
-        if isinstance(bronwaardes, dict):
-            bronwaardes = [bronwaardes]
+        query.populate_source_info(results)
 
-        query = FilterConnectionField.get_query(model, info, **kwargs)
-        if model.__has_states__:
-            ids = _extract_tuples(bronwaardes, ('id', 'volgnummer'))
-
-            query = query.filter(tuple_(getattr(model, FIELD.ID), getattr(model, FIELD.SEQNR)).in_(ids))
-        else:
-            ids = _extract_tuples(bronwaardes, ('id',))
-            query = query.filter(getattr(model, FIELD.ID).in_(ids))
-
-        # Extract the requested fields in the reference
-        query_fields = get_fields_in_query(info)
-
-        # Check if a relation field is requested and we need to join the relation table
-        join_relation = any([i in query_fields for i in [
-                            to_camelcase(API_FIELD.START_VALIDITY_RELATION),
-                            to_camelcase(API_FIELD.END_VALIDITY_RELATION)]])
-
-        if join_relation:
-            query = add_relation_join_query(obj, model, src_attribute_name, query)
-
-        results = [flatten_join_query_result(result) if join_relation else result for result in query.all()]
-
-        return add_bronwaardes_to_results(src_attribute_name, model, obj, results)
+        return results
 
     return resolve_attribute
 
 
-def add_relation_join_query(obj, model, src_attribute_name, query):
-
-    relation_model = _extract_relation_model(src_obj=obj, dst_model=model, relation_name=src_attribute_name)
-
-    relation_join_args = [
-        getattr(obj, FIELD.ID) == getattr(relation_model, 'src_id'),
-        getattr(model, FIELD.ID) == getattr(relation_model, 'dst_id')
-    ]
-
-    if obj.__has_states__:
-        relation_join_args.append(getattr(obj, FIELD.SEQNR) == getattr(relation_model, 'src_volgnummer'))
-
-    if model.__has_states__:
-        relation_join_args.append(getattr(model, FIELD.SEQNR) == getattr(relation_model, 'dst_volgnummer'))
-
-    # Add the relationship table join and query the relation fields
-    query = query.join(relation_model, and_(*relation_join_args)) \
-                 .add_columns(getattr(relation_model, FIELD.START_VALIDITY).label(API_FIELD.START_VALIDITY_RELATION),
-                              getattr(relation_model, FIELD.END_VALIDITY).label(API_FIELD.END_VALIDITY_RELATION))
-
-    return query
-
-
-def get_fields_in_query(info):
-    """Gets the fields in a GraphQL query and returns a list with all fields in the reference attribute
-
-    :param info:
-    """
-    fields = []
-    node = ast_to_dict(info.field_asts[0])
-
-    fields = collect_fields(node, fields)
-
-    return fields
-
-
-def collect_fields(node, fields):
-    """ Recursively look in the GraphQL query to get the references fields.
-    It stops after the first set of edges and node to only get this reference's fields
-
-    :param node:
-    :param fields:
-    """
-
-    if node.get('selection_set'):
-        for leaf in node['selection_set']['selections']:
-            if leaf['kind'] == 'Field':
-                variable_name = leaf['name']['value']
-                if variable_name in ('edges', 'node'):
-                    collect_fields(leaf, fields)
-                else:
-                    fields.append(leaf['name']['value'])
-    return fields
-
-
-def flatten_join_query_result(result):
-    """SQLAlchemy returns a named tuple when querying for extra columns besided the reference model.
-    This function adds all extra variables to the reference object, to be used in GraphQL
-
-    :param result:
-    """
-
-    # The first item in the result is the requested reference object
-    reference_object = result[0]
-
-    for key, value in result._asdict().items():
-        if isinstance(value, Base):
-            continue
-        else:
-            setattr(reference_object, key, value)
-    return reference_object
-
-
-def get_resolve_inverse_attribute(model, src_attribute_name, is_many_reference):
+def get_resolve_inverse_attribute(model, src_attribute_name):
     """Gets an inverse attribute resolver
 
     :param src_attribute_name: The attribute name on the (original) source relation, the owner of the relation
@@ -387,17 +312,7 @@ def get_resolve_inverse_attribute(model, src_attribute_name, is_many_reference):
         :param kwargs:
         :return:
         """
-        query = FilterConnectionField.get_query(model, info, **kwargs)
-
-        filter_args = {"id": getattr(obj, FIELD.ID)}
-
-        if obj.__has_states__:
-            filter_args['volgnummer'] = getattr(obj, FIELD.SEQNR)
-
-        if is_many_reference:
-            filter_args = [filter_args]
-
-        query = query.filter(getattr(model, src_attribute_name).contains(filter_args))
-        return query.all()
+        query = InverseRelationQuery(src_object=obj, dst_model=model, attribute_name=src_attribute_name, **kwargs)
+        return query.get_results()
 
     return resolve_attribute
