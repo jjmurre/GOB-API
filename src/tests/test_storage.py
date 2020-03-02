@@ -555,7 +555,6 @@ def test_entities_with_view(monkeypatch):
     MockTable.columns = [MockColumn('identificatie'), MockColumn('attribute'), MockColumn('meta')]
 
 
-@mock.patch("gobapi.storage.cast", mock.MagicMock())
 def test_collection_states(monkeypatch):
     before_each_storage_test(monkeypatch)
 

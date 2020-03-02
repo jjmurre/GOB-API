@@ -12,7 +12,7 @@ import warnings
 from typing import List
 from collections import defaultdict
 
-from sqlalchemy import create_engine, Table, MetaData, func, and_, or_, Integer, cast, exc as sa_exc
+from sqlalchemy import create_engine, Table, MetaData, func, and_, or_, exc as sa_exc
 from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.ext.automap import automap_base
