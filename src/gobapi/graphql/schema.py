@@ -194,8 +194,8 @@ def get_graphene_query():
                                                          object_type_fields,
                                                          meta)
         rel_connection_class = _create_connection_class(f"{model_name}Rel", {
-            "bronwaarde": graphene.String(description=API_FIELD_DESCRIPTION[FIELD.SOURCE_VALUE]),
-            "broninfo": GenericScalar(description=API_FIELD_DESCRIPTION[FIELD.SOURCE_INFO]),
+            FIELD.SOURCE_VALUE: graphene.String(description=API_FIELD_DESCRIPTION[FIELD.SOURCE_VALUE]),
+            FIELD.SOURCE_INFO: GenericScalar(description=API_FIELD_DESCRIPTION[FIELD.SOURCE_INFO]),
             API_FIELD.START_VALIDITY_RELATION: DateTime(
                 description=API_FIELD_DESCRIPTION[API_FIELD.START_VALIDITY_RELATION]
             ),
@@ -269,13 +269,9 @@ def get_inverse_relation_resolvers(inverse_connections):
     resolvers = {}
 
     for connection in inverse_connections:
-        collection = model._data[connection['src_catalog']]['collections'][connection['src_collection']]
-        is_many = collection['attributes'][connection['src_relation_name']]['type'] == 'GOB.ManyReference'
-
         resolvers[f"resolve_{connection['field_name']}"] = get_resolve_inverse_attribute(
             models[model.get_table_name(connection['src_catalog'], connection['src_collection'])],
-            connection['src_relation_name'],
-            is_many,
+            connection['src_relation_name']
         )
     return resolvers
 

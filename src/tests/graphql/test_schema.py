@@ -93,8 +93,8 @@ class TestGraphqlSchema(TestCase):
         self.assertEqual(expected_result, result)
 
         mock_resolve.assert_has_calls([
-            call('table_name_a', 'relation_a', True),
-            call('table_name_b', 'relation_b', False),
+            call('table_name_a', 'relation_a'),
+            call('table_name_b', 'relation_b'),
         ])
 
     @patch("gobapi.graphql.schema.model")
