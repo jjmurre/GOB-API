@@ -287,6 +287,28 @@ class TestRelationQuery(TestCase):
         self.assertEqual(query.join.return_value, result)
         mock_dst.nullattr.is_.assert_called_with(None)
 
+    def test_add_sort(self):
+        mock_asc = MagicMock()
+        mock_desc = MagicMock()
+        mock_dst = type('MockDst', (), {
+            'the_column': type('MockColumn', (), {
+                'desc': mock_desc,
+                'asc': mock_asc
+            })
+        })
+        rq = RelationQuery('src', mock_dst, 'attribute')
+
+        query = MagicMock()
+        res = rq._add_sort(query, ['the_column_asc'])
+        self.assertEqual(query.order_by.return_value, res)
+        mock_asc.assert_called_once()
+        mock_desc.assert_not_called()
+
+        mock_asc.reset_mock()
+        res = rq._add_sort(query, ['the_column_desc'])
+        mock_desc.assert_called_once()
+        mock_asc.assert_not_called()
+
     @patch("gobapi.graphql.filters.resolve_schema_collection_name", lambda x: tuple(x.split('_')))
     def test_build_query(self):
         class MockDst:
@@ -328,6 +350,32 @@ class TestRelationQuery(TestCase):
         result = rq._build_query()
         rq._add_dst_table_join.return_value.add_columns.assert_not_called()
         self.assertEqual(rq._add_dst_table_join.return_value, result)
+
+    @patch("gobapi.graphql.filters.resolve_schema_collection_name", lambda x: tuple(x.split('_')))
+    def test_build_query_sort(self):
+        class MockDst:
+            __tablename__ = 'catalog_collection'
+            query = MagicMock()
+
+        class MockRelModel:
+            bronwaarde = 'bronwaarde'
+            begin_geldigheid = type('Mock', (), {'label': lambda x: x})
+            eind_geldigheid = type('Mock', (), {'label': lambda x: x})
+
+        mock_dst = MockDst()
+        rq = RelationQuery('src', mock_dst, 'attribute')
+        rq.add_relation_table_columns = False
+        rq._get_relation_model = MagicMock(return_value=MockRelModel())
+        rq._add_relation_table_filters = MagicMock()
+        rq._add_dst_table_join = MagicMock()
+        rq._add_sort = MagicMock()
+        rq.kwargs = {
+            'sort': ['column_asc']
+        }
+
+        result = rq._build_query()
+        rq._add_sort.assert_called_with(rq._add_dst_table_join.return_value, ['column_asc'])
+        self.assertEqual(rq._add_sort.return_value, result)
 
     @patch("gobapi.graphql.filters.models", {'dst_table': 'mocked_table'})
     def test_get_results(self):

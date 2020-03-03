@@ -142,6 +142,15 @@ class RelationQuery:
 
         return query.join(self.dst_model, and_(*join_args), isouter=True)
 
+    def _add_sort(self, query, sort_arg):
+        split = sort_arg[0].split('_')
+
+        # Graphene won't allow invalid sort arguments, we can be certain that this splitting works as expected
+        direction = split[-1]
+        column = "_".join(split[:-1])
+
+        return query.order_by(getattr(getattr(self.dst_model, column), direction)())
+
     def _build_query(self):
         relation_model = self._get_relation_model()
         query = getattr(self.dst_model, 'query')
@@ -161,6 +170,9 @@ class RelationQuery:
                 getattr(relation_model, FIELD.START_VALIDITY).label(API_FIELD.START_VALIDITY_RELATION),
                 getattr(relation_model, FIELD.END_VALIDITY).label(API_FIELD.END_VALIDITY_RELATION),
             )
+
+        if self.kwargs.get('sort'):
+            query = self._add_sort(query, self.kwargs['sort'])
 
         return query
 
