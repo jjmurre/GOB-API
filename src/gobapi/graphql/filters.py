@@ -142,6 +142,15 @@ class RelationQuery:
 
         return query.join(self.dst_model, and_(*join_args), isouter=True)
 
+    def _add_sort(self, query, sort_arg):
+        split = sort_arg[0].split('_')
+
+        # Graphene won't allow invalid sort arguments, we can be certain that this splitting works as expected
+        direction = split[-1]
+        column = "_".join(split[:-1])
+
+        return query.order_by(getattr(getattr(self.dst_model, column), direction)())
+
     def _build_query(self):
         relation_model = self._get_relation_model()
         query = getattr(self.dst_model, 'query')
@@ -162,12 +171,16 @@ class RelationQuery:
                 getattr(relation_model, FIELD.END_VALIDITY).label(API_FIELD.END_VALIDITY_RELATION),
             )
 
+        if self.kwargs.get('sort'):
+            query = self._add_sort(query, self.kwargs['sort'])
+
         return query
 
     def get_results(self):
         query = self._build_query()
+        expected_type = models[self.dst_model.__tablename__]
 
-        return [self._flatten_join_query_result(result) if self.add_relation_table_columns else result
+        return [self._flatten_join_query_result(result, expected_type) if self.add_relation_table_columns else result
                 for result in query.all()]
 
     def populate_source_info(self, results):
@@ -179,22 +192,25 @@ class RelationQuery:
         for result in results:
             setattr(result, FIELD.SOURCE_INFO, source_infos.get(getattr(result, FIELD.SOURCE_VALUE)))
 
-    def _flatten_join_query_result(self, result):
-        """SQLAlchemy returns a named tuple when querying for extra columns besided the reference model.
-        This function adds all extra variables to the reference object, to be used in GraphQL
+    def _flatten_join_query_result(self, result, expected_type):
+        """SQLAlchemy returns a named tuple when querying for extra columns besided the base model. This base model
+        in this case is the object on the dst side of the relation.
+        This function adds all extra variables queried from the relation table to the dst object.
 
         :param result:
         """
 
-        # The first item in the result is the requested reference object
-        reference_object = result[0]
+        # The first item in the result is the requested destination object. If the first item is None there is no
+        # matching related object to the row in the relation table. Create an empty destination object instead to hold
+        # the extra values (bronwaarde, begin_geldigheid_relatie, etc)
+        dst_object = result[0] if result[0] is not None else expected_type()
 
         for key, value in result._asdict().items():
             if isinstance(value, Base):
                 continue
             else:
-                setattr(reference_object, key, value)
-        return reference_object
+                setattr(dst_object, key, value)
+        return dst_object
 
     def _get_relation_model(self):
         relation_owner = (self.src_object if self.src_side == 'src' else self.dst_model)

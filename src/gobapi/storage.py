@@ -12,7 +12,7 @@ import warnings
 from typing import List
 from collections import defaultdict
 
-from sqlalchemy import create_engine, Table, MetaData, func, and_, or_, Integer, cast, exc as sa_exc
+from sqlalchemy import create_engine, Table, MetaData, func, and_, or_, exc as sa_exc
 from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.ext.automap import automap_base
@@ -610,7 +610,7 @@ def get_collection_states(catalog, collection):
     # Get the max sequence number for every id + start validity combination
     sub = session.query(getattr(entity, FIELD.ID),
                         getattr(entity, FIELD.START_VALIDITY),
-                        label("max_seqnr", func.max(cast(getattr(entity, FIELD.SEQNR), Integer)))
+                        label("max_seqnr", func.max(getattr(entity, FIELD.SEQNR)))
                         )\
         .group_by(FIELD.ID, FIELD.START_VALIDITY)\
         .subquery()
@@ -621,7 +621,7 @@ def get_collection_states(catalog, collection):
     all_entities = all_entities \
         .join(sub, and_(getattr(sub.c, FIELD.ID) == getattr(entity, FIELD.ID),
                         getattr(sub.c, FIELD.START_VALIDITY) == getattr(entity, FIELD.START_VALIDITY),
-                        sub.c.max_seqnr == cast(getattr(entity, FIELD.SEQNR), Integer)))\
+                        sub.c.max_seqnr == getattr(entity, FIELD.SEQNR)))\
         .all()
 
     states = defaultdict(list)

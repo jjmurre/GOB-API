@@ -1,6 +1,6 @@
 import datetime
 from unittest import TestCase
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 
 from sqlalchemy.sql.elements import AsBoolean
 from graphene_sqlalchemy import SQLAlchemyConnectionField
@@ -287,6 +287,28 @@ class TestRelationQuery(TestCase):
         self.assertEqual(query.join.return_value, result)
         mock_dst.nullattr.is_.assert_called_with(None)
 
+    def test_add_sort(self):
+        mock_asc = MagicMock()
+        mock_desc = MagicMock()
+        mock_dst = type('MockDst', (), {
+            'the_column': type('MockColumn', (), {
+                'desc': mock_desc,
+                'asc': mock_asc
+            })
+        })
+        rq = RelationQuery('src', mock_dst, 'attribute')
+
+        query = MagicMock()
+        res = rq._add_sort(query, ['the_column_asc'])
+        self.assertEqual(query.order_by.return_value, res)
+        mock_asc.assert_called_once()
+        mock_desc.assert_not_called()
+
+        mock_asc.reset_mock()
+        res = rq._add_sort(query, ['the_column_desc'])
+        mock_desc.assert_called_once()
+        mock_asc.assert_not_called()
+
     @patch("gobapi.graphql.filters.resolve_schema_collection_name", lambda x: tuple(x.split('_')))
     def test_build_query(self):
         class MockDst:
@@ -329,17 +351,49 @@ class TestRelationQuery(TestCase):
         rq._add_dst_table_join.return_value.add_columns.assert_not_called()
         self.assertEqual(rq._add_dst_table_join.return_value, result)
 
+    @patch("gobapi.graphql.filters.resolve_schema_collection_name", lambda x: tuple(x.split('_')))
+    def test_build_query_sort(self):
+        class MockDst:
+            __tablename__ = 'catalog_collection'
+            query = MagicMock()
+
+        class MockRelModel:
+            bronwaarde = 'bronwaarde'
+            begin_geldigheid = type('Mock', (), {'label': lambda x: x})
+            eind_geldigheid = type('Mock', (), {'label': lambda x: x})
+
+        mock_dst = MockDst()
+        rq = RelationQuery('src', mock_dst, 'attribute')
+        rq.add_relation_table_columns = False
+        rq._get_relation_model = MagicMock(return_value=MockRelModel())
+        rq._add_relation_table_filters = MagicMock()
+        rq._add_dst_table_join = MagicMock()
+        rq._add_sort = MagicMock()
+        rq.kwargs = {
+            'sort': ['column_asc']
+        }
+
+        result = rq._build_query()
+        rq._add_sort.assert_called_with(rq._add_dst_table_join.return_value, ['column_asc'])
+        self.assertEqual(rq._add_sort.return_value, result)
+
+    @patch("gobapi.graphql.filters.models", {'dst_table': 'mocked_table'})
     def test_get_results(self):
-        rq = RelationQuery('src', 'dst', 'attribute')
+        rq = RelationQuery('src', type('DstModel', (), {'__tablename__': 'dst_table'}), 'attribute')
         rq._build_query = MagicMock()
         rq._build_query.return_value.all = lambda: ['a', 'b', 'c']
-        rq._flatten_join_query_result = lambda x: 2*x
+        rq._flatten_join_query_result = MagicMock(side_effect=lambda x, y: 2*x)
 
         rq.add_relation_table_columns = False
         self.assertEqual(['a', 'b', 'c'], rq.get_results())
 
         rq.add_relation_table_columns = True
         self.assertEqual(['aa', 'bb', 'cc'], rq.get_results())
+        rq._flatten_join_query_result.assert_has_calls([
+            call('a', 'mocked_table'),
+            call('b', 'mocked_table'),
+            call('c', 'mocked_table'),
+        ])
 
     def test_populate_source_infos(self):
         class MockSrc:
@@ -381,12 +435,19 @@ class TestRelationQuery(TestCase):
             def _asdict(self):
                 return self.__dict__
 
-        mock_result = MockKeyedTuple((mock_base,'value1', 'value2'), ['reference', 'variable1', 'variable2'])
-        result = self.relation_query._flatten_join_query_result(mock_result)
+        mock_result = MockKeyedTuple((mock_base, 'value1', 'value2'), ['reference', 'variable1', 'variable2'])
+        result = self.relation_query._flatten_join_query_result(mock_result, None)
 
         # Expect the variables to be set as attributes of the mock_base
         self.assertEqual(mock_base.variable1, 'value1')
         self.assertEqual(mock_base.variable2, 'value2')
+
+        # Should create a new base object
+        mock_result = MockKeyedTuple((None, 'value1', 'value2'), ['reference', 'variable1', 'variable2'])
+        result = self.relation_query._flatten_join_query_result(mock_result, type(mock_base))
+
+        self.assertEqual(result.variable1, 'value1')
+        self.assertEqual(result.variable2, 'value2')
 
     @patch('gobapi.graphql.filters.gobmodel')
     @patch('gobapi.graphql.filters.get_relation_name', lambda m, cat, col, rel: f'{cat}_{col}_{rel}')
