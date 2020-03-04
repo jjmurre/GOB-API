@@ -420,6 +420,13 @@ class TestRelationQuery(TestCase):
         self.assertEqual({'bron': 'info'}, getattr(results[0], 'broninfo'))
         self.assertEqual(None, getattr(results[1], 'broninfo'))
 
+        # Missing attr should pass without problems
+        rq = RelationQuery(MockSrc(None), 'dst', 'the_attribute')
+        results = [
+            type('ResultObj', (), {'bronwaarde': 'bw1', 'some_attribute': 'attr1'}),
+        ]
+        rq.populate_source_info(results)
+
     def test_flatten_join_query_result(self):
 
         mock_base = Base()

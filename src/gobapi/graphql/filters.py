@@ -184,7 +184,7 @@ class RelationQuery:
                 for result in query.all()]
 
     def populate_source_info(self, results):
-        source_values = getattr(self.src_object, self.attribute_name)
+        source_values = getattr(self.src_object, self.attribute_name) or []
         source_values = [source_values] if isinstance(source_values, dict) else source_values
 
         source_infos = {item[FIELD.SOURCE_VALUE]: item.get(FIELD.SOURCE_INFO) for item in source_values}
