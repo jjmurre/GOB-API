@@ -7,13 +7,14 @@ As it is a unit test all external dependencies are mocked
 import datetime
 import importlib
 import sqlalchemy
-import sqlalchemy_filters
 
 from unittest import mock, TestCase
+from unittest.mock import MagicMock
 
 from gobapi.storage import _get_convert_for_state, filter_deleted, connect, _format_reference, _get_table, \
     _to_gob_value, _add_resolve_attrs_to_columns, _get_convert_for_table, _add_relation_dates_to_manyreference, \
-    _flatten_join_result, get_entity_refs_after, dump_entities, get_max_eventid, exec_statement
+    _flatten_join_result, get_entity_refs_after, dump_entities, get_max_eventid, exec_statement, \
+    _create_reference_link, _create_reference_view, _create_reference, _add_relations, _apply_filters
 from gobapi.auth.auth_query import AuthorizedQuery
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
@@ -383,7 +384,6 @@ def before_each_storage_test(monkeypatch):
     monkeypatch.setattr(sqlalchemy, 'Table', MockTable)
     monkeypatch.setattr(sqlalchemy.ext.automap, 'automap_base', mock_automap_base)
     monkeypatch.setattr(sqlalchemy.orm, 'scoped_session', mock_scoped_session)
-    monkeypatch.setattr(sqlalchemy_filters, 'apply_filters', lambda q, f: q)
     monkeypatch.setattr(gobapi.session, 'get_session', mock_scoped_session)
     monkeypatch.setattr(gobapi.config, 'current_api_base_path', lambda: '/gob')
 
@@ -396,6 +396,9 @@ def before_each_storage_test(monkeypatch):
     importlib.reload(gobapi.storage)
 
     monkeypatch.setattr(gobapi.storage, 'models', mock_models)
+    monkeypatch.setattr(gobapi.storage, '_apply_filters', lambda e, f, t: e)
+    monkeypatch.setattr(gobapi.storage, '_format_reference', lambda ref, cat, col, spec: {'reference': ref})
+    monkeypatch.setattr(gobapi.storage, '_add_relations', lambda q, cat, col: q)
 
     from gobapi.storage import connect
     connect()
@@ -438,11 +441,9 @@ def test_entities_with_references(monkeypatch):
             'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
-            'reference': {'bronwaarde': '1', FIELD.REFERENCE_ID: '1', '_links': {'self': {'href': '/gob/catalog/collection/1/'}}},
-            'manyreference': [
-                {'bronwaarde': '1', FIELD.REFERENCE_ID: '1', '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
-                {'bronwaarde': '2', FIELD.REFERENCE_ID: '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
-            ]
+            'reference': [{'reference': 'id'}, {'reference': 'bronwaarde'}],
+            'manyreference': [{'reference': {'id': '1', 'bronwaarde': '1'}},
+                              {'reference': {'id': '2', 'bronwaarde': '2'}}]
         }
     }], 1))
 
@@ -464,11 +465,9 @@ def test_entities_without_reference_id(monkeypatch):
             'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
-            'reference': {FIELD.REFERENCE_ID: None, 'bronwaarde': '1'},
-            'manyreference': [
-                {FIELD.REFERENCE_ID: '1', 'bronwaarde': '1' , '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
-                {FIELD.REFERENCE_ID: '2', 'bronwaarde': '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
-            ]
+            'reference': [{'reference': 'id'}, {'reference': 'bronwaarde'}],
+            'manyreference': [{'reference': {'id': '1', 'bronwaarde': '1'}},
+                              {'reference': {'id': '2', 'bronwaarde': '2'}}]
         }
     }], 1))
 
@@ -510,11 +509,8 @@ def test_reference_entities(monkeypatch):
             'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
-            'reference': {'bronwaarde': '1', FIELD.REFERENCE_ID: '1', '_links': {'self': {'href': '/gob/catalog/collection/1/'}}},
-            'manyreference': [
-                {'bronwaarde': '1', FIELD.REFERENCE_ID: '1', '_links': {'self': {'href': '/gob/catalog/collection2/1/'}}},
-                {'bronwaarde': '2', FIELD.REFERENCE_ID: '2', '_links': {'self': {'href': '/gob/catalog/collection2/2/'}}}
-            ]
+            'reference': [{'reference': 'id'}, {'reference': 'bronwaarde'}],
+            'manyreference': [{'reference': {'id': '1', 'bronwaarde': '1'}}, {'reference': {'id': '2', 'bronwaarde': '2'}}]
         }
     }], 1))
 
@@ -548,8 +544,7 @@ def test_entities_with_view(monkeypatch):
     ]
     assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') ==
            ([{'attribute': 'attribute', 'identificatie': 'identificatie',
-              '_embedded': {'is_test': {FIELD.REFERENCE_ID: '1234',
-                                        '_links': {'self': {'href': '/gob/catalog/collection/1234/'}}}}}], None))
+              '_embedded': {'is_test': {'reference': {FIELD.REFERENCE_ID: '1234'}}}}], None))
 
     # Reset the table columns
     MockTable.columns = [MockColumn('identificatie'), MockColumn('attribute'), MockColumn('meta')]
@@ -600,7 +595,8 @@ def test_entity_with_view(monkeypatch):
 
     mockEntity = MockEntity('identificatie', 'attribute', 'meta')
     MockEntities.one_entity = mockEntity
-    assert(get_entity('catalog', 'collection1', 'identificatie', 'enhanced') == {'attribute': 'attribute', 'identificatie': 'identificatie', 'meta': 'meta'})
+    assert(get_entity('catalog', 'collection1', 'identificatie', 'enhanced') ==
+           {'attribute': 'attribute', 'identificatie': 'identificatie', 'meta': 'meta'})
 
 
 def test_get_convert_for_state(monkeypatch):
@@ -645,13 +641,45 @@ class TestStorage(TestCase):
             'otherfield': 'otherfield_val',
         }
 
-        res = _format_reference(reference, 'catalog', 'collection')
+        res = _format_reference(reference, 'catalog', 'collection', {})
 
         self.assertEqual({
             'bronwaarde': 'bronwaarde_val',
             'volgnummer': 'volgnummer_val',
             'id': 'id_val',
             'otherfield': 'otherfield_val',
+            '_links': {
+                'self': {
+                    'href': '/gob/catalog/collection/id_val/'
+                }
+            }
+        }, res)
+
+    @mock.patch("gobapi.storage.get_gob_type_from_info")
+    def test_format_reference_secure_bronwaarde(self, mock_get_gob_type):
+        reference = {
+            'bronwaarde': 'bronwaarde_val',
+            'volgnummer': 'volgnummer_val',
+            'id': 'id_val',
+            'otherfield': 'otherfield_val',
+        }
+        spec = {
+            'secure': {
+                'bronwaarde': {
+                    'type': 'GOB.SecureString',
+                    'level': 4,
+                }
+            }
+        }
+
+        mock_get_gob_type.return_value.from_value.return_value.to_value = {'decrypted': 'reference'}
+        res = _format_reference(reference, 'catalog', 'collection', spec)
+
+        mock_get_gob_type.assert_called_with(spec)
+        mock_get_gob_type.return_value.from_value.assert_called_with(reference, secure=spec['secure'])
+
+        self.assertEqual({
+            'decrypted': 'reference',
             '_links': {
                 'self': {
                     'href': '/gob/catalog/collection/id_val/'
@@ -812,16 +840,15 @@ class TestStorage(TestCase):
 
         self.assertEqual(result, expected_result)
 
-    @mock.patch("gobapi.storage._add_relation_dates_to_manyreference")
     @mock.patch("gobapi.storage.Base", MockEntity)
-    def test_flatten_join_result(self, mock_add_dates):
+    def test_flatten_join_result(self):
         mock_entity = MockEntity()
+        mock_entity.some_attr = 'some value'
 
         result_dict = {
             'catalog_collection1': mock_entity,
-            'reference': [{'begin_geldigheid_relatie': 'begin', 'begin_geldigheid_relatie': 'eind'}],
-            '_private_reference': [],
-            'manyreference': [{'begin_geldigheid_relatie': 'begin', 'begin_geldigheid_relatie': 'eind'}]
+            'ref:relation_attr_name1': 'the bronwaardes list1',
+            'ref:relation_attr_name2': 'the bronwaardes list2',
         }
 
         class MockResult():
@@ -836,10 +863,9 @@ class TestStorage(TestCase):
 
         result = _flatten_join_result(mock_result)
 
-        self.assertIn('begin_geldigheid_relatie', getattr(result, 'reference'))
-        self.assertIn('eind_geldigheid_relatie', getattr(result, 'reference'))
-
-        mock_add_dates.assert_called_with(mock_entity.manyreference, result_dict['manyreference'])
+        self.assertEqual('the bronwaardes list1', getattr(result, 'relation_attr_name1'))
+        self.assertEqual('the bronwaardes list2', getattr(result, 'relation_attr_name2'))
+        self.assertEqual('some value', getattr(result, 'some_attr'))
 
     @mock.patch("gobapi.storage._Base", mock.MagicMock())
     @mock.patch("gobapi.storage.get_table_and_model")
@@ -966,3 +992,111 @@ class TestStorage(TestCase):
         result = exec_statement("any statement")
         mock_engine.execute.assert_called_with("any statement")
         self.assertEqual(result, mock_engine.execute.return_value)
+
+    def test_create_reference_link_empty(self):
+        self.assertEqual({}, _create_reference_link({}, 'cat', 'col'))
+
+    @mock.patch("gobapi.storage._to_gob_value")
+    @mock.patch("gobapi.storage._format_reference")
+    def test_create_reference_view_many(self, mock_format_reference, mock_to_gob_value):
+        mock_to_gob_value.return_value = type('', (), {
+            'to_db': ['a', 'b', 'c']
+        })
+        mock_format_reference.side_effect = lambda ref, cat, col: ref
+
+        self.assertEqual(['a', 'b', 'c'], _create_reference_view('entity', 'field', {'ref': 'cat:col', 'type': 'GOB.ManyReference'}))
+        mock_to_gob_value.assert_called_with('entity', 'field', {'ref': 'cat:col', 'type': 'GOB.ManyReference'})
+        mock_format_reference.assert_called_with('c', 'cat', 'col')
+
+    def test_create_reference_nonref(self):
+        self.assertEqual({}, _create_reference({}, 'field', {'ref': None}))
+
+    @mock.patch("gobapi.storage.GOBModel")
+    @mock.patch("gobapi.storage.get_table_and_model")
+    @mock.patch("gobapi.storage.func.json_agg")
+    @mock.patch("gobapi.storage.func.json_build_object")
+    @mock.patch("gobapi.storage.session")
+    @mock.patch("gobapi.storage.and_")
+    @mock.patch("gobapi.storage.get_relation_name", lambda m, cat, col, ref: f'{cat}_{col}_{ref}')
+    def test_add_relations(self, mock_and, mock_session, mock_json_build_object, mock_json_agg, mock_get_table_and_model, mock_model):
+        mock_src_table = type('MockSrcTable', (), {
+            '_id': 'the src id',
+            'volgnummer': 'the src volgnummer',
+        })
+        mock_rel_table = type('MockRelTable', (), {
+            'src_id': 'rel table src id',
+            'src_volgnummer': 'rel table src volgnummer',
+            'bronwaarde': 'rel table bronwaarde',
+            'dst_id': 'rel table dst id',
+        })
+        mock_model.return_value.get_collection.return_value = {
+            'has_states': False,
+            'references': ['reference1',],
+        }
+
+        mock_get_table_and_model.side_effect = lambda cat, col: {
+            'rel': {
+                'cat_col_reference1': (mock_rel_table, ''),
+            },
+            'cat': {
+                'col': (mock_src_table, '')
+            }
+        }[cat][col]
+
+        mock_query = MagicMock()
+
+        mocked_subquery = type('MockSubQuery', (), {
+            'c': type('MockC', (), {
+                'src_id': 'subquery src_id',
+                'src_volgnummer': 'subquery src_volgnummer',
+                'source_values': MagicMock(),
+            })
+        })()
+        mock_session.query.return_value.group_by.return_value.subquery.return_value = mocked_subquery
+
+        result = _add_relations(mock_query, 'cat', 'col')
+        self.assertEqual(mock_query.join.return_value.add_columns.return_value, result)
+
+        # Check build of subquery: json_agg of json_build_object
+        mock_session.query.assert_called_with(
+            'rel table src id',
+            mock_json_agg.return_value.label.return_value,
+        )
+        mock_json_agg.assert_called_with(mock_json_build_object.return_value)
+        mock_json_build_object.assert_called_with(
+            'bronwaarde', 'rel table bronwaarde',
+            'id', 'rel table dst id',
+        )
+
+        # Grouped by rel table src id
+        mock_session.query.return_value.group_by.assert_called_with('rel table src id')
+
+        # Check subquery is LEFT OUTER joined
+        mock_query.join.assert_called_with(
+            mocked_subquery,
+            mock_and.return_value,
+            isouter=True
+        )
+
+        # Check the correct label is assigned for further processing in calling function
+        mocked_subquery.c.source_values.label.assert_called_with('ref:reference1')
+
+    def test_apply_filters(self):
+        query = MagicMock()
+        model = type('MockModel', (), {
+            'attribute_to_filter': 'matching_value',
+        })
+        filters = [{'op': '==', 'field': 'attribute_to_filter', 'value': 'nonmatching_value'}]
+
+        result = _apply_filters(query, filters, model)
+        query.filter.assert_called_with(False)
+        self.assertEqual(query.filter.return_value, result)
+
+        filters = [{'op': '==', 'field': 'attribute_to_filter', 'value': 'matching_value'}]
+        result = _apply_filters(query, filters, model)
+        query.filter.assert_called_with(True)
+        self.assertEqual(query.filter.return_value, result)
+
+        filters = [{}]
+        with self.assertRaises(NotImplementedError):
+            _apply_filters(query, filters, model)

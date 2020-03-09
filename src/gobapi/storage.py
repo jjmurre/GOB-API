@@ -16,7 +16,6 @@ from sqlalchemy import create_engine, Table, MetaData, func, and_, or_, exc as s
 from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.ext.automap import automap_base
-from sqlalchemy_filters import apply_filters
 from sqlalchemy.sql import label, functions
 
 from gobcore.model import GOBModel, NotInModelException
@@ -114,8 +113,16 @@ def _create_reference_link(reference, catalog, collection):
         return {}
 
 
-def _format_reference(reference, catalog, collection):
+def _format_reference(reference, catalog, collection, spec):
     link = _create_reference_link(reference, catalog, collection)
+
+    if spec.get('secure', {}).get(FIELD.SOURCE_VALUE):
+        # Original bronwaarde was secured, decrypt if possible
+        gob_type = get_gob_type_from_info(spec)
+
+        # Actual input to from_value is not the original value, but it is a dict with a bronwaarde key, so the
+        # bronwaarde key is decrypted as the original input would have been.
+        reference = gob_type.from_value(reference, secure=spec.get('secure')).to_value
 
     return {
         **reference,
@@ -129,6 +136,22 @@ def _create_external_reference_link(entity, field, entity_catalog, entity_collec
     return {'href': f'{current_api_base_path()}/{entity_catalog}/{entity_collection}/{identificatie}/{field_path}/'}
 
 
+def _create_reference_view(entity, field, spec):
+    # Get the dict or array of dicts from a (Many)Reference field
+    embedded = _to_gob_value(entity, field, spec).to_db
+
+    if embedded is not None and spec['ref'] is not None:
+        catalog, collection = spec['ref'].split(':')
+        if spec['type'] == 'GOB.ManyReference':
+            embedded = [_format_reference(reference, catalog, collection) for reference in embedded]
+        else:
+            ref = _format_reference(embedded, catalog, collection, {})
+            gob_type = get_gob_type_from_info(spec)
+            embedded = gob_type.from_value(ref, secure=spec.get('secure'))
+
+    return embedded
+
+
 def _create_reference(entity, field, spec, entity_catalog=None, entity_collection=None):
     """Create an embedded reference
 
@@ -139,19 +162,14 @@ def _create_reference(entity, field, spec, entity_catalog=None, entity_collectio
     :param collection: The collection of the entity
     :return:
     """
-    # Get the dict or array of dicts from a (Many)Reference field
-    embedded = _to_gob_value(entity, field, spec).to_db
-
-    if embedded is not None and spec['ref'] is not None:
+    if spec['ref'] is not None:
         catalog, collection = spec['ref'].split(':')
-        if spec['type'] == 'GOB.ManyReference':
-            embedded = [_format_reference(reference, catalog, collection) for reference in embedded]
-        else:
-            ref = _format_reference(embedded, catalog, collection)
-            gob_type = get_gob_type_from_info(spec)
-            embedded = gob_type.from_value(ref, secure=spec.get('secure'))
 
-    return embedded
+        references = getattr(entity, field) or []
+        # reference is a dict of the form {'bronwaarde': X, 'id': Y}
+        return [_format_reference(reference, catalog, collection, spec) for reference in references]
+
+    return {}
 
 
 def _to_gob_value(entity, field, spec, resolve_secure=False):
@@ -221,23 +239,16 @@ def _add_relation_dates_to_manyreference(entity_reference, relation_dates):
 
 def _flatten_join_result(result):
     entity = result[0]
+
     for key, value in result._asdict().items():
         if isinstance(value, Base):
+            # First item is Base object
             continue
         else:
-            reference = getattr(entity, key)
-            # For GOB.ManyReference add the relation dates based on the bronwaarde in the item
-            if isinstance(reference, list):
-                _add_relation_dates_to_manyreference(reference, value)
-            else:
-                # For GOB.Reference only one value is expected and should be added to the result
-                try:
-                    reference.update({
-                        API_FIELD.START_VALIDITY_RELATION: value[0].get(API_FIELD.START_VALIDITY_RELATION),
-                        API_FIELD.END_VALIDITY_RELATION: value[0].get(API_FIELD.END_VALIDITY_RELATION),
-                    })
-                except IndexError:
-                    pass
+            # Other items are of the form { 'ref:ligt_in_wijk': [{'bronwaarde': X, 'id': Y}] }
+            _, reference = key.split(':')
+
+            setattr(entity, reference, value)
 
     return entity
 
@@ -252,7 +263,6 @@ def _get_convert_for_model(catalog, collection, model, meta=None, private_attrib
     :return:
     """
     def convert(result):
-
         entity = _flatten_join_result(result) if isinstance(result, tuple) else result
 
         deleted = getattr(entity, SUPPRESSED_COLUMNS, [])
@@ -353,7 +363,7 @@ def _get_convert_for_table(table, filter=None):
         # Add references to other entities
         if references:
             hal_entity['_embedded'] = {
-                v['attribute_name']: _create_reference(entity, k, v) for k, v in references.items()
+                v['attribute_name']: _create_reference_view(entity, k, v) for k, v in references.items()
             }
         return hal_entity
 
@@ -525,6 +535,64 @@ def get_max_eventid(catalog: str, collection: str) -> int:
     return query.scalar()
 
 
+def _add_relations(query, catalog_name, collection_name):
+    gob_model = GOBModel()
+    collection = gob_model.get_collection(catalog_name, collection_name)
+    has_states = collection.get('has_states', False)
+
+    src_table, _ = get_table_and_model(catalog_name, collection_name)
+
+    for reference in collection['references']:
+        rel_table, _ = get_table_and_model('rel', get_relation_name(gob_model,
+                                                                    catalog_name,
+                                                                    collection_name,
+                                                                    reference))
+
+        select_attrs = [
+            getattr(rel_table, 'src_id'),
+            getattr(rel_table, 'src_volgnummer'),
+        ] if has_states else [
+            getattr(rel_table, 'src_id'),
+        ]
+
+        subselect = session \
+            .query(
+                *select_attrs,
+                func.json_agg(
+                    func.json_build_object(
+                        FIELD.SOURCE_VALUE, getattr(rel_table, FIELD.SOURCE_VALUE),
+                        FIELD.REFERENCE_ID, getattr(rel_table, 'dst_id')
+                    )
+                ).label('source_values')
+            ).group_by(
+                *select_attrs
+            ).subquery()
+
+        join_clause = [
+            getattr(src_table, FIELD.ID) == getattr(subselect.c, 'src_id'),
+            getattr(src_table, FIELD.SEQNR) == getattr(subselect.c, 'src_volgnummer')
+        ] if has_states else [
+            getattr(src_table, FIELD.ID) == getattr(subselect.c, 'src_id'),
+        ]
+
+        query = query.join(subselect, and_(*join_clause), isouter=True) \
+            .add_columns(
+            getattr(subselect.c, 'source_values').label(f"ref:{reference}")
+        )
+
+    return query
+
+
+def _apply_filters(query, filters, model):
+    for filter in filters:
+        if filter.get('op') == '==':
+            query = query.filter(getattr(model, filter['field']) == filter['value'])
+        else:
+            raise NotImplementedError(f"Filter operator '{filter.get('op', '')}' not implemented")
+
+    return query
+
+
 def query_entities(catalog, collection, view):
     assert _Base
     session = get_session()
@@ -533,6 +601,8 @@ def query_entities(catalog, collection, view):
 
     query = session.query(table)
     query.set_catalog_collection(catalog, collection)
+
+    query = _add_relations(query, catalog, collection)
 
     # Exclude all records with date_deleted
     all_entities = filter_deleted(query, table)
@@ -547,10 +617,7 @@ def query_entities(catalog, collection, view):
     except (KeyError, TypeError) as e:
         pass
     else:
-        # When joining other tables, we need the tablename on filters to know which table to filter on
-        for filter in filters:
-            filter.update({'model': table.__tablename__})
-        all_entities = apply_filters(all_entities, filters)
+        all_entities = _apply_filters(all_entities, filters, table)
 
     if view:
         entity_convert = _get_convert_for_table(table,
@@ -657,6 +724,8 @@ def get_entity(catalog, collection, id, view=None):
     query = session.query(table).filter_by(**filter)
     query.set_catalog_collection(catalog, collection)
 
+    query = _add_relations(query, catalog,  collection)
+
     # Exclude all records with date_deleted
     entity = filter_deleted(query, table)
 
@@ -670,10 +739,7 @@ def get_entity(catalog, collection, id, view=None):
     except (KeyError, TypeError) as e:
         pass
     else:
-        # When joining other tables, we need the tablename on filters to know which table to filter on
-        for filter in filters:
-            filter.update({'model': table.__tablename__})
-        entity = apply_filters(entity, filters)
+        entity = _apply_filters(entity, filters, table)
 
     entity = entity.one_or_none()
     if view:
@@ -681,7 +747,7 @@ def get_entity(catalog, collection, id, view=None):
                                                 {**PRIVATE_META_FIELDS, **FIXED_COLUMNS})
     else:
         entity_convert = _get_convert_for_model(catalog, collection, model,
-                                                PUBLIC_META_FIELDS, private_attributes=True)
+                                                meta=PUBLIC_META_FIELDS, private_attributes=True)
 
     return entity_convert(entity) if entity else None
 
