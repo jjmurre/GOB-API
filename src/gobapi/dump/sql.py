@@ -3,6 +3,8 @@ Dump GOB
 
 Dumps of catalog collections in sql format
 """
+import re
+
 from gobcore.model import GOBModel
 
 from gobapi.auth.auth_query import Authority
@@ -97,6 +99,20 @@ def _rename_table(schema, current_name, new_name):
 DROP  TABLE IF EXISTS {new_table}     CASCADE;
 ALTER TABLE IF EXISTS {current_table} RENAME TO {new_name}
 """
+
+
+def _create_indexes(model):
+    indexes = []
+    for field, spec in get_field_specifications(model).items():
+        if field == model['entity_id'] or re.compile(r"(^|.+_)ref$").match(field) or field == FIELD.LAST_EVENT:
+            indexes.append(
+                {'field': field})  # Plain entity id, full entity id (ref) or rel. foreign key (eg dst_ref)
+        elif "GOB.Geo" in spec['type']:
+            indexes.append({'field': field, 'method': "gist"})  # Spatial index
+        elif spec['type'] == "GOB.Reference" and "ref" in get_reference_fields(spec):
+            indexes.append({'field': f"{field}_ref"})  # Foreign key index
+
+    return indexes
 
 
 def _create_index(schema, collection_name, field, method="btree"):
@@ -218,6 +234,8 @@ def sql_entities(catalog_name, collection_name, model):
     :return:
     """
     schema = catalog_name
+    indexes = _create_indexes(model)
+    create_indexes = "".join([_create_index(schema, collection_name, **index) for index in indexes])
 
     return f"""
 -- Create schema
@@ -228,4 +246,7 @@ def sql_entities(catalog_name, collection_name, model):
 
 -- Import data from csv
 {_import_csv(schema, collection_name, f"{collection_name}.csv")}
+
+-- Create indexes
+{create_indexes}
 """

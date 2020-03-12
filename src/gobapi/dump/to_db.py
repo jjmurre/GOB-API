@@ -1,4 +1,3 @@
-import re
 import traceback
 
 from sqlalchemy import create_engine
@@ -11,8 +10,9 @@ from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
 from gobcore.model.relations import get_relation_name
 
-from gobapi.dump.config import get_field_specifications, get_reference_fields, SKIP_RELATIONS, UNIQUE_ID
-from gobapi.dump.sql import _create_schema, _create_table, _rename_table, _create_index, get_max_eventid
+from gobapi.dump.config import SKIP_RELATIONS, UNIQUE_ID
+from gobapi.dump.sql import _create_schema, _create_table, _rename_table
+from gobapi.dump.sql import _create_indexes, _create_index, get_max_eventid
 from gobapi.dump.csv import csv_entities
 from gobapi.dump.csv_stream import CSVStream
 from gobapi.storage import get_entity_refs_after, get_table_and_model, get_max_eventid as get_src_max_eventid
@@ -145,17 +145,7 @@ class DbDumper:
         :param model:
         :return:
         """
-        indexes = []
-        for field, spec in get_field_specifications(model).items():
-            if field == model['entity_id'] or re.compile(r"(^|.+_)ref$").match(field):
-                indexes.append(
-                    {'field': field})  # Plain entity id, full entity id (ref) or rel. foreign key (eg dst_ref)
-            elif "GOB.Geo" in spec['type']:
-                indexes.append({'field': field, 'method': "gist"})  # Spatial index
-            elif spec['type'] == "GOB.Reference" and "ref" in get_reference_fields(spec):
-                indexes.append({'field': f"{field}_ref"})  # Foreign key index
-
-        for index in indexes:
+        for index in _create_indexes(model):
             yield f"Create index on {index['field']}\n"
             result = self.engine.execute(_create_index(self.schema, self.collection_name, **index))
             result.close()
