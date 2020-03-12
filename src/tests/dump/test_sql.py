@@ -2,7 +2,7 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 from gobapi.dump.sql import _create_table, _create_schema, _import_csv, sql_entities, get_max_eventid, \
-    delete_entities_with_source_ids, _quoted_tablename, _rename_table, _create_index, to_sql_string_value
+    delete_entities_with_source_ids, _quoted_tablename, _rename_table, _create_indexes, _create_index, to_sql_string_value
 from gobapi.dump.config import REFERENCE_FIELDS
 
 
@@ -68,7 +68,8 @@ class TestSQL(TestCase):
     @patch('gobapi.dump.sql.GOBModel', MagicMock())
     @patch('gobapi.dump.sql.get_field_order', MagicMock())
     @patch('gobapi.dump.sql.get_field_specifications')
-    def test_sql_entities(self, mock_specs):
+    @patch('gobapi.dump.sql._create_indexes')
+    def test_sql_entities(self, mock_create, mock_specs):
         mock_specs.return_value = {
             'entity_id': 'any_entity_id',
             'all_fields': {}
@@ -77,6 +78,7 @@ class TestSQL(TestCase):
         self.assertTrue("CREATE SCHEMA IF NOT EXISTS" in result)
         self.assertTrue("CREATE TABLE IF NOT EXISTS" in result)
         self.assertTrue("\COPY" in result)
+        mock_create.assert_called()
 
     def test_quoted_tablename(self):
         result = _quoted_tablename('schema', 'collection')
@@ -87,6 +89,43 @@ class TestSQL(TestCase):
         self.assertEqual('\nDROP  TABLE IF EXISTS "schema"."new_name"     CASCADE;\n'
                          'ALTER TABLE IF EXISTS "schema"."current_name" RENAME TO new_name\n',
                          result)
+
+    @patch('gobapi.dump.sql.get_reference_fields')
+    @patch('gobapi.dump.sql.get_field_specifications')
+    @patch('gobapi.dump.sql._create_index')
+    def test_create_indexes(self, mock_index, mock_specs, mock_get_reference_fields):
+        model = {
+            'entity_id': "any id"
+        }
+
+        specs = {
+            model['entity_id']: "any id value",
+            'ref': "any ref",
+            'dst_ref': "any dst ref",
+            'dst_reference': {
+                'type': "should be skipped"
+            },
+            '_ref': {
+                'type': "should be skipped"
+            },
+            'fk': {
+                'type': "GOB.Reference"
+            },
+            'any geo': {
+                'type': "GOB.Geo.whatever"
+            }
+        }
+        mock_specs.return_value = specs
+        mock_get_reference_fields.return_value = ["ref"]
+
+        result = list(_create_indexes(model))
+        self.assertEqual(len(result), len(specs.keys()) - 2)
+
+        # Do not create indexes for references to non-existing collections
+        mock_get_reference_fields.return_value = []
+
+        result = list(_create_indexes(model))
+        self.assertEqual(len(result), len(specs.keys()) - 3)
 
     def test_create_index(self):
         result = _create_index('schema', 'collection', 'field', 'method')

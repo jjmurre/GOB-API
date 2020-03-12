@@ -178,10 +178,8 @@ class TestDbDumper(TestCase):
                                        new_name=db_dumper.collection_name)
         db_dumper.engine.execute.assert_called_with(mock_rename.return_value)
 
-    @patch('gobapi.dump.to_db.get_reference_fields')
-    @patch('gobapi.dump.to_db.get_field_specifications')
-    @patch('gobapi.dump.to_db._create_index')
-    def test_create_indexes(self, mock_index, mock_specs, mock_get_reference_fields, mock_create_engine, mock_url):
+    @patch('gobapi.dump.to_db._create_indexes')
+    def test_create_indexes(self, mock_indexes, mock_create_engine, mock_url):
         db_dumper = self._get_dumper()
 
         model = {
@@ -205,18 +203,10 @@ class TestDbDumper(TestCase):
                 'type': "GOB.Geo.whatever"
             }
         }
-        mock_specs.return_value = specs
-        mock_get_reference_fields.return_value = ["ref"]
 
+        mock_indexes.return_value = [{'field': 'any field'}, {'field': 'any other field'}]
         list(db_dumper._create_indexes(model))
-        self.assertEqual(db_dumper.engine.execute.call_count, len(specs.keys()) - 2)
-
-        # Do not create indexes for references to non-existing collections
-        mock_get_reference_fields.return_value = []
-        db_dumper.engine.execute.reset_mock()
-
-        list(db_dumper._create_indexes(model))
-        self.assertEqual(db_dumper.engine.execute.call_count, len(specs.keys()) - 3)
+        self.assertEqual(db_dumper.engine.execute.call_count, 2)
 
     @patch('gobapi.dump.to_db.CSVStream')
     @patch('gobapi.dump.to_db.csv_entities', lambda x, _: x)
