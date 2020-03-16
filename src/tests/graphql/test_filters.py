@@ -395,13 +395,22 @@ class TestRelationQuery(TestCase):
             call('c', 'mocked_table'),
         ])
 
-    def test_populate_source_infos(self):
+    @patch("gobapi.graphql.filters.models")
+    def test_populate_source_infos(self, mock_models):
+        mock_table = MagicMock()
+        
         class MockSrc:
             def __init__(self, source_values):
                 self.the_attribute = source_values
 
+        class MockDst:
+            __tablename__ = mock_table
+            query = MagicMock()
+
+        mock_models['dst_table'] = mock_table
+
         # Single Reference
-        rq = RelationQuery(MockSrc({'bronwaarde': 'bw1', 'broninfo': {'bron': 'info'}}), 'dst', 'the_attribute')
+        rq = RelationQuery(MockSrc({'bronwaarde': 'bw1', 'broninfo': {'bron': 'info'}}), MockDst(), 'the_attribute')
         results = [
             type('ResultObj', (), {'bronwaarde': 'bw1', 'some_attribute': 'attr1'})
         ]
@@ -409,8 +418,15 @@ class TestRelationQuery(TestCase):
         rq.populate_source_info(results)
         self.assertEqual({'bron': 'info'}, getattr(results[0], 'broninfo'))
 
+        # Single Reference no result, with source values
+        rq = RelationQuery(MockSrc({'bronwaarde': 'bw1', 'broninfo': {'bron': 'info'}}), MockDst(), 'the_attribute')
+        results = []
+        
+        rq.populate_source_info(results)
+        self.assertEqual('bw1', getattr(results[0], 'bronwaarde'))
+
         # ManyReference
-        rq = RelationQuery(MockSrc([{'bronwaarde': 'bw1', 'broninfo': {'bron': 'info'}}]), 'dst', 'the_attribute')
+        rq = RelationQuery(MockSrc([{'bronwaarde': 'bw1', 'broninfo': {'bron': 'info'}}]), MockDst(), 'the_attribute')
         results = [
             type('ResultObj', (), {'bronwaarde': 'bw1', 'some_attribute': 'attr1'}),
             type('ResultObj', (), {'bronwaarde': 'bw2', 'some_attribute': 'attr2'})
@@ -420,8 +436,16 @@ class TestRelationQuery(TestCase):
         self.assertEqual({'bron': 'info'}, getattr(results[0], 'broninfo'))
         self.assertEqual(None, getattr(results[1], 'broninfo'))
 
+        # ManyReference no result, with source values
+        rq = RelationQuery(MockSrc([{'bronwaarde': 'bw1', 'broninfo': {'bron': 'info'}}]), MockDst(), 'the_attribute')
+        results = []
+        
+        rq.populate_source_info(results)
+        self.assertEqual('bw1', getattr(results[0], 'bronwaarde'))
+
+
         # Missing attr should pass without problems
-        rq = RelationQuery(MockSrc(None), 'dst', 'the_attribute')
+        rq = RelationQuery(MockSrc(None), MockDst(), 'the_attribute')
         results = [
             type('ResultObj', (), {'bronwaarde': 'bw1', 'some_attribute': 'attr1'}),
         ]

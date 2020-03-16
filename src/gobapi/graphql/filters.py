@@ -184,13 +184,22 @@ class RelationQuery:
                 for result in query.all()]
 
     def populate_source_info(self, results):
+        expected_type = models[self.dst_model.__tablename__]
+
         source_values = getattr(self.src_object, self.attribute_name) or []
         source_values = [source_values] if isinstance(source_values, dict) else source_values
 
         source_infos = {item[FIELD.SOURCE_VALUE]: item.get(FIELD.SOURCE_INFO) for item in source_values}
 
-        for result in results:
-            setattr(result, FIELD.SOURCE_INFO, source_infos.get(getattr(result, FIELD.SOURCE_VALUE)))
+        # If we do have source_values but no relation objects (results) create empty result to hold the source value
+        if not results:
+            for source_value in source_values:
+                dst_object = expected_type()
+                setattr(dst_object, FIELD.SOURCE_VALUE, source_value[FIELD.SOURCE_VALUE])
+                results.append(dst_object)
+        else:
+            for result in results:
+                setattr(result, FIELD.SOURCE_INFO, source_infos.get(getattr(result, FIELD.SOURCE_VALUE)))
 
     def _flatten_join_query_result(self, result, expected_type):
         """SQLAlchemy returns a named tuple when querying for extra columns besided the base model. This base model
