@@ -421,9 +421,10 @@ class TestRelationQuery(TestCase):
         # Single Reference no result, with source values
         rq = RelationQuery(MockSrc({'bronwaarde': 'bw1', 'broninfo': {'bron': 'info'}}), MockDst(), 'the_attribute')
         results = []
-        
+
         rq.populate_source_info(results)
         self.assertEqual('bw1', getattr(results[0], 'bronwaarde'))
+        self.assertEqual({'bron': 'info'}, getattr(results[0], 'broninfo'))
 
         # ManyReference
         rq = RelationQuery(MockSrc([{'bronwaarde': 'bw1', 'broninfo': {'bron': 'info'}}]), MockDst(), 'the_attribute')
@@ -439,10 +440,10 @@ class TestRelationQuery(TestCase):
         # ManyReference no result, with source values
         rq = RelationQuery(MockSrc([{'bronwaarde': 'bw1', 'broninfo': {'bron': 'info'}}]), MockDst(), 'the_attribute')
         results = []
-        
+
         rq.populate_source_info(results)
         self.assertEqual('bw1', getattr(results[0], 'bronwaarde'))
-
+        self.assertEqual({'bron': 'info'}, getattr(results[0], 'broninfo'))
 
         # Missing attr should pass without problems
         rq = RelationQuery(MockSrc(None), MockDst(), 'the_attribute')

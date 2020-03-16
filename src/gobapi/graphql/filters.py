@@ -196,6 +196,7 @@ class RelationQuery:
             for source_value in source_values:
                 dst_object = expected_type()
                 setattr(dst_object, FIELD.SOURCE_VALUE, source_value[FIELD.SOURCE_VALUE])
+                setattr(dst_object, FIELD.SOURCE_INFO, source_infos.get(source_value[FIELD.SOURCE_VALUE]))
                 results.append(dst_object)
         else:
             for result in results:
