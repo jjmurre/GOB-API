@@ -602,7 +602,9 @@ def query_entities(catalog, collection, view):
     query = session.query(table)
     query.set_catalog_collection(catalog, collection)
 
-    query = _add_relations(query, catalog, collection)
+    # Only add relations if we're querying a catalog/collection
+    if view is None:
+        query = _add_relations(query, catalog, collection)
 
     # Exclude all records with date_deleted
     all_entities = filter_deleted(query, table)
