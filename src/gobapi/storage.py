@@ -143,7 +143,7 @@ def _create_reference_view(entity, field, spec):
     if embedded is not None and spec['ref'] is not None:
         catalog, collection = spec['ref'].split(':')
         if spec['type'] == 'GOB.ManyReference':
-            embedded = [_format_reference(reference, catalog, collection) for reference in embedded]
+            embedded = [_format_reference(reference, catalog, collection, {}) for reference in embedded]
         else:
             ref = _format_reference(embedded, catalog, collection, {})
             gob_type = get_gob_type_from_info(spec)
