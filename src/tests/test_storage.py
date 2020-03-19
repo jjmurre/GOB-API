@@ -1002,11 +1002,11 @@ class TestStorage(TestCase):
         mock_to_gob_value.return_value = type('', (), {
             'to_db': ['a', 'b', 'c']
         })
-        mock_format_reference.side_effect = lambda ref, cat, col: ref
+        mock_format_reference.side_effect = lambda ref, cat, col, spec: ref
 
         self.assertEqual(['a', 'b', 'c'], _create_reference_view('entity', 'field', {'ref': 'cat:col', 'type': 'GOB.ManyReference'}))
         mock_to_gob_value.assert_called_with('entity', 'field', {'ref': 'cat:col', 'type': 'GOB.ManyReference'})
-        mock_format_reference.assert_called_with('c', 'cat', 'col')
+        mock_format_reference.assert_called_with('c', 'cat', 'col', {})
 
     def test_create_reference_nonref(self):
         self.assertEqual({}, _create_reference({}, 'field', {'ref': None}))
