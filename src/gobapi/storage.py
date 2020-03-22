@@ -498,6 +498,25 @@ def dump_entities(catalog, collection, filter=None, order_by=None):
     return entities.yield_per(10000), model
 
 
+def get_id_columns(catalog, collection):
+    """
+    Get the id columns of the given catalog and collection
+
+    :param catalog:
+    :param collection:
+    :return:
+    """
+    table, _ = get_table_and_model(catalog, collection)
+
+    if catalog == "rel":
+        # src_id, src_volgnummer, dst_id, dst_volgnummer
+        columns = [f"{src_dst}_{column}" for src_dst in ["src", "dst"] for column in ["id", FIELD.SEQNR]]
+    else:
+        # id, volgnummer
+        columns = [FIELD.ID, FIELD.SEQNR]
+    return [getattr(table, column) for column in columns if hasattr(table, column)]
+
+
 def get_entity_refs_after(catalog: str, collection: str, last_eventid: int) -> List[str]:
     """
     Returns refs of entities with _last_event greater than last_eventid
@@ -511,8 +530,12 @@ def get_entity_refs_after(catalog: str, collection: str, last_eventid: int) -> L
 
     table, _ = get_table_and_model(catalog, collection)
 
-    id = functions.concat(getattr(table, FIELD.ID), '_', getattr(table, FIELD.SEQNR)) if hasattr(table, FIELD.SEQNR) \
-        else getattr(table, FIELD.ID)
+    id_columns = []
+    for index, column in enumerate(get_id_columns(catalog, collection)):
+        if index > 0:
+            id_columns.append('_')
+        id_columns.append(column)
+    id = functions.concat(*id_columns)
     query = session.query(id).filter(getattr(table, FIELD.LAST_EVENT) > last_eventid)
     query.set_catalog_collection(catalog, collection)
     return [row[0] for row in query.all()]
