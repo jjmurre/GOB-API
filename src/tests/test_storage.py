@@ -14,7 +14,8 @@ from unittest.mock import MagicMock
 from gobapi.storage import _get_convert_for_state, filter_deleted, connect, _format_reference, _get_table, \
     _to_gob_value, _add_resolve_attrs_to_columns, _get_convert_for_table, _add_relation_dates_to_manyreference, \
     _flatten_join_result, get_entity_refs_after, dump_entities, get_max_eventid, exec_statement, \
-    _create_reference_link, _create_reference_view, _create_reference, _add_relations, _apply_filters
+    _create_reference_link, _create_reference_view, _create_reference, _add_relations, _apply_filters, \
+    get_id_columns
 from gobapi.auth.auth_query import AuthorizedQuery
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
@@ -1100,3 +1101,11 @@ class TestStorage(TestCase):
         filters = [{}]
         with self.assertRaises(NotImplementedError):
             _apply_filters(query, filters, model)
+
+    @mock.patch("gobapi.storage.get_table_and_model")
+    def test_get_id_columns(self, mock_table_and_model):
+        mock_table_and_model.return_value = MagicMock(), None
+        result = get_id_columns("rel", "any collection")
+        self.assertEqual(len(result), 4)
+        result = get_id_columns("any catalogue", "any collection")
+        self.assertEqual(len(result), 2)
