@@ -2,6 +2,7 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch, call
 
 from gobapi.dump.to_db import dump_to_db, DbDumper, _dump_relations, FIELD
+from gobapi.dump.config import UNIQUE_REL_ID
 
 
 class MockStream():
@@ -126,6 +127,16 @@ class TestDbDumper(TestCase):
         db_dumper.engine.execute.assert_called_with(
             'DELETE FROM "schema"."table_name" WHERE ref IN (\'ref\'\'1\',\'ref2\')'
         )
+
+        db_dumper.engine.execute.reset_mock()
+        db_dumper.catalog_name = "rel"
+        self.assertEqual(db_dumper.engine.execute.return_value,
+                         db_dumper._delete_dst_entities('table_name', ["ref'1", 'ref2']))
+
+        db_dumper.engine.execute.assert_called_with(
+            f'DELETE FROM "schema"."table_name" WHERE {UNIQUE_REL_ID} IN (\'ref\'\'1\',\'ref2\')'
+        )
+
 
     def test_max_eventid_dst(self, mock_create_engine, mock_url):
         db_dumper = self._get_dumper()

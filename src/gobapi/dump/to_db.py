@@ -10,7 +10,7 @@ from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
 from gobcore.model.relations import get_relation_name
 
-from gobapi.dump.config import SKIP_RELATIONS, UNIQUE_ID
+from gobapi.dump.config import SKIP_RELATIONS, UNIQUE_ID, UNIQUE_REL_ID
 from gobapi.dump.sql import _create_schema, _create_table, _rename_table
 from gobapi.dump.sql import _create_indexes, _create_index, get_max_eventid
 from gobapi.dump.csv import csv_entities
@@ -108,7 +108,11 @@ class DbDumper:
 
     def _delete_dst_entities(self, table_name: str, refs: list):
         refs_sql = ",".join([to_sql_string_value(ref) for ref in refs])
-        query = f'DELETE FROM "{self.schema}"."{table_name}" WHERE {UNIQUE_ID} IN ({refs_sql})'
+        if self.catalog_name == "rel":
+            unique_id = UNIQUE_REL_ID
+        else:
+            unique_id = UNIQUE_ID
+        query = f'DELETE FROM "{self.schema}"."{table_name}" WHERE {unique_id} IN ({refs_sql})'
 
         result = self.engine.execute(query)
         return result

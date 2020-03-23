@@ -11,6 +11,7 @@ ESCAPE_CHAR = QUOTATION_CHAR
 # Reference types definitions and conversions
 SIMPLE_ID = 'id'
 UNIQUE_ID = 'ref'
+UNIQUE_REL_ID = "CONCAT(src_ref, '_', dst_ref)"
 REFERENCE_TYPES = ["GOB.Reference", "GOB.ManyReference"]
 REFERENCE_FIELDS = [UNIQUE_ID, SIMPLE_ID, FIELD.SEQNR, FIELD.SOURCE_VALUE]
 
