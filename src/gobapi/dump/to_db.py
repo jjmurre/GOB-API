@@ -11,7 +11,7 @@ from gobcore.model.metadata import FIELD
 from gobcore.model.relations import get_relation_name
 
 from gobapi.dump.config import SKIP_RELATIONS, UNIQUE_ID, UNIQUE_REL_ID
-from gobapi.dump.sql import _create_schema, _create_table, _rename_table
+from gobapi.dump.sql import _create_schema, _create_table, _rename_table, _delete_table
 from gobapi.dump.sql import _create_indexes, _create_index, get_max_eventid
 from gobapi.dump.csv import csv_entities
 from gobapi.dump.csv_stream import CSVStream
@@ -90,11 +90,21 @@ class DbDumper:
         """
         return self._get_columns(table_a) == self._get_columns(table_b)
 
-    def _copy_table_into(self, src_table: str, dst_table: str) -> None:
+    def _copy_table_into(self, src_table: str, dst_table: str, ids_to_skip) -> None:
         """Copies rows of src_table into dst_table
 
         """
-        query = f'INSERT INTO "{self.schema}"."{dst_table}" SELECT * FROM "{self.schema}"."{src_table}"'
+        where = ""
+        if ids_to_skip:
+            # Only copy the rows that have not changed
+            if self.catalog_name == "rel":
+                unique_id = UNIQUE_REL_ID
+            else:
+                unique_id = UNIQUE_ID
+            ids_to_skip_sql = ",".join([to_sql_string_value(id) for id in ids_to_skip])
+            where = f"WHERE {unique_id} NOT IN ({ids_to_skip_sql})"
+
+        query = f'INSERT INTO "{self.schema}"."{dst_table}" SELECT * FROM "{self.schema}"."{src_table}" {where}'
         self.engine.execute(query)
 
     def _get_max_eventid(self, table_name: str):
@@ -105,17 +115,6 @@ class DbDumper:
         max_eventid = next(result)[0]
 
         return max_eventid
-
-    def _delete_dst_entities(self, table_name: str, refs: list):
-        refs_sql = ",".join([to_sql_string_value(ref) for ref in refs])
-        if self.catalog_name == "rel":
-            unique_id = UNIQUE_REL_ID
-        else:
-            unique_id = UNIQUE_ID
-        query = f'DELETE FROM "{self.schema}"."{table_name}" WHERE {unique_id} IN ({refs_sql})'
-
-        result = self.engine.execute(query)
-        return result
 
     def _max_eventid_dst(self):
         if self._table_exists(self.collection_name):
@@ -140,6 +139,11 @@ class DbDumper:
         yield f"Rename {self.tmp_collection_name} to {self.collection_name}\n"
         rename_table = _rename_table(self.schema, current_name=self.tmp_collection_name, new_name=self.collection_name)
         result = self.engine.execute(rename_table)
+        result.close()
+
+    def _delete_tmp_table(self):
+        delete_table = _delete_table(self.schema, self.tmp_collection_name)
+        result = self.engine.execute(delete_table)
         result.close()
 
     def _create_indexes(self, model):
@@ -204,23 +208,30 @@ class DbDumper:
             dst_max_eventid = None
 
         if dst_max_eventid is not None and self._table_columns_equal(self.collection_name, self.tmp_collection_name):
-            yield "Have earlier dump and columns have not changed. Do sync dump\n"
+            yield "Have earlier dump and columns have not changed\n"
             # Already have records in destination table, and model has not changed. Do sync dump
 
-            self._copy_table_into(self.collection_name, self.tmp_collection_name)
-
+            # Get all source ids that have been updated or added lately
             source_ids_to_update = get_entity_refs_after(self.catalog_name, self.collection_name, dst_max_eventid)
 
             if source_ids_to_update:
-                yield f"Delete {len(source_ids_to_update)} entities from dst database that are going to be updated\n"
-                self._delete_dst_entities(self.tmp_collection_name, source_ids_to_update)
+                # Sync outdated or new items
+                yield f"Collection is behind, sync {len(source_ids_to_update)} items\n"
 
-            entities, model = dump_entities(
-                self.catalog_name,
-                self.collection_name,
-                filter=self._filter_last_events_lambda(dst_max_eventid),
-                order_by=FIELD.LAST_EVENT
-            )
+                # Copy existing data in tmp table and skip all outdated entities
+                self._copy_table_into(self.collection_name, self.tmp_collection_name, source_ids_to_update)
+
+                entities, model = dump_entities(
+                    self.catalog_name,
+                    self.collection_name,
+                    filter=self._filter_last_events_lambda(dst_max_eventid),
+                    order_by=FIELD.LAST_EVENT
+                )
+            else:
+                # Nothing to sync
+                yield f"Collection is up-to-date, no actions necessary\n"
+                self._delete_tmp_table()
+                return
         else:
             yield "Do full dump\n"
             entities, model = dump_entities(self.catalog_name, self.collection_name, order_by=FIELD.LAST_EVENT)
