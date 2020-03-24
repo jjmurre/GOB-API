@@ -2,7 +2,7 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 from gobapi.dump.sql import _create_table, _create_schema, _import_csv, sql_entities, get_max_eventid, \
-    delete_entities_with_source_ids, _quoted_tablename, _rename_table, _create_indexes, _create_index, to_sql_string_value
+    delete_entities_with_source_ids, _quoted_tablename, _rename_table, _delete_table, _create_indexes, _create_index, to_sql_string_value
 from gobapi.dump.config import REFERENCE_FIELDS
 
 
@@ -83,6 +83,11 @@ class TestSQL(TestCase):
     def test_quoted_tablename(self):
         result = _quoted_tablename('schema', 'collection')
         self.assertEqual('"schema"."collection"', result)
+
+    def test_delete_table(self):
+        result = _delete_table('any schema', 'any name')
+        self.assertEqual('DROP TABLE IF EXISTS "any schema"."any name" CASCADE',
+                         result)
 
     def test_rename_table(self):
         result = _rename_table('schema', 'current_name', 'new_name')

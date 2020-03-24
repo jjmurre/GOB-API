@@ -99,9 +99,20 @@ class TestDbDumper(TestCase):
         db_dumper = self._get_dumper()
         db_dumper.engine.execute = MagicMock()
         db_dumper.schema = 'schema'
-        db_dumper._copy_table_into('src_table', 'dst_table')
+        db_dumper._copy_table_into('src_table', 'dst_table', [])
         db_dumper.engine.execute.assert_called_with(
-            'INSERT INTO "schema"."dst_table" SELECT * FROM "schema"."src_table"'
+            'INSERT INTO "schema"."dst_table" SELECT * FROM "schema"."src_table" '
+        )
+
+        db_dumper._copy_table_into('src_table', 'dst_table', ['a', 'b'])
+        db_dumper.engine.execute.assert_called_with(
+            'INSERT INTO "schema"."dst_table" SELECT * FROM "schema"."src_table" WHERE ref NOT IN (\'a\',\'b\')'
+        )
+
+        db_dumper.catalog_name = "rel"
+        db_dumper._copy_table_into('src_table', 'dst_table', ['a', 'b'])
+        db_dumper.engine.execute.assert_called_with(
+            'INSERT INTO "schema"."dst_table" SELECT * FROM "schema"."src_table" WHERE CONCAT(src_ref, \'_\', dst_ref) NOT IN (\'a\',\'b\')'
         )
 
     @patch('gobapi.dump.to_db.get_max_eventid')
@@ -115,28 +126,6 @@ class TestDbDumper(TestCase):
         self.assertEqual('event_id', db_dumper._get_max_eventid('table name'))
         mock_max_eventid.assert_called_with('schema', 'table name')
         db_dumper.engine.execute.assert_called_with('the maxeventid query')
-
-    def test_delete_dst_entities(self, mock_create_engine, mock_url):
-        db_dumper = self._get_dumper()
-        db_dumper.schema = 'schema'
-        db_dumper.engine.execute = MagicMock()
-
-        self.assertEqual(db_dumper.engine.execute.return_value,
-                         db_dumper._delete_dst_entities('table_name', ["ref'1", 'ref2']))
-
-        db_dumper.engine.execute.assert_called_with(
-            'DELETE FROM "schema"."table_name" WHERE ref IN (\'ref\'\'1\',\'ref2\')'
-        )
-
-        db_dumper.engine.execute.reset_mock()
-        db_dumper.catalog_name = "rel"
-        self.assertEqual(db_dumper.engine.execute.return_value,
-                         db_dumper._delete_dst_entities('table_name', ["ref'1", 'ref2']))
-
-        db_dumper.engine.execute.assert_called_with(
-            f'DELETE FROM "schema"."table_name" WHERE {UNIQUE_REL_ID} IN (\'ref\'\'1\',\'ref2\')'
-        )
-
 
     def test_max_eventid_dst(self, mock_create_engine, mock_url):
         db_dumper = self._get_dumper()
@@ -188,6 +177,15 @@ class TestDbDumper(TestCase):
                                        current_name=db_dumper.tmp_collection_name,
                                        new_name=db_dumper.collection_name)
         db_dumper.engine.execute.assert_called_with(mock_rename.return_value)
+
+    @patch("gobapi.dump.to_db._delete_table")
+    def test_delete_tmp_table(self, mock_delete, mock_create_engine, mock_url):
+        db_dumper = self._get_dumper()
+        db_dumper._delete_tmp_table()
+
+        mock_delete.assert_called_with(db_dumper.schema,
+                                       db_dumper.tmp_collection_name)
+        db_dumper.engine.execute.assert_called_with(mock_delete.return_value)
 
     @patch('gobapi.dump.to_db._create_indexes')
     def test_create_indexes(self, mock_indexes, mock_create_engine, mock_url):
@@ -397,8 +395,7 @@ class TestDbDumper(TestCase):
 
         result = list(db_dumper.dump_to_db())
         db_dumper._table_columns_equal.assert_called_with(db_dumper.collection_name, db_dumper.tmp_collection_name)
-        db_dumper._copy_table_into.assert_called_with(db_dumper.collection_name, db_dumper.tmp_collection_name)
-        db_dumper._delete_dst_entities.assert_called_with(db_dumper.tmp_collection_name, mock_get_entity_refs.return_value)
+        db_dumper._copy_table_into.assert_called_with(db_dumper.collection_name, db_dumper.tmp_collection_name, ['ref1', 'ref2', 'ref3'])
 
         mock_dump_entities.assert_called_with(db_dumper.catalog_name, db_dumper.collection_name,
                                               filter=db_dumper._filter_last_events_lambda.return_value,
@@ -415,13 +412,11 @@ class TestDbDumper(TestCase):
         db_dumper._table_columns_equal = MagicMock(return_value=True)
         db_dumper._max_eventid_dst = MagicMock(return_value='MAX_EVENTID')
         db_dumper._filter_last_events_lambda = MagicMock()
+        db_dumper._delete_tmp_table = MagicMock()
 
-        result = list(db_dumper.dump_to_db())
-        db_dumper._delete_dst_entities.assert_not_called()
-
-        mock_dump_entities.assert_called_with(db_dumper.catalog_name, db_dumper.collection_name,
-                                              filter=db_dumper._filter_last_events_lambda.return_value,
-                                              order_by=FIELD.LAST_EVENT)
+        list(db_dumper.dump_to_db())
+        mock_dump_entities.assert_not_called()
+        db_dumper._delete_tmp_table.assert_called()
 
 
 @patch('gobapi.dump.to_db.DbDumper')

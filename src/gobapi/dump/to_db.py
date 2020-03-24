@@ -104,10 +104,7 @@ class DbDumper:
             ids_to_skip_sql = ",".join([to_sql_string_value(id) for id in ids_to_skip])
             where = f"WHERE {unique_id} NOT IN ({ids_to_skip_sql})"
 
-        query = f'''
-INSERT INTO "{self.schema}"."{dst_table}"
-SELECT * FROM "{self.schema}"."{src_table}" {where}
-'''
+        query = f'INSERT INTO "{self.schema}"."{dst_table}" SELECT * FROM "{self.schema}"."{src_table}" {where}'
         self.engine.execute(query)
 
     def _get_max_eventid(self, table_name: str):
@@ -118,17 +115,6 @@ SELECT * FROM "{self.schema}"."{src_table}" {where}
         max_eventid = next(result)[0]
 
         return max_eventid
-
-    def _delete_dst_entities(self, table_name: str, refs: list):
-        refs_sql = ",".join([to_sql_string_value(ref) for ref in refs])
-        if self.catalog_name == "rel":
-            unique_id = UNIQUE_REL_ID
-        else:
-            unique_id = UNIQUE_ID
-        query = f'DELETE FROM "{self.schema}"."{table_name}" WHERE {unique_id} IN ({refs_sql})'
-
-        result = self.engine.execute(query)
-        return result
 
     def _max_eventid_dst(self):
         if self._table_exists(self.collection_name):
