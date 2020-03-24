@@ -84,6 +84,18 @@ def _quoted_tablename(schema, table_name):
     return f"{_quote(schema)}.{_quote(table_name)}"
 
 
+def _delete_table(schema, name):
+    """
+    Delete table with the given name in the given schema
+
+    :param schema:
+    :param name:
+    :return:
+    """
+    table = _quoted_tablename(schema, name)
+    return f"DROP TABLE IF EXISTS {table} CASCADE"
+
+
 def _rename_table(schema, current_name, new_name):
     """
     Rename table with the given current_name in the given schema to new_name in the same schema
