@@ -587,6 +587,8 @@ def _add_relations(query, catalog_name, collection_name):
                         FIELD.REFERENCE_ID, getattr(rel_table, 'dst_id')
                     )
                 ).label('source_values')
+            ).filter(
+                getattr(rel_table, FIELD.DATE_DELETED).is_(None)
             ).group_by(
                 *select_attrs
             ).subquery()

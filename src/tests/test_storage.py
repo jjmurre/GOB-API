@@ -1029,6 +1029,9 @@ class TestStorage(TestCase):
             'src_volgnummer': 'rel table src volgnummer',
             'bronwaarde': 'rel table bronwaarde',
             'dst_id': 'rel table dst id',
+            '_date_deleted': type('MockIs', (), {
+                'is_': lambda x: 'is_date_deleted_' + str(x)
+            })
         })
         mock_model.return_value.get_collection.return_value = {
             'has_states': False,
@@ -1053,7 +1056,7 @@ class TestStorage(TestCase):
                 'source_values': MagicMock(),
             })
         })()
-        mock_session.query.return_value.group_by.return_value.subquery.return_value = mocked_subquery
+        mock_session.query.return_value.filter.return_value.group_by.return_value.subquery.return_value = mocked_subquery
 
         result = _add_relations(mock_query, 'cat', 'col')
         self.assertEqual(mock_query.join.return_value.add_columns.return_value, result)
@@ -1069,8 +1072,11 @@ class TestStorage(TestCase):
             'id', 'rel table dst id',
         )
 
+        # Filtered by _date_deleted
+        mock_session.query.return_value.filter.assert_called_with('is_date_deleted_None')
+
         # Grouped by rel table src id
-        mock_session.query.return_value.group_by.assert_called_with('rel table src id')
+        mock_session.query.return_value.filter.return_value.group_by.assert_called_with('rel table src id')
 
         # Check subquery is LEFT OUTER joined
         mock_query.join.assert_called_with(
