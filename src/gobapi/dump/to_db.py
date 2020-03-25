@@ -23,6 +23,8 @@ STREAM_PER = 10000              # Stream per STREAM_PER lines
 COMMIT_PER = 10 * STREAM_PER    # Commit once per COMMIT_PER lines
 BUFFER_PER = 50000              # Copy read buffer size
 
+MAX_SYNC_ITEMS = 500000         # Maximum number of items to sync before switching to full dump
+
 
 class DbDumper:
     """Dumps given collection and possibly relations owned by the collection to the database passed in config.
@@ -208,37 +210,69 @@ class DbDumper:
             dst_max_eventid = None
 
         if dst_max_eventid is not None and self._table_columns_equal(self.collection_name, self.tmp_collection_name):
-            yield "Have earlier dump and columns have not changed\n"
             # Already have records in destination table, and model has not changed. Do sync dump
+            yield "Have earlier dump and columns have not changed\n"
 
             # Get all source ids that have been updated or added lately
             source_ids_to_update = get_entity_refs_after(self.catalog_name, self.collection_name, dst_max_eventid)
-
             if source_ids_to_update:
-                # Sync outdated or new items
-                yield f"Collection is behind, sync {len(source_ids_to_update)} items\n"
-
-                # Copy existing data in tmp table and skip all outdated entities
-                self._copy_table_into(self.collection_name, self.tmp_collection_name, source_ids_to_update)
-
-                entities, model = dump_entities(
-                    self.catalog_name,
-                    self.collection_name,
-                    filter=self._filter_last_events_lambda(dst_max_eventid),
-                    order_by=FIELD.LAST_EVENT
-                )
+                # Sync updated and new entities
+                entities, model = yield from self._sync_dump(dst_max_eventid, source_ids_to_update)
             else:
                 # Nothing to sync
                 yield f"Collection is up-to-date, no actions necessary\n"
                 self._delete_tmp_table()
                 return
         else:
-            yield "Do full dump\n"
-            entities, model = dump_entities(self.catalog_name, self.collection_name, order_by=FIELD.LAST_EVENT)
+            entities, model = yield from self._full_dump()
 
         yield from self._dump_entities_to_table(entities, model)
         yield from self._rename_tmp_table()
         yield from self._create_indexes(model)
+
+    def _dump_entities(self, **kwargs):
+        """
+        Dump entities ordered by last_event ascending
+
+        Optionally provide a filter argument to partial dump entities
+        :param kwargs:
+        :return:
+        """
+        return dump_entities(self.catalog_name, self.collection_name, **kwargs, order_by=FIELD.LAST_EVENT)
+
+    def _full_dump(self):
+        """
+        Full copy of the source data, ordered by last_event
+        :return:
+        """
+        yield "Do full dump\n"
+        return self._dump_entities()
+
+    def _sync_dump(self, dst_max_eventid, source_ids_to_update):
+        """
+        Sync data with updated and new source data.
+        If too many items need to be synced, fallback to full dump
+
+        :param dst_max_eventid:
+        :param source_ids_to_update:
+        :return:
+        """
+        nr_items_to_sync = len(source_ids_to_update)
+        if nr_items_to_sync > MAX_SYNC_ITEMS:
+            yield f"Collection is too far behind: {nr_items_to_sync}, do full dump\n"
+            # Add all items
+            filter = None
+        else:
+            # Sync outdated or new items
+            yield f"Collection is behind, sync {len(source_ids_to_update)} items\n"
+
+            # Copy existing data in tmp table and skip all outdated entities
+            self._copy_table_into(self.collection_name, self.tmp_collection_name, source_ids_to_update)
+
+            # Add new and updated entities
+            filter = self._filter_last_events_lambda(dst_max_eventid)
+
+        return self._dump_entities(filter=filter)
 
 
 def _dump_relations(catalog_name, collection_name, config):

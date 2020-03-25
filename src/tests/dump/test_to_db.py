@@ -1,7 +1,7 @@
 from unittest import TestCase
 from unittest.mock import MagicMock, patch, call
 
-from gobapi.dump.to_db import dump_to_db, DbDumper, _dump_relations, FIELD
+from gobapi.dump.to_db import dump_to_db, DbDumper, _dump_relations, FIELD, MAX_SYNC_ITEMS
 from gobapi.dump.config import UNIQUE_REL_ID
 
 
@@ -417,6 +417,28 @@ class TestDbDumper(TestCase):
         list(db_dumper.dump_to_db())
         mock_dump_entities.assert_not_called()
         db_dumper._delete_tmp_table.assert_called()
+
+    def test_sync_dump1(self, mock_create_engine, mock_url):
+        db_dumper = self._get_dumper_for_dump_to_db()
+
+        db_dumper._dump_entities = MagicMock()
+        db_dumper._copy_table_into = MagicMock()
+        db_dumper._filter_last_events_lambda = MagicMock()
+
+        dst_max_eventid = 'any eventid'
+
+        source_ids_to_update = ['any source id'] * (MAX_SYNC_ITEMS + 1)
+        list(db_dumper._sync_dump(dst_max_eventid, source_ids_to_update))
+        db_dumper._copy_table_into.assert_not_called()
+        db_dumper._dump_entities.assert_called_with(filter=None)
+
+        source_ids_to_update = ['any source id']
+        list(db_dumper._sync_dump(dst_max_eventid, source_ids_to_update))
+        db_dumper._copy_table_into.assert_called_with(
+            db_dumper.collection_name,
+            db_dumper.tmp_collection_name,
+            source_ids_to_update)
+        db_dumper._dump_entities.assert_called_with(filter=db_dumper._filter_last_events_lambda.return_value)
 
 
 @patch('gobapi.dump.to_db.DbDumper')
