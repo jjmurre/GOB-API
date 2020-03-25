@@ -418,7 +418,7 @@ class TestDbDumper(TestCase):
         mock_dump_entities.assert_not_called()
         db_dumper._delete_tmp_table.assert_called()
 
-    def test_sync_dump1(self, mock_create_engine, mock_url):
+    def test_sync_dump(self, mock_create_engine, mock_url):
         db_dumper = self._get_dumper_for_dump_to_db()
 
         db_dumper._dump_entities = MagicMock()
@@ -432,7 +432,7 @@ class TestDbDumper(TestCase):
         db_dumper._copy_table_into.assert_not_called()
         db_dumper._dump_entities.assert_called_with(filter=None)
 
-        source_ids_to_update = ['any source id']
+        source_ids_to_update = ['any source id'] * MAX_SYNC_ITEMS
         list(db_dumper._sync_dump(dst_max_eventid, source_ids_to_update))
         db_dumper._copy_table_into.assert_called_with(
             db_dumper.collection_name,
