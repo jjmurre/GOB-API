@@ -427,7 +427,7 @@ def get_app():
         (PUBLIC, '/<catalog_name>/<collection_name>/', _collection, ['GET']),
         (PUBLIC, '/<catalog_name>/<collection_name>/<entity_id>/', _entity, ['GET']),
         (PUBLIC, '/<catalog_name>/<collection_name>/<entity_id>/<reference_path>/', _reference_collection, ['GET']),
-        (PUBLIC, '/cleartests/', _clear_tests, ['GET']),
+        (PUBLIC, '/alltests/', _clear_tests, ['DELETE']),
         (PUBLIC, '/toestanden/', _states, ['GET']),
         (PUBLIC, '/graphql/', graphql, ['GET', 'POST']),
         (PUBLIC, '/graphql/streaming/', graphql_streaming.entrypoint, ['POST']),
