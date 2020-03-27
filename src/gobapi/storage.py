@@ -728,6 +728,65 @@ def get_collection_states(catalog, collection):
     return states
 
 
+def clear_test_dbs():
+    """
+    Clear the GOB test databases
+
+    :return:
+    """
+    model = GOBModel()
+
+    # Test data is contained in the test_catalog and relation catalog
+    test_catalog = "test_catalogue"
+    rel_catalog = "rel"
+
+    # Collect names of all test tables and entities
+    tables = []
+    test_entities = []
+    rel_entities = []
+
+    for collection_name in model.get_collections(test_catalog):
+        collection = model.get_collection(test_catalog, collection_name)
+        tables.append(model.get_table_name(test_catalog, collection_name))
+        test_entities.append(collection_name)
+
+        refs = {
+            **collection['references'],
+            **collection['very_many_references']
+        }
+        for ref in refs:
+            ref_name = get_relation_name(model, test_catalog, collection_name, ref)
+            tables.append(model.get_table_name(rel_catalog, ref_name))
+            rel_entities.append(ref_name)
+
+    # Nicely format the SQL statement
+    indent = ",\n" + ' ' * 17
+    table_length = max([len(table) for table in tables])
+
+    # Provide for SQL statements
+    truncate_tables = ";\n".join([f"TRUNCATE TABLE {table:{table_length}} CASCADE" for table in tables])
+    test_entity_list = indent.join([f"'{e}'" for e in test_entities])
+    rel_entity_list = indent.join([f"'{e}'" for e in rel_entities])
+
+    # Construct SQL statement
+    statement = f"""
+-- Truncate test tables
+{truncate_tables};
+
+-- Delete test entity events
+DELETE
+FROM events
+WHERE catalogue = '{test_catalog}'
+  AND entity IN ({test_entity_list});
+
+-- Delete test relation events
+DELETE FROM events
+WHERE catalogue = '{rel_catalog}'
+  AND entity IN ({rel_entity_list});
+"""
+    exec_statement(statement)
+
+
 def get_entity(catalog, collection, id, view=None):
     """Entity
 

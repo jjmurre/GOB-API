@@ -9,7 +9,7 @@ import json
 from unittest import TestCase
 from unittest.mock import patch
 
-from gobapi.api import _collection, _reference_collection
+from gobapi.api import _collection, _reference_collection, _clear_tests
 
 def noop(*args):
     pass
@@ -501,3 +501,11 @@ class TestStreams(TestCase):
         }
         result = _reference_collection('catalog', 'collection', 'reference', '1234')
         mock_ndjson.assert_called()
+
+class TestClearTest(TestCase):
+
+    @patch("gobapi.api.clear_test_dbs")
+    def test_clear_test_dbs(self, mock_clear_test_dbs):
+        result = _clear_tests()
+        mock_clear_test_dbs.assert_called()
+        self.assertEqual(result, ('', 200))
