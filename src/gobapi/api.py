@@ -30,7 +30,8 @@ from gobapi.worker.response import WorkerResponse
 from gobapi.worker.api import worker_result, worker_status, worker_end
 
 from gobapi.states import get_states
-from gobapi.storage import connect, get_entities, get_entity, query_entities, dump_entities, query_reference_entities
+from gobapi.storage import connect, get_entities, get_entity, query_entities, dump_entities, query_reference_entities,\
+    clear_test_dbs
 from gobapi.dbinfo.api import get_db_info
 
 from gobapi.graphql.schema import schema
@@ -134,6 +135,11 @@ def _entities(catalog_name, collection_name, page, page_size, view=None):
                'next': get_page_ref(page + 1, num_pages),
                'previous': get_page_ref(page - 1, num_pages)
            }
+
+
+def _clear_tests():
+    clear_test_dbs()
+    return "", 200
 
 
 def _reference_entities(src_catalog_name, src_collection_name, reference_name, src_id, page, page_size):
@@ -421,6 +427,7 @@ def get_app():
         (PUBLIC, '/<catalog_name>/<collection_name>/', _collection, ['GET']),
         (PUBLIC, '/<catalog_name>/<collection_name>/<entity_id>/', _entity, ['GET']),
         (PUBLIC, '/<catalog_name>/<collection_name>/<entity_id>/<reference_path>/', _reference_collection, ['GET']),
+        (PUBLIC, '/alltests/', _clear_tests, ['DELETE']),
         (PUBLIC, '/toestanden/', _states, ['GET']),
         (PUBLIC, '/graphql/', graphql, ['GET', 'POST']),
         (PUBLIC, '/graphql/streaming/', graphql_streaming.entrypoint, ['POST']),

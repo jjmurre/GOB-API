@@ -15,7 +15,7 @@ from gobapi.storage import _get_convert_for_state, filter_deleted, connect, _for
     _to_gob_value, _add_resolve_attrs_to_columns, _get_convert_for_table, _add_relation_dates_to_manyreference, \
     _flatten_join_result, get_entity_refs_after, dump_entities, get_max_eventid, exec_statement, \
     _create_reference_link, _create_reference_view, _create_reference, _add_relations, _apply_filters, \
-    get_id_columns
+    get_id_columns, clear_test_dbs
 from gobapi.auth.auth_query import AuthorizedQuery
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
@@ -1115,3 +1115,45 @@ class TestStorage(TestCase):
         self.assertEqual(len(result), 4)
         result = get_id_columns("any catalogue", "any collection")
         self.assertEqual(len(result), 2)
+
+    @mock.patch("gobapi.storage.get_relation_name", lambda model, cat, col, ref: f"{col}_{ref}")
+    @mock.patch("gobapi.storage.GOBModel")
+    @mock.patch("gobapi.storage.exec_statement")
+    def test_clear_test_dbs(self, mock_exec, mock_gob_model):
+        mock_model = MagicMock()
+        mock_gob_model.return_value = mock_model
+        mock_model.get_collections.return_value = ["col1", "col2"]
+        mock_model.get_collection.return_value = {
+            'references': {
+                'ref1': None,
+            },
+            'very_many_references': {
+                'ref2': None
+            }
+        }
+        mock_model.get_table_name.side_effect = lambda cat, col: f"{cat}_{col}"
+        clear_test_dbs()
+        mock_exec.assert_called_with("""
+-- Truncate test tables
+TRUNCATE TABLE test_catalogue_col1 CASCADE;
+TRUNCATE TABLE rel_col1_ref1       CASCADE;
+TRUNCATE TABLE rel_col1_ref2       CASCADE;
+TRUNCATE TABLE test_catalogue_col2 CASCADE;
+TRUNCATE TABLE rel_col2_ref1       CASCADE;
+TRUNCATE TABLE rel_col2_ref2       CASCADE;
+
+-- Delete test entity events
+DELETE
+FROM events
+WHERE catalogue = 'test_catalogue'
+  AND entity IN ('col1',
+                 'col2');
+
+-- Delete test relation events
+DELETE FROM events
+WHERE catalogue = 'rel'
+  AND entity IN ('col1_ref1',
+                 'col1_ref2',
+                 'col2_ref1',
+                 'col2_ref2');
+""")
