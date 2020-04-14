@@ -442,7 +442,7 @@ def test_entities_with_references(monkeypatch):
             'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
-            'reference': [{'reference': 'id'}, {'reference': 'bronwaarde'}],
+            'reference': [{'reference': {'bronwaarde': '1', 'id': '1'}}],
             'manyreference': [{'reference': {'id': '1', 'bronwaarde': '1'}},
                               {'reference': {'id': '2', 'bronwaarde': '2'}}]
         }
@@ -466,7 +466,7 @@ def test_entities_without_reference_id(monkeypatch):
             'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
-            'reference': [{'reference': 'id'}, {'reference': 'bronwaarde'}],
+            'reference': [{'reference': {'bronwaarde': '1', 'id': None}}],
             'manyreference': [{'reference': {'id': '1', 'bronwaarde': '1'}},
                               {'reference': {'id': '2', 'bronwaarde': '2'}}]
         }
@@ -510,7 +510,7 @@ def test_reference_entities(monkeypatch):
             'self': {'href': '/gob/catalog/collection2/1/'}
         },
         '_embedded': {
-            'reference': [{'reference': 'id'}, {'reference': 'bronwaarde'}],
+            'reference': [{'reference': {'bronwaarde': '1', 'id': '1'}}],
             'manyreference': [{'reference': {'id': '1', 'bronwaarde': '1'}}, {'reference': {'id': '2', 'bronwaarde': '2'}}]
         }
     }], 1))
@@ -1018,7 +1018,7 @@ class TestStorage(TestCase):
     @mock.patch("gobapi.storage.func.json_build_object")
     @mock.patch("gobapi.storage.session")
     @mock.patch("gobapi.storage.and_")
-    @mock.patch("gobapi.storage.get_relation_name", lambda m, cat, col, ref: f'{cat}_{col}_{ref}')
+    @mock.patch("gobapi.storage.get_relation_name", lambda m, cat, col, ref: None if ref is None else f'{cat}_{col}_{ref}')
     def test_add_relations(self, mock_and, mock_session, mock_json_build_object, mock_json_agg, mock_get_table_and_model, mock_model):
         mock_src_table = type('MockSrcTable', (), {
             '_id': 'the src id',
@@ -1035,7 +1035,7 @@ class TestStorage(TestCase):
         })
         mock_model.return_value.get_collection.return_value = {
             'has_states': False,
-            'references': ['reference1',],
+            'references': ['reference1', None],  # None triggers None relation name in mocked function
         }
 
         mock_get_table_and_model.side_effect = lambda cat, col: {
