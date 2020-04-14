@@ -166,6 +166,10 @@ def _create_reference(entity, field, spec, entity_catalog=None, entity_collectio
         catalog, collection = spec['ref'].split(':')
 
         references = getattr(entity, field) or []
+
+        if isinstance(references, dict):
+            references = [references]
+
         # reference is a dict of the form {'bronwaarde': X, 'id': Y}
         return [_format_reference(reference, catalog, collection, spec) for reference in references]
 
@@ -566,10 +570,12 @@ def _add_relations(query, catalog_name, collection_name):
     src_table, _ = get_table_and_model(catalog_name, collection_name)
 
     for reference in collection['references']:
-        rel_table, _ = get_table_and_model('rel', get_relation_name(gob_model,
-                                                                    catalog_name,
-                                                                    collection_name,
-                                                                    reference))
+        relation_name = get_relation_name(gob_model, catalog_name, collection_name, reference)
+
+        if not relation_name:
+            continue
+
+        rel_table, _ = get_table_and_model('rel', relation_name)
 
         select_attrs = [
             getattr(rel_table, 'src_id'),
