@@ -17,6 +17,7 @@ def noop(*args):
 
 class MockFlask:
     running = False
+    config = {}
 
     def __init__(self, name):
         pass
@@ -111,6 +112,9 @@ def before_each_api_test(monkeypatch):
     importlib.reload(gobapi.config)
     # override config so we isolate .run()
 
+    import flask_audit_log.middleware
+    importlib.reload(flask_audit_log.middleware)
+
     global catalogs, catalog
     global collections, collection
     global entities, entity
@@ -142,6 +146,11 @@ def before_each_api_test(monkeypatch):
     monkeypatch.setattr(gobapi.states, 'get_states', lambda collections, offset, limit: ([{'id': '1', 'attribute': 'attribute'}], 1))
 
     monkeypatch.setattr(gobcore.model, 'GOBModel', MockGOBModel)
+
+    monkeypatch.setattr(
+        flask_audit_log.middleware, 'AuditLogMiddleware',
+        type('MockAuditLogMiddleware', (), {'__init__': lambda *args: None})
+    )
 
     import gobapi.api
     importlib.reload(gobapi.api)
