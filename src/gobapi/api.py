@@ -15,6 +15,8 @@ from flask_graphql import GraphQLView
 from flask import Flask, request, Response
 from flask_cors import CORS
 
+from flask_audit_log.middleware import AuditLogMiddleware
+
 from gobcore.model import GOBModel
 from gobcore.views import GOBViews
 
@@ -414,6 +416,16 @@ def get_app():
 
     app = Flask(__name__)
     CORS(app)
+
+    # Exclude all non-secure urls fot the audit log and provide the callable to get the user from the request
+    app.config['AUDIT_LOG'] = {
+        'EXEMPT_URLS': [fr'^(?!{API_SECURE_BASE_PATH}).+'],
+        'LOG_HANDLER_CALLABLE_PATH': 'gobapi.util.audit_log.get_log_handler',
+        'USER_FROM_REQUEST_CALLABLE_PATH': 'gobapi.util.audit_log.get_user_from_request',
+    }
+
+    # Add the AuditLogMiddleware
+    middleware = AuditLogMiddleware(app)
 
     # Health check route
     app.route(rule='/status/health/')(_health)
