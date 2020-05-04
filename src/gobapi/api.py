@@ -425,7 +425,7 @@ def get_app():
     }
 
     # Add the AuditLogMiddleware
-    middleware = AuditLogMiddleware(app)
+    AuditLogMiddleware(app)
 
     # Health check route
     app.route(rule='/status/health/')(_health)
