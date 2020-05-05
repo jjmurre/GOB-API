@@ -789,6 +789,9 @@ WHERE catalogue = '{test_catalog}'
 DELETE FROM events
 WHERE catalogue = '{rel_catalog}'
   AND entity IN ({rel_entity_list});
+
+-- Commit all changes
+COMMIT;
 """
     exec_statement(statement)
 
