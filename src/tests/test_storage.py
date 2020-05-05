@@ -1156,4 +1156,7 @@ WHERE catalogue = 'rel'
                  'col1_ref2',
                  'col2_ref1',
                  'col2_ref2');
+
+-- Commit all changes
+COMMIT;
 """)
