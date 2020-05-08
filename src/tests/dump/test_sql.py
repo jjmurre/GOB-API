@@ -2,7 +2,8 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 from gobapi.dump.sql import _create_table, _create_schema, _import_csv, sql_entities, get_max_eventid, \
-    delete_entities_with_source_ids, _quoted_tablename, _rename_table, _delete_table, _create_indexes, _create_index, to_sql_string_value
+    delete_entities_with_source_ids, _quoted_tablename, _rename_table, _delete_table, _create_indexes, _create_index, to_sql_string_value, \
+    get_count
 from gobapi.dump.config import REFERENCE_FIELDS
 
 
@@ -139,6 +140,10 @@ class TestSQL(TestCase):
     def test_get_max_eventid(self):
         result = get_max_eventid('schema', 'collection')
         self.assertEqual('SELECT max(_last_event) FROM "schema"."collection"', result)
+
+    def test_get_count(self):
+        result = get_count('schema', 'collection')
+        self.assertEqual('SELECT count(*) FROM "schema"."collection"', result)
 
     def test_delete_entities_with_source_ids(self):
         result = delete_entities_with_source_ids('schema', 'collection', ['source_id_a', 'source_id_b'])

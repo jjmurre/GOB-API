@@ -12,10 +12,11 @@ from gobcore.model.relations import get_relation_name
 
 from gobapi.dump.config import SKIP_RELATIONS, UNIQUE_ID, UNIQUE_REL_ID
 from gobapi.dump.sql import _create_schema, _create_table, _rename_table, _delete_table
-from gobapi.dump.sql import _create_indexes, _create_index, get_max_eventid
+from gobapi.dump.sql import _create_indexes, _create_index, get_max_eventid, get_count as get_dst_count
 from gobapi.dump.csv import csv_entities
 from gobapi.dump.csv_stream import CSVStream
-from gobapi.storage import get_entity_refs_after, get_table_and_model, get_max_eventid as get_src_max_eventid
+from gobapi.storage import get_entity_refs_after, get_table_and_model, get_max_eventid as get_src_max_eventid, \
+    get_count as get_src_count
 
 from gobapi.dump.sql import to_sql_string_value
 
@@ -118,6 +119,21 @@ class DbDumper:
 
         return max_eventid
 
+    def _count_src(self):
+        """
+        Get number of rows in source table
+
+        """
+        return get_src_count(self.catalog_name, self.collection_name)
+
+    def _count_dst(self):
+        """
+        Get number of rows in destination table
+
+        """
+        result = self.engine.execute(get_dst_count(self.schema, self.collection_name))
+        return next(result)[0]
+
     def _max_eventid_dst(self):
         if self._table_exists(self.collection_name):
             return self._get_max_eventid(self.collection_name)
@@ -196,39 +212,65 @@ class DbDumper:
         """
         yield from self._prepare_destination()
 
-        try:
-            dst_max_eventid = None if full_dump else self._max_eventid_dst()
-            src_max_eventid = self._max_eventid_src()
-        except Exception:
-            yield "No last event id found. Forcing full dump\n"
-            dst_max_eventid = None
-            src_max_eventid = None
-
-        if src_max_eventid is not None and dst_max_eventid is not None and src_max_eventid < dst_max_eventid:
-            yield "Max event id in dst table is greater than max eventid in src. Forcing full dump\n"
-
-            dst_max_eventid = None
-
-        if dst_max_eventid is not None and self._table_columns_equal(self.collection_name, self.tmp_collection_name):
-            # Already have records in destination table, and model has not changed. Do sync dump
-            yield "Have earlier dump and columns have not changed\n"
-
-            # Get all source ids that have been updated or added lately
-            source_ids_to_update = get_entity_refs_after(self.catalog_name, self.collection_name, dst_max_eventid)
-            if source_ids_to_update:
-                # Sync updated and new entities
-                entities, model = yield from self._sync_dump(dst_max_eventid, source_ids_to_update)
+        if not full_dump:
+            # Try sync dump
+            dst_max_eventid = yield from self._get_dst_max_eventid()
+            if dst_max_eventid:
+                # Get all source ids that have been updated or added lately
+                source_ids_to_update = get_entity_refs_after(self.catalog_name, self.collection_name, dst_max_eventid)
+                if source_ids_to_update:
+                    yield "Have earlier dump, sync dump\n"
+                else:
+                    count_src = self._count_src()
+                    count_dst = self._count_dst()
+                    yield f"Compare counts: src {count_src:,}, dst {count_dst:,}\n"
+                    if count_src == count_dst:
+                        yield f"Collection is up-to-date, no actions necessary\n"
+                        self._delete_tmp_table()
+                        return
+                    else:
+                        yield "Collection counts don't match. Forcing full dump\n"
+                        full_dump = True
             else:
-                # Nothing to sync
-                yield f"Collection is up-to-date, no actions necessary\n"
-                self._delete_tmp_table()
-                return
-        else:
+                # No remote event id, force full dump
+                full_dump = True
+
+        if full_dump:
+            # Full write of all entities
             entities, model = yield from self._full_dump()
+        else:
+            # Sync updated and new entities
+            entities, model = yield from self._sync_dump(dst_max_eventid, source_ids_to_update)
 
         yield from self._dump_entities_to_table(entities, model)
         yield from self._rename_tmp_table()
         yield from self._create_indexes(model)
+
+    def _get_dst_max_eventid(self):
+        """
+        Get the max event id in the destination database
+
+        The dst max-event-id is used for synchronisation
+        if synchronisation is not possible, None is returned
+
+        :return:
+        """
+        try:
+            dst_max_eventid = self._max_eventid_dst()
+            src_max_eventid = self._max_eventid_src()
+        except Exception:
+            dst_max_eventid = None
+            src_max_eventid = None
+
+        yield f"Compare last event id's, src {src_max_eventid}, dst {dst_max_eventid}\n"
+        if None in [dst_max_eventid, src_max_eventid]:
+            yield "No last event id(s) found. Forcing full dump\n"
+        elif src_max_eventid < dst_max_eventid:
+            yield f"Max event id dst {dst_max_eventid} is greater than src {src_max_eventid}. Forcing full dump\n"
+        elif not self._table_columns_equal(self.collection_name, self.tmp_collection_name):
+            yield "Columns have changed. Forcing full dump\n"
+        else:
+            return dst_max_eventid
 
     def _dump_entities(self, **kwargs):
         """
