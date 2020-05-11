@@ -15,7 +15,7 @@ from gobapi.storage import _get_convert_for_state, filter_deleted, connect, _for
     _to_gob_value, _add_resolve_attrs_to_columns, _get_convert_for_table, _add_relation_dates_to_manyreference, \
     _flatten_join_result, get_entity_refs_after, dump_entities, get_max_eventid, exec_statement, \
     _create_reference_link, _create_reference_view, _create_reference, _add_relations, _apply_filters, \
-    get_id_columns, clear_test_dbs
+    get_id_columns, clear_test_dbs, get_count
 from gobapi.auth.auth_query import AuthorizedQuery
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
@@ -923,6 +923,22 @@ class TestStorage(TestCase):
 
         # Scalar value is returned
         self.assertEqual(mock_get_session.return_value.query.return_value.scalar.return_value, result)
+
+    @mock.patch("gobapi.storage._Base", mock.MagicMock())
+    @mock.patch("gobapi.storage.get_table_and_model")
+    @mock.patch("gobapi.storage.get_session")
+    def test_get_count(self, mock_get_session, mock_get_table_and_model):
+        table = type('MockTable', (object,), {'_last_event': 82404})
+
+        mock_get_table_and_model.return_value = table, 'model'
+
+        result = get_count('catalog', 'collection')
+        mock_get_table_and_model.assert_called_with('catalog', 'collection')
+
+        mock_get_session.return_value.query.assert_called_with(table)
+
+        # Scalar value is returned
+        self.assertEqual(mock_get_session.return_value.query.return_value.count.return_value, result)
 
     @mock.patch("gobapi.storage._Base", mock.MagicMock())
     @mock.patch("gobapi.storage.get_table_and_model")

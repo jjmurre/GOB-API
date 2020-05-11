@@ -386,14 +386,23 @@ class TestDbDumper(TestCase):
     @patch('gobapi.dump.to_db.get_entity_refs_after')
     def test_dump_to_db_partial(self, mock_get_entity_refs, mock_dump_entities, mock_create_engine, mock_url):
         mock_dump_entities.return_value = [], {}
+
+        # New entities are available
         mock_get_entity_refs.return_value = ['ref1', 'ref2', 'ref3']
 
         db_dumper = self._get_dumper_for_dump_to_db()
+
+        # Database scheme has not changed
         db_dumper._table_columns_equal = MagicMock(return_value=True)
-        db_dumper._max_eventid_dst = MagicMock(return_value='MAX_EVENTID')
+
+        # src is more recent than destination
+        db_dumper._max_eventid_src = MagicMock(return_value=5)
+        db_dumper._max_eventid_dst = MagicMock(return_value=4)
+
         db_dumper._filter_last_events_lambda = MagicMock()
 
         result = list(db_dumper.dump_to_db())
+        # Database scheme is compared
         db_dumper._table_columns_equal.assert_called_with(db_dumper.collection_name, db_dumper.tmp_collection_name)
         db_dumper._copy_table_into.assert_called_with(db_dumper.collection_name, db_dumper.tmp_collection_name, ['ref1', 'ref2', 'ref3'])
 
@@ -410,9 +419,13 @@ class TestDbDumper(TestCase):
 
         db_dumper = self._get_dumper_for_dump_to_db()
         db_dumper._table_columns_equal = MagicMock(return_value=True)
+        db_dumper._max_eventid_src = MagicMock(return_value='MAX_EVENTID')
         db_dumper._max_eventid_dst = MagicMock(return_value='MAX_EVENTID')
         db_dumper._filter_last_events_lambda = MagicMock()
         db_dumper._delete_tmp_table = MagicMock()
+
+        db_dumper._count_src = MagicMock(return_value=10)
+        db_dumper._count_dst = MagicMock(return_value=10)
 
         list(db_dumper.dump_to_db())
         mock_dump_entities.assert_not_called()
@@ -439,6 +452,119 @@ class TestDbDumper(TestCase):
             db_dumper.tmp_collection_name,
             source_ids_to_update)
         db_dumper._dump_entities.assert_called_with(filter=db_dumper._filter_last_events_lambda.return_value)
+
+    @patch('gobapi.dump.to_db.get_src_count')
+    def test_count_src(self, mock_get_count, mock_create_engine, mock_url):
+        db_dumper = DbDumper('catalog', 'collection', {'db': {}})
+        result = db_dumper._count_src()
+        self.assertEqual(result, mock_get_count.return_value)
+        mock_get_count.assert_called_with('catalog', 'collection')
+
+    @patch('gobapi.dump.to_db.get_dst_count')
+    def test_count_dst(self, mock_get_count, mock_create_engine, mock_url):
+        db_dumper = DbDumper('catalog', 'collection', {'db': {}})
+        db_dumper._count_dst()
+        mock_get_count.assert_called_with('catalog', 'collection')
+
+    @patch('gobapi.dump.to_db.get_entity_refs_after')
+    def test_dump_scenarios(self, mock_get_entity_refs_after, mock_create_engine, mock_url):
+        def mock_dump(*args):
+            yield "dump"
+            return None, None
+
+        def mock_actions():
+            db_dumper._prepare_destination = MagicMock()
+            db_dumper._delete_tmp_table = MagicMock()
+            db_dumper._full_dump = MagicMock(side_effect=mock_dump)
+            db_dumper._sync_dump = MagicMock(side_effect=mock_dump)
+            db_dumper._dump_entities_to_table = MagicMock()
+            db_dumper._rename_tmp_table = MagicMock()
+            db_dumper._create_indexes = MagicMock()
+
+        db_dumper = DbDumper('catalog', 'collection', {'db': {}})
+        mock_actions()
+
+        # The source and destination last event ids are compared
+        db_dumper._max_eventid_src = MagicMock(return_value=10)
+        db_dumper._max_eventid_dst = MagicMock(return_value=9)
+
+        # The database scheme is compared for sync dumps
+        db_dumper._table_columns_equal = MagicMock(return_value=True)
+
+        # The counts are compared
+        db_dumper._count_src = MagicMock(return_value=100)
+        db_dumper._count_dst = MagicMock(return_value=100)
+
+        # Call with full_dump
+        mock_actions()
+        list(db_dumper.dump_to_db(full_dump=True))
+        db_dumper._full_dump.assert_called()
+        db_dumper._sync_dump.assert_not_called()
+
+        # Call and request sync dump
+        mock_actions()
+        result = list(db_dumper.dump_to_db())
+        db_dumper._full_dump.assert_not_called()
+        db_dumper._sync_dump.assert_called()
+
+        mock_actions()
+        # The event ids from both sides are compared, no src
+        db_dumper._max_eventid_src = MagicMock(return_value=None)
+        db_dumper._max_eventid_dst = MagicMock(return_value=10)
+        list(db_dumper.dump_to_db())
+        db_dumper._full_dump.assert_called()
+        db_dumper._sync_dump.assert_not_called()
+
+        mock_actions()
+        # The event ids from both sides are compared, dst > src
+        db_dumper._max_eventid_src = MagicMock(return_value=9)
+        db_dumper._max_eventid_dst = MagicMock(return_value=10)
+        list(db_dumper.dump_to_db())
+        db_dumper._full_dump.assert_called()
+        db_dumper._sync_dump.assert_not_called()
+
+        mock_actions()
+        # The event ids from both sides are compared, dst < src, but db scheme not equal
+        db_dumper._max_eventid_src = MagicMock(return_value=10)
+        db_dumper._max_eventid_dst = MagicMock(return_value=9)
+        db_dumper._table_columns_equal = MagicMock(return_value=False)
+        list(db_dumper.dump_to_db())
+        db_dumper._full_dump.assert_called()
+        db_dumper._sync_dump.assert_not_called()
+
+        mock_actions()
+        # The event ids from both sides are compared, dst < src, db scheme matches, items to sync
+        db_dumper._max_eventid_src = MagicMock(return_value=10)
+        db_dumper._max_eventid_dst = MagicMock(return_value=9)
+        db_dumper._table_columns_equal = MagicMock(return_value=True)
+        mock_get_entity_refs_after.return_value = [1, 2]
+        list(db_dumper.dump_to_db())
+        db_dumper._full_dump.assert_not_called()
+        db_dumper._sync_dump.assert_called()
+
+        mock_actions()
+        # The event ids from both sides are compared, dst < src, db scheme matches, no items to sync, counts don't match
+        db_dumper._max_eventid_src = MagicMock(return_value=10)
+        db_dumper._max_eventid_dst = MagicMock(return_value=9)
+        db_dumper._table_columns_equal = MagicMock(return_value=True)
+        db_dumper._count_src = MagicMock(return_value=100)
+        db_dumper._count_dst = MagicMock(return_value=90)
+        mock_get_entity_refs_after.return_value = None
+        list(db_dumper.dump_to_db())
+        db_dumper._full_dump.assert_called()
+        db_dumper._sync_dump.assert_not_called()
+
+        mock_actions()
+        # The event ids from both sides are compared, dst < src, db scheme matches, no items to sync, counts match
+        db_dumper._max_eventid_src = MagicMock(return_value=10)
+        db_dumper._max_eventid_dst = MagicMock(return_value=9)
+        db_dumper._table_columns_equal = MagicMock(return_value=True)
+        db_dumper._count_src = MagicMock(return_value=100)
+        db_dumper._count_dst = MagicMock(return_value=100)
+        mock_get_entity_refs_after.return_value = None
+        list(db_dumper.dump_to_db())
+        db_dumper._full_dump.assert_not_called()
+        db_dumper._sync_dump.assert_not_called()
 
 
 @patch('gobapi.dump.to_db.DbDumper')

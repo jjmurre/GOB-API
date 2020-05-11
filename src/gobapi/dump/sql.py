@@ -154,6 +154,18 @@ def delete_entities_with_source_ids(schema, collection_name, source_ids):
     return f"DELETE FROM {table_name} WHERE {FIELD.SOURCE_ID} IN ({source_ids_sql})"
 
 
+def get_count(schema, collection_name):
+    """
+    Returns the SQL statement that returns the number of rows in the given table (schema.collection)
+
+    :param schema:
+    :param collection_name:
+    :return:
+    """
+    table_name = _quoted_tablename(schema, collection_name)
+    return f"SELECT count(*) FROM {table_name}"
+
+
 def _autorized_order(order, catalog_name, collection_name):
     """
     Filter the order (list of columns) on columns that are not suppressed given the current request
