@@ -45,7 +45,7 @@ class TestSQL(TestCase):
             }
         }
         result = _create_table(catalogue, 'any_schema', 'any_table', {})
-        for s in ['ref', 'id', 'volgnummer', 'bronwaarde']:
+        for s in ['bronwaarde']:
             self.assertTrue(f"\"a_{s}\"" in result)
             self.assertTrue(f"character varying" in result)
 

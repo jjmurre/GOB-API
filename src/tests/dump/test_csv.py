@@ -64,7 +64,7 @@ class TestCSV(TestCase):
         self.assertEqual(result, ['"name"'])
 
         result = _csv_header({'name': {'type': 'GOB.Reference'}}, ['name'])
-        self.assertEqual(result, ['"name_ref"', '"name_id"', '"name_volgnummer"', '"name_bronwaarde"'])
+        self.assertEqual(result, ['"name_bronwaarde"'])
 
         result = _csv_header({'name': {'type': 'GOB.JSON', 'attributes': {'a': 'some a', 'b': 'some b'}}}, ['name'])
         self.assertEqual(result, ['"name_a"', '"name_b"'])
@@ -74,27 +74,27 @@ class TestCSV(TestCase):
         spec = {'type': 'GOB.Reference'}
         value = {}
         result = _csv_reference_values(value, spec)
-        self.assertEqual(result, ['', '', '', ''])
+        self.assertEqual(result, [''])
 
         value = {'id': 'any id', 'bronwaarde': 'any bronwaarde'}
         result = _csv_reference_values(value, spec)
-        self.assertEqual(result, ['"any id"', '"any id"', '', '"any bronwaarde"'])
+        self.assertEqual(result, ['"any bronwaarde"'])
 
         # defaults to ManyReference
         spec = {'type': 'any type'}
         values = []
         result = _csv_reference_values(values, spec)
-        self.assertEqual(result, ['[]', '[]', '[]', '[]'])
+        self.assertEqual(result, ['[]'])
 
         spec = {'type': 'GOB.ManyReference'}
         values = [value]
         result = _csv_reference_values(values, spec)
-        self.assertEqual(result, ['["any id"]', '["any id"]', '[]', '["any bronwaarde"]'])
+        self.assertEqual(result, ['["any bronwaarde"]'])
 
         spec = {'type': 'GOB.ManyReference'}
         values = [value, value]
         result = _csv_reference_values(values, spec)
-        self.assertEqual(result, ['["any id","any id"]', '["any id","any id"]', '[,]', '["any bronwaarde","any bronwaarde"]'])
+        self.assertEqual(result, ['["any bronwaarde","any bronwaarde"]'])
 
     @patch('gobapi.dump.csv.get_reference_fields', lambda x: REFERENCE_FIELDS)
     def test_csv_values(self):

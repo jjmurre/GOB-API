@@ -1,5 +1,4 @@
 from gobcore.typesystem import get_gob_type, GOB_SECURE_TYPES
-from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
 from gobcore.typesystem import is_gob_geo_type, is_gob_reference_type
 
@@ -13,7 +12,7 @@ SIMPLE_ID = 'id'
 UNIQUE_ID = 'ref'
 UNIQUE_REL_ID = "CONCAT(src_ref, '_', dst_ref)"
 REFERENCE_TYPES = ["GOB.Reference", "GOB.ManyReference"]
-REFERENCE_FIELDS = [UNIQUE_ID, SIMPLE_ID, FIELD.SEQNR, FIELD.SOURCE_VALUE]
+REFERENCE_FIELDS = [FIELD.SOURCE_VALUE]
 
 # Relation fields, basically src_ref, src_id, src_volgnummer, dst_ref, dst_id, dst_volgnummer and expiration date
 REL_INFO_FIELDS = [UNIQUE_ID, "id", FIELD.SEQNR]
@@ -75,22 +74,13 @@ def get_reference_fields(spec):
     """
     Get the reference fields for a given referenced (spec)
 
-    If the reference refers to an entity without states then do not include volgnummer
+    NB: This method used to contain logic to return different fields for different references (such as id and seqnr),
+    but these fields are no longer used. All REFERENCE_FIELDS are now returned by default.
 
-    For references without an existing destination relation, only include bronwaarde
     :param spec: type specification
     :return: array with reference fields
     """
-    catalog_name, collection_name = spec['ref'].split(':')
-
-    if GOBModel().get_collection(catalog_name, collection_name) is None:
-        # Relation does not exist yet, only use SOURCE_VALUE
-        return [FIELD.SOURCE_VALUE]
-
-    if GOBModel().has_states(catalog_name, collection_name):
-        return REFERENCE_FIELDS
-    else:
-        return [rf for rf in REFERENCE_FIELDS if rf != FIELD.SEQNR]
+    return REFERENCE_FIELDS
 
 
 def get_unique_reference(entity, field_name, specs):
