@@ -45,29 +45,9 @@ class MockSession:
         return "any table"
 
 
-class MockModel:
-    cat_col_has_states = None
-    collection = {'cat': 'col'}
-
-    def has_states(self, cat, col):
-        return self.cat_col_has_states
-
-    def get_collection(self, cat, col):
-        return self.collection
-
-
 class TestConfig(TestCase):
 
-    @patch('gobapi.dump.config.GOBModel', MockModel)
     def test_reference_fields(self):
-        MockModel.cat_col_has_states = True
-        self.assertEqual(get_reference_fields({'ref': 'a:b'}), REFERENCE_FIELDS)
-        self.assertTrue(FIELD.SEQNR in get_reference_fields({'ref': 'a:b'}))
-
-        MockModel.cat_col_has_states = False
-        self.assertTrue(FIELD.SEQNR not in get_reference_fields({'ref': 'a:b'}))
-
-        MockModel.collection = None
         self.assertEqual([FIELD.SOURCE_VALUE], get_reference_fields({'ref': 'a:b'}))
 
     def test_joined_names(self):
