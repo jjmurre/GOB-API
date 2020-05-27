@@ -360,7 +360,7 @@ class TestDbDumper(TestCase):
                                               order_by=FIELD.LAST_EVENT)
 
     @patch('gobapi.dump.to_db.dump_entities')
-    def test_dump_to_db_full_no_last_src_eventid(self, mock_dump_entities, mock_create_engine, mock_url):
+    def test_dump_to_db_full_no_last_dst_eventid(self, mock_dump_entities, mock_create_engine, mock_url):
         """In case that no dst event id exists a full dump should occur
 
         :param mock_dump_entities:
@@ -430,6 +430,109 @@ class TestDbDumper(TestCase):
         list(db_dumper.dump_to_db())
         mock_dump_entities.assert_not_called()
         db_dumper._delete_tmp_table.assert_called()
+
+    @patch("gobapi.dump.to_db.get_relation_name", lambda m, cat, col, rel: 'relation_name_' + rel)
+    @patch("gobapi.dump.to_db.GOBModel")
+    def test_create_utility_view(self, mock_model, mock_create_engine, mock_url):
+        class MockedModel:
+            def has_states(self, cat, col):
+                # Will be called with dstcol or dstcolwithstates
+                return 'withstates' in col
+
+            def get_table_name(self, cat, col):
+                return f'{cat}_{col}'
+
+        # First test case. src no states and refA a ManyRef and refB a single Reference
+        mock_model.return_value = MockedModel()
+        db_dumper = DbDumper('catalog', 'collection', {'db': {}})
+        db_dumper.model = {
+            'abbreviation': 'abbr',
+            'has_states': False,
+            'references': {
+                'refA': {},
+                'refB': {}
+            },
+            'all_fields': {
+                'refA': {
+                    'ref': 'dstcat:dstcolwithstates',
+                    'type': 'GOB.ManyReference',
+                },
+                'refB': {
+                    'ref': 'dstcat:dstcol',
+                    'type': 'GOB.Reference',
+                }
+            }
+        }
+
+        expected_query = """create view v_catalog_collection as 
+select abbr.*,
+       refA.ref refA_ref,
+       refA.dst_id refA_id,
+       refA.bronwaarde refA_bronwaarde,
+       refA.dst_volgnummer refA_volgnummer,
+       refB.dst_id refB_ref,
+       refB.dst_id refB_id,
+       refB.bronwaarde refB_bronwaarde
+from catalog_collection abbr
+
+left join (
+    select
+        rel.src_id,
+        array_agg(rel.dst_id) dst_id,
+        rel.dst_volgnummer dst_volgnummer,
+        array_agg(rel.bronwaarde) bronwaarde,
+        array_agg(rel.dst_id || \'_\' || rel.dst_volgnummer) "ref"
+    from rel_relation_name_refA rel
+    where rel._date_deleted is null
+    group by rel.src_id
+) refA on refA.src_id = abbr._id
+
+left join rel_relation_name_refB refB on refB.src_id = abbr._id and refB._date_deleted is null
+"""
+
+        self.assertEqual(['Utility view v_catalog_collection created\n'], list(db_dumper.create_utility_view()))
+        db_dumper.engine.execute.assert_has_calls([
+            call('drop view if exists v_catalog_collection'),
+            call(expected_query)
+        ])
+
+        # Second test case. src has states, refA single Reference and refB a ManyReference
+        db_dumper.model['has_states'] = True
+        db_dumper.model['all_fields']['refA']['type'] = 'GOB.Reference'
+        db_dumper.model['all_fields']['refB']['type'] = 'GOB.ManyReference'
+        db_dumper.engine.execute.reset_mock()
+
+        expected_query = """create view v_catalog_collection as 
+select abbr.*,
+       refA.dst_id || '_' || refA.dst_volgnummer refA_ref,
+       refA.dst_id refA_id,
+       refA.bronwaarde refA_bronwaarde,
+       refA.dst_volgnummer refA_volgnummer,
+       refB.ref refB_ref,
+       refB.dst_id refB_id,
+       refB.bronwaarde refB_bronwaarde
+from catalog_collection abbr
+left join rel_relation_name_refA refA on refA.src_id = abbr._id and refA.src_volgnummer = abbr.volgnummer and refA._date_deleted is null
+
+left join (
+    select
+        rel.src_id,
+        array_agg(rel.dst_id) dst_id,
+        
+        array_agg(rel.bronwaarde) bronwaarde,
+        array_agg(rel.dst_id) "ref"
+    from rel_relation_name_refB rel
+    where rel._date_deleted is null
+    group by rel.src_id
+) refB on refB.src_id = abbr._id and refB.src_volgnummer = abbr.volgnummer
+
+"""
+        list(db_dumper.create_utility_view())
+        db_dumper.engine.execute.assert_has_calls([
+            call('drop view if exists v_catalog_collection'),
+            call(expected_query),
+        ])
+
 
     def test_sync_dump(self, mock_create_engine, mock_url):
         db_dumper = self._get_dumper_for_dump_to_db()
@@ -592,11 +695,18 @@ class TestModuleFunctions(TestCase):
 
         mock_dumper.assert_called_with('catalog_name', 'collection_name', config)
         mock_dump_relations.assert_called_with('catalog_name', 'collection_name', config)
+        mock_dumper.return_value.create_utility_view.assert_called_once()
 
         mock_dump_relations.reset_mock()
         config['include_relations'] = False
         list(dump_to_db('catalog_name', 'collection_name', config))
         mock_dump_relations.assert_not_called()
+
+        # Assert create_utility_view not called for 'rel' dumps
+        mock_dumper.return_value.create_utility_view.reset_mock()
+        list(dump_to_db('rel', 'collection_name', config))
+        mock_dumper.return_value.create_utility_view.assert_not_called()
+
 
     def test_dump_to_db_exception(self, mock_dumper):
         mock_dumper.side_effect = Exception
