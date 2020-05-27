@@ -1,5 +1,6 @@
 import traceback
 
+from gobcore.typesystem import fully_qualified_type_name, GOB
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
 from typing import Tuple, List
@@ -267,7 +268,7 @@ class DbDumper:
             return f"{rel_alias}.dst_id || '_' || {rel_alias}.dst_volgnummer" \
                 if dst_has_states else f"{rel_alias}.dst_id"
 
-        for relation in [k for k in self.model['references'].keys()]:
+        for relation in self.model['references'].keys():
             # Add a join and selects for each relation
             relation_name = get_relation_name(GOBModel(), self.catalog_name, self.collection_name, relation)
 
@@ -276,9 +277,9 @@ class DbDumper:
 
             # Determine if ManyReference and if destination has states
             src_field = self.model['all_fields'].get(relation)
-            dst_catalog_name, dst_collection_name = src_field['ref'].split(':')
+            dst_catalog_name, dst_collection_name = GOBModel().split_ref(src_field['ref'])
             dst_has_states = GOBModel().has_states(dst_catalog_name, dst_collection_name)
-            is_many = src_field['type'] == 'GOB.ManyReference'
+            is_many = src_field['type'] == fully_qualified_type_name(GOB.ManyReference)
 
             on = f'{relation}.src_id = {main_alias}.{FIELD.ID}' + (
                 f' and {relation}.src_volgnummer = {main_alias}.{FIELD.SEQNR}' if src_has_states else ''
@@ -288,6 +289,7 @@ class DbDumper:
                 # For a ManyReference, we need to aggregate the values in an array
                 join = f"""
 left join (
+    -- Aggregates id, volgnummer, bronwaarde and ref for {relation} per src object
     select
         rel.src_id,
         array_agg(rel.dst_id) dst_id,

@@ -1,3 +1,4 @@
+import re
 from unittest import TestCase
 from unittest.mock import MagicMock, patch, call
 
@@ -431,6 +432,19 @@ class TestDbDumper(TestCase):
         mock_dump_entities.assert_not_called()
         db_dumper._delete_tmp_table.assert_called()
 
+    def assertQueryEquals(self, expected, query):
+        def strip(query: str):
+            # Remove comments
+            stripped = re.sub(r'--.*\n', '', query)
+            # Collapse all whitespace into single spaces
+            stripped = re.sub(r'\s+', ' ', stripped)
+            # Remove leading and trailing whitespace
+            stripped = re.sub(r'^\s|\s$', '', stripped)
+
+            return stripped
+
+        self.assertEqual(strip(expected), strip(query))
+
     @patch("gobapi.dump.to_db.get_relation_name", lambda m, cat, col, rel: 'relation_name_' + rel)
     @patch("gobapi.dump.to_db.GOBModel")
     def test_create_utility_view(self, mock_model, mock_create_engine, mock_url):
@@ -441,6 +455,9 @@ class TestDbDumper(TestCase):
 
             def get_table_name(self, cat, col):
                 return f'{cat}_{col}'
+
+            def split_ref(self, ref):
+                return ref.split(':')
 
         # First test case. src no states and refA a ManyRef and refB a single Reference
         mock_model.return_value = MockedModel()
@@ -474,7 +491,6 @@ select abbr.*,
        refB.dst_id refB_id,
        refB.bronwaarde refB_bronwaarde
 from catalog_collection abbr
-
 left join (
     select
         rel.src_id,
@@ -486,15 +502,14 @@ left join (
     where rel._date_deleted is null
     group by rel.src_id
 ) refA on refA.src_id = abbr._id
-
 left join rel_relation_name_refB refB on refB.src_id = abbr._id and refB._date_deleted is null
 """
 
         self.assertEqual(['Utility view v_catalog_collection created\n'], list(db_dumper.create_utility_view()))
-        db_dumper.engine.execute.assert_has_calls([
-            call('drop view if exists v_catalog_collection'),
-            call(expected_query)
-        ])
+
+        db_dumper.engine.execute.assert_any_call('drop view if exists v_catalog_collection')
+        called_query = db_dumper.engine.execute.call_args[0][0]
+        self.assertQueryEquals(expected_query, called_query)
 
         # Second test case. src has states, refA single Reference and refB a ManyReference
         db_dumper.model['has_states'] = True
@@ -513,7 +528,6 @@ select abbr.*,
        refB.bronwaarde refB_bronwaarde
 from catalog_collection abbr
 left join rel_relation_name_refA refA on refA.src_id = abbr._id and refA.src_volgnummer = abbr.volgnummer and refA._date_deleted is null
-
 left join (
     select
         rel.src_id,
@@ -525,13 +539,10 @@ left join (
     where rel._date_deleted is null
     group by rel.src_id
 ) refB on refB.src_id = abbr._id and refB.src_volgnummer = abbr.volgnummer
-
 """
         list(db_dumper.create_utility_view())
-        db_dumper.engine.execute.assert_has_calls([
-            call('drop view if exists v_catalog_collection'),
-            call(expected_query),
-        ])
+        called_query = db_dumper.engine.execute.call_args[0][0]
+        self.assertQueryEquals(expected_query, called_query)
 
 
     def test_sync_dump(self, mock_create_engine, mock_url):
