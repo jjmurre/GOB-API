@@ -1,5 +1,6 @@
 import traceback
 
+from gobcore.typesystem import fully_qualified_type_name, GOB
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
 from typing import Tuple, List
@@ -246,6 +247,91 @@ class DbDumper:
         yield from self._rename_tmp_table()
         yield from self._create_indexes(model)
 
+    def create_utility_view(self):
+        """Creates view with utility columns for relating without relation table
+
+        View contains all columns from the main table, plus the RELATION_id, RELATION_VOLGNUMMER, RELATION_ref
+        and RELATION_bronwaarde columns for each RELATION (for example ligt_in_buurt_id, ligt_in_buurt_ref and
+        ligt_in_buurt_bronwaarde)
+
+        :return:
+        """
+
+        main_alias = self.model['abbreviation'].lower()
+        src_has_states = self.model.get('has_states', False)
+
+        # Collect all necessary joins and select statements
+        joins = []
+        selects = [f'{main_alias}.*']
+
+        def ref(rel_alias: str, dst_has_states: bool):
+            return f"{rel_alias}.dst_id || '_' || {rel_alias}.dst_volgnummer" \
+                if dst_has_states else f"{rel_alias}.dst_id"
+
+        for relation in self.model['references'].keys():
+            # Add a join and selects for each relation
+            relation_name = get_relation_name(GOBModel(), self.catalog_name, self.collection_name, relation)
+
+            if not relation_name:
+                pass
+
+            # Determine if ManyReference and if destination has states
+            src_field = self.model['all_fields'].get(relation)
+            dst_catalog_name, dst_collection_name = GOBModel().split_ref(src_field['ref'])
+            dst_has_states = GOBModel().has_states(dst_catalog_name, dst_collection_name)
+            is_many = src_field['type'] == fully_qualified_type_name(GOB.ManyReference)
+
+            on = f'{relation}.src_id = {main_alias}.{FIELD.ID}' + (
+                f' and {relation}.src_volgnummer = {main_alias}.{FIELD.SEQNR}' if src_has_states else ''
+            )
+
+            if is_many:
+                # For a ManyReference, we need to aggregate the values in an array
+                join = f"""
+left join (
+    -- Aggregates id, volgnummer, bronwaarde and ref for {relation} per src object
+    select
+        rel.src_id,
+        array_agg(rel.dst_id) dst_id,
+        {'rel.dst_volgnummer dst_volgnummer,' if dst_has_states else ''}
+        array_agg(rel.bronwaarde) bronwaarde,
+        array_agg({ref('rel', dst_has_states)}) "ref"
+    from rel_{relation_name} rel
+    where rel.{FIELD.DATE_DELETED} is null
+    group by rel.src_id
+) {relation} on {on}
+"""
+                selects.append(f'{relation}.ref {relation}_ref')
+            else:
+                # For a single Reference we expect one row from the relation table
+                join = f"left join rel_{relation_name} {relation} on {on} and {relation}.{FIELD.DATE_DELETED} is null"
+                selects.append(f'{ref(relation, dst_has_states)} {relation}_ref')
+
+            joins.append(join)
+            selects += [
+                f'{relation}.dst_id {relation}_id',
+                f'{relation}.bronwaarde {relation}_bronwaarde',
+            ]
+
+            if dst_has_states:
+                selects += [f'{relation}.dst_volgnummer {relation}_volgnummer']
+
+        # Build query based on collected joins and selects
+        NEWLINE = '\n'
+        tablename = GOBModel().get_table_name(self.catalog_name, self.collection_name)
+        query = f"""
+select {f',{NEWLINE}       '.join(selects)}
+from {tablename} {main_alias}
+{f'{NEWLINE}'.join(joins)}
+"""
+        # Create the view
+        viewname = f'v_{tablename}'
+        self.engine.execute(f"drop view if exists {viewname}")
+        result = self.engine.execute(f"create view {viewname} as {query}")
+        result.close()
+
+        yield f"Utility view {viewname} created\n"
+
     def _get_dst_max_eventid(self):
         """
         Get the max event id in the destination database
@@ -341,6 +427,9 @@ def dump_to_db(catalog_name, collection_name, config):
     try:
         dumper = DbDumper(catalog_name, collection_name, config)
         yield from dumper.dump_to_db()
+
+        if catalog_name != 'rel':
+            yield from dumper.create_utility_view()
 
         if config.get('include_relations', True):
             yield from _dump_relations(catalog_name, collection_name, config)

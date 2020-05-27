@@ -543,9 +543,11 @@ def test_entities_with_view(monkeypatch):
     MockEntities.all_entities = [
         mockEntity
     ]
+    expect_ref = MagicMock()
+    expect_ref._string = '{"reference": {"%s": "1234"}}' % FIELD.REFERENCE_ID
     assert(get_entities('catalog', 'collection1', 0, 1, 'enhanced') ==
            ([{'attribute': 'attribute', 'identificatie': 'identificatie',
-              '_embedded': {'is_test': {'reference': {FIELD.REFERENCE_ID: '1234'}}}}], None))
+              '_embedded': {'is_test': expect_ref}}], None))
 
     # Reset the table columns
     MockTable.columns = [MockColumn('identificatie'), MockColumn('attribute'), MockColumn('meta')]
