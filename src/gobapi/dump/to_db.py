@@ -52,13 +52,30 @@ class DbDumper:
         self.engine = create_engine(URL(**config['db']))
         self.config = config
         self.config['engine'] = self.engine
-        self.schema = config.get('schema', catalog_name)
+        self.schema = self._get_dst_schema(config, catalog_name, collection_name)
 
         _, self.model = get_table_and_model(catalog_name, collection_name)
 
         # Set attributes for create_table
         self.model['catalog'] = catalog_name
         self.model['collection'] = collection_name
+
+    def _get_dst_schema(self, config: dict, catalog_name: str, collection_name: str):
+        """Returns schema from config if set, otherwise catalog_name. If catalog_name is 'rel', return the catalog_name
+        that owns the relation.
+
+        :param config:
+        :param catalog_name:
+        :param collection_name:
+        :return:
+        """
+        schema = config.get('schema', catalog_name)
+
+        if schema == 'rel':
+            # Schema is the catalog name from the catalog that owns this relation
+            return GOBModel().get_catalog_from_abbr(collection_name.split('_')[0])['name']
+
+        return schema
 
     def _table_exists(self, table_name: str) -> bool:
         """Checks if table_name exist"""
@@ -247,6 +264,16 @@ class DbDumper:
         yield from self._rename_tmp_table()
         yield from self._create_indexes(model)
 
+    def _ref(self, rel_alias: str, with_seqnr: bool):
+        """Returns ref expression for a relation with alias :rel_alias: with or without seqnr
+
+        :param rel_alias:
+        :param dst_has_states:
+        :return:
+        """
+        return f"{rel_alias}.dst_id || '_' || {rel_alias}.dst_volgnummer" \
+            if with_seqnr else f"{rel_alias}.dst_id"
+
     def create_utility_view(self):
         """Creates view with utility columns for relating without relation table
 
@@ -256,6 +283,7 @@ class DbDumper:
 
         :return:
         """
+        yield f"Creating view\n"
 
         main_alias = self.model['abbreviation'].lower()
         src_has_states = self.model.get('has_states', False)
@@ -264,16 +292,19 @@ class DbDumper:
         joins = []
         selects = [f'{main_alias}.*']
 
-        def ref(rel_alias: str, dst_has_states: bool):
-            return f"{rel_alias}.dst_id || '_' || {rel_alias}.dst_volgnummer" \
-                if dst_has_states else f"{rel_alias}.dst_id"
-
         for relation in self.model['references'].keys():
             # Add a join and selects for each relation
             relation_name = get_relation_name(GOBModel(), self.catalog_name, self.collection_name, relation)
 
             if not relation_name:
-                pass
+                # Undefined relation
+                continue
+
+            if not self._table_exists(relation_name):
+                yield f"Excluding relation {relation_name} from view because table does not exist\n"
+                continue
+
+            relation_table = f'{self.catalog_name}.{relation_name}'
 
             # Determine if ManyReference and if destination has states
             src_field = self.model['all_fields'].get(relation)
@@ -289,28 +320,26 @@ class DbDumper:
                 # For a ManyReference, we need to aggregate the values in an array
                 join = f"""
 left join (
-    -- Aggregates id, volgnummer, bronwaarde and ref for {relation} per src object
+    -- Aggregates id, volgnummer and ref for {relation} per src object. bronwaarde is already in the src table
     select
         rel.src_id,
+        {'rel.src_volgnummer,' if src_has_states else ''}
         array_agg(rel.dst_id) dst_id,
-        {'rel.dst_volgnummer dst_volgnummer,' if dst_has_states else ''}
-        array_agg(rel.bronwaarde) bronwaarde,
-        array_agg({ref('rel', dst_has_states)}) "ref"
-    from rel_{relation_name} rel
-    where rel.{FIELD.DATE_DELETED} is null
-    group by rel.src_id
+        {'array_agg(rel.dst_volgnummer) dst_volgnummer,' if dst_has_states else ''}
+        array_agg({self._ref('rel', dst_has_states)}) "ref"
+    from {relation_table} rel
+    group by rel.src_id{', rel.src_volgnummer' if src_has_states else ''}
 ) {relation} on {on}
 """
                 selects.append(f'{relation}.ref {relation}_ref')
             else:
                 # For a single Reference we expect one row from the relation table
-                join = f"left join rel_{relation_name} {relation} on {on} and {relation}.{FIELD.DATE_DELETED} is null"
-                selects.append(f'{ref(relation, dst_has_states)} {relation}_ref')
+                join = f"left join {relation_table} {relation} on {on}"
+                selects.append(f'{self._ref(relation, dst_has_states)} {relation}_ref')
 
             joins.append(join)
             selects += [
                 f'{relation}.dst_id {relation}_id',
-                f'{relation}.bronwaarde {relation}_bronwaarde',
             ]
 
             if dst_has_states:
@@ -318,14 +347,13 @@ left join (
 
         # Build query based on collected joins and selects
         NEWLINE = '\n'
-        tablename = GOBModel().get_table_name(self.catalog_name, self.collection_name)
         query = f"""
 select {f',{NEWLINE}       '.join(selects)}
-from {tablename} {main_alias}
+from {self.catalog_name}.{self.collection_name} {main_alias}
 {f'{NEWLINE}'.join(joins)}
 """
         # Create the view
-        viewname = f'v_{tablename}'
+        viewname = f'{self.catalog_name}.v_{self.collection_name}'
         self.engine.execute(f"drop view if exists {viewname}")
         result = self.engine.execute(f"create view {viewname} as {query}")
         result.close()

@@ -50,6 +50,22 @@ class TestDbDumper(TestCase):
         db_dumper2 = DbDumper(self.catalog_name, self.collection_name, {'db': {}, 'schema': 'schema'})
         self.assertEqual('schema', db_dumper2.schema)
 
+    @patch("gobapi.dump.to_db.GOBModel")
+    def test_init_schema(self, mock_model, mock_create_engine, mock_url):
+        mock_model().get_catalog_from_abbr = lambda abbr: {'name': 'gebieden'} if abbr == 'gbd' else {}
+
+        # Config schema has priority
+        dumper = DbDumper('cat', 'gbd_bbk_bag_vot_la_bla_lda', {'db': {}, 'schema': 'the_schema'})
+        self.assertEqual(dumper.schema, 'the_schema')
+
+        # Otherwise return the catalog name
+        dumper = DbDumper('cat', 'gbd_bbk_bag_vot_la_bla_lda', {'db': {}})
+        self.assertEqual(dumper.schema, 'cat')
+
+        # Unless the catalog is rel, then derive from relation name
+        dumper = DbDumper('rel', 'gbd_bbk_bag_vot_la_bla_lda', {'db': {}})
+        self.assertEqual(dumper.schema, 'gebieden')
+
     def test_table_exists(self, mock_create_engine, mock_url):
         db_dumper = self._get_dumper()
         db_dumper.engine.execute = MagicMock(return_value=iter([('result_bool',)]))
@@ -445,7 +461,7 @@ class TestDbDumper(TestCase):
 
         self.assertEqual(strip(expected), strip(query))
 
-    @patch("gobapi.dump.to_db.get_relation_name", lambda m, cat, col, rel: 'relation_name_' + rel)
+    @patch("gobapi.dump.to_db.get_relation_name", lambda m, cat, col, rel: 'relation_name_' + rel if rel != 'refD' else None)
     @patch("gobapi.dump.to_db.GOBModel")
     def test_create_utility_view(self, mock_model, mock_create_engine, mock_url):
         class MockedModel:
@@ -462,12 +478,15 @@ class TestDbDumper(TestCase):
         # First test case. src no states and refA a ManyRef and refB a single Reference
         mock_model.return_value = MockedModel()
         db_dumper = DbDumper('catalog', 'collection', {'db': {}})
+        db_dumper._table_exists = lambda relname: relname != 'relation_name_refC'
         db_dumper.model = {
             'abbreviation': 'abbr',
             'has_states': False,
             'references': {
                 'refA': {},
-                'refB': {}
+                'refB': {},
+                'refC': {},
+                'refD': {},
             },
             'all_fields': {
                 'refA': {
@@ -477,37 +496,42 @@ class TestDbDumper(TestCase):
                 'refB': {
                     'ref': 'dstcat:dstcol',
                     'type': 'GOB.Reference',
-                }
+                },
+                # refC will be ignored because its table doesn't exist (yet)
+                'refC': {},
+                # refD will be ignored because no relation_name is returned by get_relation_name, which indicates an
+                # undefined relation
+                'refD': {}
             }
         }
 
-        expected_query = """create view v_catalog_collection as 
+        expected_query = """create view catalog.v_collection as 
 select abbr.*,
        refA.ref refA_ref,
        refA.dst_id refA_id,
-       refA.bronwaarde refA_bronwaarde,
        refA.dst_volgnummer refA_volgnummer,
        refB.dst_id refB_ref,
-       refB.dst_id refB_id,
-       refB.bronwaarde refB_bronwaarde
-from catalog_collection abbr
+       refB.dst_id refB_id
+from catalog.collection abbr
 left join (
     select
         rel.src_id,
         array_agg(rel.dst_id) dst_id,
-        rel.dst_volgnummer dst_volgnummer,
-        array_agg(rel.bronwaarde) bronwaarde,
+        array_agg(rel.dst_volgnummer) dst_volgnummer,
         array_agg(rel.dst_id || \'_\' || rel.dst_volgnummer) "ref"
-    from rel_relation_name_refA rel
-    where rel._date_deleted is null
+    from catalog.relation_name_refA rel
     group by rel.src_id
 ) refA on refA.src_id = abbr._id
-left join rel_relation_name_refB refB on refB.src_id = abbr._id and refB._date_deleted is null
+left join catalog.relation_name_refB refB on refB.src_id = abbr._id
 """
 
-        self.assertEqual(['Utility view v_catalog_collection created\n'], list(db_dumper.create_utility_view()))
+        self.assertEqual([
+            'Creating view\n',
+            'Excluding relation relation_name_refC from view because table does not exist\n',
+            'Utility view catalog.v_collection created\n'
+        ], list(db_dumper.create_utility_view()))
 
-        db_dumper.engine.execute.assert_any_call('drop view if exists v_catalog_collection')
+        db_dumper.engine.execute.assert_any_call('drop view if exists catalog.v_collection')
         called_query = db_dumper.engine.execute.call_args[0][0]
         self.assertQueryEquals(expected_query, called_query)
 
@@ -517,27 +541,23 @@ left join rel_relation_name_refB refB on refB.src_id = abbr._id and refB._date_d
         db_dumper.model['all_fields']['refB']['type'] = 'GOB.ManyReference'
         db_dumper.engine.execute.reset_mock()
 
-        expected_query = """create view v_catalog_collection as 
+        expected_query = """create view catalog.v_collection as 
 select abbr.*,
        refA.dst_id || '_' || refA.dst_volgnummer refA_ref,
        refA.dst_id refA_id,
-       refA.bronwaarde refA_bronwaarde,
        refA.dst_volgnummer refA_volgnummer,
        refB.ref refB_ref,
-       refB.dst_id refB_id,
-       refB.bronwaarde refB_bronwaarde
-from catalog_collection abbr
-left join rel_relation_name_refA refA on refA.src_id = abbr._id and refA.src_volgnummer = abbr.volgnummer and refA._date_deleted is null
+       refB.dst_id refB_id
+from catalog.collection abbr
+left join catalog.relation_name_refA refA on refA.src_id = abbr._id and refA.src_volgnummer = abbr.volgnummer
 left join (
     select
         rel.src_id,
+        rel.src_volgnummer,
         array_agg(rel.dst_id) dst_id,
-        
-        array_agg(rel.bronwaarde) bronwaarde,
         array_agg(rel.dst_id) "ref"
-    from rel_relation_name_refB rel
-    where rel._date_deleted is null
-    group by rel.src_id
+    from catalog.relation_name_refB rel
+    group by rel.src_id, rel.src_volgnummer
 ) refB on refB.src_id = abbr._id and refB.src_volgnummer = abbr.volgnummer
 """
         list(db_dumper.create_utility_view())
