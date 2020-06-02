@@ -85,7 +85,7 @@ class DbDumper:
                 f" FROM information_schema.tables" \
                 f" WHERE table_schema='{self.schema}' AND table_name='{table_name}'" \
                 f")"
-        result = self.engine.execute(query)
+        result = self._execute(query)
         return next(result)[0]
 
     def _get_columns(self, table_name: str) -> List[Tuple[str, str]]:
@@ -95,7 +95,7 @@ class DbDumper:
                 f"FROM information_schema.columns " \
                 f"WHERE table_schema='{self.schema}' AND table_name='{table_name}'"
 
-        result = self.engine.execute(query)
+        result = self._execute(query)
         return [tuple(row) for row in result]
 
     def _table_columns_equal(self, table_a: str, table_b: str) -> bool:
@@ -126,13 +126,13 @@ class DbDumper:
             where = f"WHERE {unique_id} NOT IN ({ids_to_skip_sql})"
 
         query = f'INSERT INTO "{self.schema}"."{dst_table}" SELECT * FROM "{self.schema}"."{src_table}" {where}'
-        self.engine.execute(query)
+        self._execute(query)
 
     def _get_max_eventid(self, table_name: str):
         """Get max eventid from table_name
 
         """
-        result = self.engine.execute(get_max_eventid(self.schema, table_name))
+        result = self._execute(get_max_eventid(self.schema, table_name))
         max_eventid = next(result)[0]
 
         return max_eventid
@@ -149,7 +149,7 @@ class DbDumper:
         Get number of rows in destination table
 
         """
-        result = self.engine.execute(get_dst_count(self.schema, self.collection_name))
+        result = self._execute(get_dst_count(self.schema, self.collection_name))
         return next(result)[0]
 
     def _max_eventid_dst(self):
@@ -163,24 +163,20 @@ class DbDumper:
     def _prepare_destination(self):
         yield f"Create schema {self.schema} if not exists\n"
         create_schema = _create_schema(self.schema)
-        result = self.engine.execute(create_schema)
-        result.close()
+        self._execute(create_schema)
 
         yield f"Create tmp table {self.tmp_collection_name}\n"
         create_table = _create_table(self.schema, self.catalog_name, self.tmp_collection_name, self.model)
-        result = self.engine.execute(create_table)
-        result.close()
+        self._execute(create_table)
 
     def _rename_tmp_table(self):
         yield f"Rename {self.tmp_collection_name} to {self.collection_name}\n"
         rename_table = _rename_table(self.schema, current_name=self.tmp_collection_name, new_name=self.collection_name)
-        result = self.engine.execute(rename_table)
-        result.close()
+        self._execute(rename_table)
 
     def _delete_tmp_table(self):
         delete_table = _delete_table(self.schema, self.tmp_collection_name)
-        result = self.engine.execute(delete_table)
-        result.close()
+        self._execute(delete_table)
 
     def _create_indexes(self, model):
         """
@@ -191,8 +187,7 @@ class DbDumper:
         """
         for index in _create_indexes(model):
             yield f"Create index on {index['field']}\n"
-            result = self.engine.execute(_create_index(self.schema, self.collection_name, **index))
-            result.close()
+            self._execute(_create_index(self.schema, self.collection_name, **index))
 
     def _dump_entities_to_table(self, entities, model):
         connection = self.engine.raw_connection()
@@ -354,9 +349,7 @@ from {self.catalog_name}.{self.collection_name} {main_alias}
 """
         # Create the view
         viewname = f'{self.catalog_name}.v_{self.collection_name}'
-        self.engine.execute(f"drop view if exists {viewname}")
-        result = self.engine.execute(f"create view {viewname} as {query}")
-        result.close()
+        self._execute(f"drop view if exists {viewname}; create view {viewname} as {query}")
 
         yield f"Utility view {viewname} created\n"
 
@@ -429,6 +422,10 @@ from {self.catalog_name}.{self.collection_name} {main_alias}
             filter = self._filter_last_events_lambda(dst_max_eventid)
 
         return self._dump_entities(filter=filter)
+
+    def _execute(self, query: str):
+        with self.engine.begin() as connection:
+            return connection.execute(query)
 
 
 def _dump_relations(catalog_name, collection_name, config):
