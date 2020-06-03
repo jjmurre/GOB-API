@@ -349,7 +349,8 @@ from {self.catalog_name}.{self.collection_name} {main_alias}
 """
         # Create the view
         viewname = f'{self.catalog_name}.v_{self.collection_name}'
-        self._execute(f"drop view if exists {viewname}; create view {viewname} as {query}")
+        self._execute(f"drop view if exists {viewname}")
+        self._execute(f"create view {viewname} as {query}")
 
         yield f"Utility view {viewname} created\n"
 
