@@ -532,8 +532,9 @@ left join catalog.relation_name_refB refB on refB.src_id = abbr._id
             'Utility view catalog.v_collection created\n'
         ], list(db_dumper.create_utility_view()))
 
+        db_dumper._execute.assert_any_call("drop view if exists catalog.v_collection")
         called_query = db_dumper._execute.call_args[0][0]
-        self.assertQueryEquals(f'drop view if exists catalog.v_collection; {expected_query}', called_query)
+        self.assertQueryEquals(expected_query, called_query)
 
         # Second test case. src has states, refA single Reference and refB a ManyReference
         db_dumper.model['has_states'] = True
@@ -562,7 +563,7 @@ left join (
 """
         list(db_dumper.create_utility_view())
         called_query = db_dumper._execute.call_args[0][0]
-        self.assertQueryEquals(f'drop view if exists catalog.v_collection; {expected_query}', called_query)
+        self.assertQueryEquals(expected_query, called_query)
 
 
     def test_sync_dump(self, mock_create_engine, mock_url):
