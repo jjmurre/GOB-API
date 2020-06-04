@@ -20,8 +20,7 @@ class MockStream():
     total_count = 10
 
 
-@patch("gobapi.dump.to_db.URL")
-@patch("gobapi.dump.to_db.create_engine")
+@patch("gobapi.dump.to_db.DatastoreFactory")
 @patch("gobapi.dump.to_db.get_table_and_model", MagicMock(return_value=(1, {})))
 class TestDbDumper(TestCase):
     catalog_name = 'catalog_name'
@@ -35,14 +34,14 @@ class TestDbDumper(TestCase):
         }
         return DbDumper(self.catalog_name, self.collection_name, config)
 
-    def test_init(self, mock_create_engine, mock_url):
+    def test_init(self, mock_datastore_factory):
         db_dumper = self._get_dumper()
 
-        mock_url.assert_called_with(config_key='config_value')
-        mock_create_engine.assert_called_with(mock_url.return_value)
+        mock_datastore_factory.get_datastore.assert_called_with({'config_key': 'config_value'})
+        self.assertEqual(mock_datastore_factory.get_datastore.return_value, db_dumper.datastore)
+        db_dumper.datastore.connect.assert_called_once()
 
         self.assertEqual({'catalog': self.catalog_name, 'collection': self.collection_name}, db_dumper.model)
-        self.assertEqual(mock_create_engine.return_value, db_dumper.engine)
         self.assertEqual(self.catalog_name, db_dumper.schema)
         self.assertNotEqual(db_dumper.collection_name, db_dumper.tmp_collection_name)
         self.assertTrue(db_dumper.collection_name in db_dumper.tmp_collection_name)
@@ -51,7 +50,7 @@ class TestDbDumper(TestCase):
         self.assertEqual('schema', db_dumper2.schema)
 
     @patch("gobapi.dump.to_db.GOBModel")
-    def test_init_schema(self, mock_model, mock_create_engine, mock_url):
+    def test_init_schema(self, mock_model, mock_datastore_factory):
         mock_model().get_catalog_from_abbr = lambda abbr: {'name': 'gebieden'} if abbr == 'gbd' else {}
 
         # Config schema has priority
@@ -66,31 +65,44 @@ class TestDbDumper(TestCase):
         dumper = DbDumper('rel', 'gbd_bbk_bag_vot_la_bla_lda', {'db': {}})
         self.assertEqual(dumper.schema, 'gebieden')
 
-    def test_table_exists(self, mock_create_engine, mock_url):
+    def test_table_exists(self, mock_datastore_factory):
         db_dumper = self._get_dumper()
         db_dumper.schema = 'schema'
-        db_dumper._execute = MagicMock(return_value=iter([('result_bool',)]))
+        db_dumper._query = MagicMock(return_value=iter([('result_bool',)]))
 
         self.assertEqual('result_bool', db_dumper._table_exists('some_table'))
-        db_dumper._execute.assert_called_with("SELECT EXISTS ( SELECT 1 FROM information_schema.tables "
+        db_dumper._query.assert_called_with("SELECT EXISTS ( SELECT 1 FROM information_schema.tables "
                                               "WHERE table_schema='schema' AND table_name='some_table')")
 
-    def test_get_columns(self, mock_create_engine, mock_url):
+    def test_table_empty(self, mock_datastore_config):
+        db_dumper = self._get_dumper()
+        db_dumper.schema = 'schema'
+        db_dumper._query = MagicMock(return_value=iter([1,2]))
+
+        # 1. Not empty
+        self.assertFalse(db_dumper._table_empty('table'))
+        db_dumper._query.assert_called_with("SELECT * FROM schema.table LIMIT 1")
+
+        # 2. Empty
+        db_dumper._query = MagicMock(return_value=iter([]))
+        self.assertTrue(db_dumper._table_empty('table'))
+
+    def test_get_columns(self, mock_datastore_factory):
         result = [
             ('col_a', 'type_a'),
             ('col_b', 'type_b'),
         ]
         db_dumper = self._get_dumper()
-        db_dumper._execute = MagicMock(return_value=iter(result))
+        db_dumper._query = MagicMock(return_value=iter(result))
         db_dumper.schema = 'schema'
 
         self.assertEqual(result, db_dumper._get_columns('some_table'))
-        db_dumper._execute.assert_called_with(
+        db_dumper._query.assert_called_with(
             "SELECT column_name, udt_name FROM information_schema.columns "
             "WHERE table_schema='schema' AND table_name='some_table'"
         )
 
-    def test_table_columns_equal(self, mock_create_engine, mock_url):
+    def test_table_columns_equal(self, mock_datastore_factory):
         columns = {
             'table_a': ['a', 'b', 'c'],
             'table_b': ['d', 'e', 'f'],
@@ -112,7 +124,7 @@ class TestDbDumper(TestCase):
         self.assertTrue(db_dumper._table_columns_equal('table_a', 'table_a'))
         self.assertTrue(db_dumper._table_columns_equal('table_a', 'table_g'))
 
-    def test_copy_table_into(self, mock_create_engine, mock_url):
+    def test_copy_table_into(self, mock_datastore_factory):
         db_dumper = self._get_dumper()
         db_dumper._execute = MagicMock()
         db_dumper.schema = 'schema'
@@ -133,18 +145,18 @@ class TestDbDumper(TestCase):
         )
 
     @patch('gobapi.dump.to_db.get_max_eventid')
-    def test_get_max_eventid(self, mock_max_eventid, mock_create_engine, mock_url):
+    def test_get_max_eventid(self, mock_max_eventid, mock_datastore_factory):
         mock_max_eventid.return_value = 'the maxeventid query'
 
         db_dumper = self._get_dumper()
         db_dumper.schema = 'schema'
-        db_dumper._execute = MagicMock(return_value=iter([('event_id',)]))
+        db_dumper._query = MagicMock(return_value=iter([('event_id',)]))
 
         self.assertEqual('event_id', db_dumper._get_max_eventid('table name'))
         mock_max_eventid.assert_called_with('schema', 'table name')
-        db_dumper._execute.assert_called_with('the maxeventid query')
+        db_dumper._query.assert_called_with('the maxeventid query')
 
-    def test_max_eventid_dst(self, mock_create_engine, mock_url):
+    def test_max_eventid_dst(self, mock_datastore_factory):
         db_dumper = self._get_dumper()
         db_dumper._table_exists = MagicMock(return_value=False)
 
@@ -158,14 +170,14 @@ class TestDbDumper(TestCase):
         db_dumper._get_max_eventid.assert_called_with(self.collection_name)
 
     @patch("gobapi.dump.to_db.get_src_max_eventid")
-    def test_max_eventid_src(self, mock_get_src_max_eventid, mock_create_engine, mock_url):
+    def test_max_eventid_src(self, mock_get_src_max_eventid, mock_datastore_factory):
         db_dumper = self._get_dumper()
         self.assertEqual(mock_get_src_max_eventid.return_value, db_dumper._max_eventid_src())
         mock_get_src_max_eventid.assert_called_with(self.catalog_name, self.collection_name)
 
     @patch("gobapi.dump.to_db._create_schema")
     @patch("gobapi.dump.to_db._create_table")
-    def test_prepare_destination(self, mock_table, mock_schema, mock_create_engine, mock_url):
+    def test_prepare_destination(self, mock_table, mock_schema, mock_datastore_factory):
         db_dumper = self._get_dumper()
         db_dumper._execute = MagicMock()
         list(db_dumper._prepare_destination())
@@ -183,7 +195,7 @@ class TestDbDumper(TestCase):
         )
 
     @patch("gobapi.dump.to_db._rename_table")
-    def test_rename_tmp_table(self, mock_rename, mock_create_engine, mock_url):
+    def test_rename_tmp_table(self, mock_rename, mock_datastore_factory):
         db_dumper = self._get_dumper()
         db_dumper._execute = MagicMock()
         list(db_dumper._rename_tmp_table())
@@ -194,7 +206,7 @@ class TestDbDumper(TestCase):
         db_dumper._execute.assert_called_with(mock_rename.return_value)
 
     @patch("gobapi.dump.to_db._delete_table")
-    def test_delete_tmp_table(self, mock_delete, mock_create_engine, mock_url):
+    def test_delete_tmp_table(self, mock_delete, mock_datastore_factory):
         db_dumper = self._get_dumper()
         db_dumper._execute = MagicMock()
         db_dumper._delete_tmp_table()
@@ -204,7 +216,7 @@ class TestDbDumper(TestCase):
         db_dumper._execute.assert_called_with(mock_delete.return_value)
 
     @patch('gobapi.dump.to_db._create_indexes')
-    def test_create_indexes(self, mock_indexes, mock_create_engine, mock_url):
+    def test_create_indexes(self, mock_indexes, mock_datastore_factory):
         db_dumper = self._get_dumper()
         db_dumper._execute = MagicMock()
 
@@ -238,11 +250,11 @@ class TestDbDumper(TestCase):
     @patch('gobapi.dump.to_db.csv_entities', lambda x, _: x)
     @patch('gobapi.dump.to_db.COMMIT_PER', 1)
     @patch('gobapi.dump.to_db.BUFFER_PER', 99)
-    def test_dump_entities_to_table(self, mock_stream, mock_create_engine, mock_url):
+    def test_dump_entities_to_table(self, mock_stream, mock_datastore_factory):
         mock_stream.return_value = MockStream()
         mock_connection = MagicMock()
         db_dumper = self._get_dumper()
-        db_dumper.engine.raw_connection.return_value = mock_connection
+        db_dumper.datastore.connection = mock_connection
 
         entities = iter([])
         results = list(db_dumper._dump_entities_to_table(entities, MagicMock()))
@@ -260,17 +272,17 @@ class TestDbDumper(TestCase):
     @patch('gobapi.dump.to_db.CSVStream', MockStream)
     @patch('gobapi.dump.to_db.csv_entities', lambda x, _: x)
     @patch('gobapi.dump.to_db.COMMIT_PER', 11)
-    def test_dump_entities_dots(self, mock_create_engine, mock_url):
+    def test_dump_entities_dots(self, mock_datastore_factory):
         mock_connection = MagicMock()
         db_dumper = self._get_dumper()
-        db_dumper.engine.raw_connection.return_value = mock_connection
+        db_dumper.datastore.connection = mock_connection
 
         entities = iter([])
         results = list(db_dumper._dump_entities_to_table(entities, MagicMock()))
         self.assertEqual(mock_connection.commit.call_count, 1)
         self.assertTrue("Export data.\nExported" in "".join(results))
 
-    def test_filter_last_events_lambda(self, mock_create_engine, mock_url):
+    def test_filter_last_events_lambda(self, mock_datastore_factory):
         db_dumper = self._get_dumper()
 
         table = type('MockTable', (object,), {'_last_event': 24})
@@ -290,7 +302,7 @@ class TestDbDumper(TestCase):
         return db_dumper
 
     @patch('gobapi.dump.to_db.dump_entities')
-    def test_dump_to_db_full_no_events(self, mock_dump_entities, mock_create_engine, mock_url):
+    def test_dump_to_db_full_no_events(self, mock_dump_entities, mock_datastore_factory):
         mock_dump_entities.return_value = [], {}
         db_dumper = self._get_dumper_for_dump_to_db()
         db_dumper._max_eventid_dst = MagicMock(return_value=None)
@@ -304,7 +316,7 @@ class TestDbDumper(TestCase):
                                               order_by=FIELD.LAST_EVENT)
 
     @patch('gobapi.dump.to_db.dump_entities')
-    def test_dump_to_db_force_full(self, mock_dump_entities, mock_create_engine, mock_url):
+    def test_dump_to_db_force_full(self, mock_dump_entities, mock_datastore_factory):
         mock_dump_entities.return_value = [], {}
         db_dumper = self._get_dumper_for_dump_to_db()
 
@@ -317,7 +329,7 @@ class TestDbDumper(TestCase):
                                               order_by=FIELD.LAST_EVENT)
 
     @patch('gobapi.dump.to_db.dump_entities')
-    def test_dump_to_db_full_columns_not_equal(self, mock_dump_entities, mock_create_engine, mock_url):
+    def test_dump_to_db_full_columns_not_equal(self, mock_dump_entities, mock_datastore_factory):
         mock_dump_entities.return_value = [], {}
         db_dumper = self._get_dumper_for_dump_to_db()
         db_dumper._table_columns_equal = MagicMock(return_value=False)
@@ -330,7 +342,7 @@ class TestDbDumper(TestCase):
                                               order_by=FIELD.LAST_EVENT)
 
     @patch('gobapi.dump.to_db.dump_entities')
-    def test_dump_to_db_full_dst_eventid_greater(self, mock_dump_entities, mock_create_engine, mock_url):
+    def test_dump_to_db_full_dst_eventid_greater(self, mock_dump_entities, mock_datastore_factory):
         """In case the event id in the destination database is greater than the event id in the source database,
         events are removed from the source database.
 
@@ -354,7 +366,7 @@ class TestDbDumper(TestCase):
                                               order_by=FIELD.LAST_EVENT)
 
     @patch('gobapi.dump.to_db.dump_entities')
-    def test_dump_to_db_full_no_last_src_eventid(self, mock_dump_entities, mock_create_engine, mock_url):
+    def test_dump_to_db_full_no_last_src_eventid(self, mock_dump_entities, mock_datastore_factory):
         """In case that no src event id exists a full dump should occur
 
         :param mock_dump_entities:
@@ -377,7 +389,7 @@ class TestDbDumper(TestCase):
                                               order_by=FIELD.LAST_EVENT)
 
     @patch('gobapi.dump.to_db.dump_entities')
-    def test_dump_to_db_full_no_last_dst_eventid(self, mock_dump_entities, mock_create_engine, mock_url):
+    def test_dump_to_db_full_no_last_dst_eventid(self, mock_dump_entities, mock_datastore_factory):
         """In case that no dst event id exists a full dump should occur
 
         :param mock_dump_entities:
@@ -401,7 +413,7 @@ class TestDbDumper(TestCase):
 
     @patch('gobapi.dump.to_db.dump_entities')
     @patch('gobapi.dump.to_db.get_entity_refs_after')
-    def test_dump_to_db_partial(self, mock_get_entity_refs, mock_dump_entities, mock_create_engine, mock_url):
+    def test_dump_to_db_partial(self, mock_get_entity_refs, mock_dump_entities, mock_datastore_factory):
         mock_dump_entities.return_value = [], {}
 
         # New entities are available
@@ -430,7 +442,7 @@ class TestDbDumper(TestCase):
     @patch('gobapi.dump.to_db.dump_entities')
     @patch('gobapi.dump.to_db.get_entity_refs_after')
     def test_dump_to_db_partial_no_source_ids_to_update(self, mock_get_entity_refs, mock_dump_entities,
-                                                        mock_create_engine, mock_url):
+                                                        mock_datastore_factory):
         mock_dump_entities.return_value = [], {}
         mock_get_entity_refs.return_value = []
 
@@ -463,7 +475,7 @@ class TestDbDumper(TestCase):
 
     @patch("gobapi.dump.to_db.get_relation_name", lambda m, cat, col, rel: 'relation_name_' + rel if rel != 'refD' else None)
     @patch("gobapi.dump.to_db.GOBModel")
-    def test_create_utility_view(self, mock_model, mock_create_engine, mock_url):
+    def test_create_utility_view(self, mock_model, mock_datastore_factory):
         class MockedModel:
             def has_states(self, cat, col):
                 # Will be called with dstcol or dstcolwithstates
@@ -479,6 +491,7 @@ class TestDbDumper(TestCase):
         mock_model.return_value = MockedModel()
         db_dumper = DbDumper('catalog', 'collection', {'db': {}})
         db_dumper._table_exists = lambda relname: relname != 'relation_name_refC'
+        db_dumper._table_empty = lambda relname: relname == 'relation_name_refE'
         db_dumper._execute = MagicMock()
         db_dumper.model = {
             'abbreviation': 'abbr',
@@ -488,6 +501,7 @@ class TestDbDumper(TestCase):
                 'refB': {},
                 'refC': {},
                 'refD': {},
+                'refE': {},
             },
             'all_fields': {
                 'refA': {
@@ -502,7 +516,9 @@ class TestDbDumper(TestCase):
                 'refC': {},
                 # refD will be ignored because no relation_name is returned by get_relation_name, which indicates an
                 # undefined relation
-                'refD': {}
+                'refD': {},
+                # refE will be ignored because its table is empty
+                'refE': {},
             }
         }
 
@@ -528,7 +544,8 @@ left join catalog.relation_name_refB refB on refB.src_id = abbr._id
 
         self.assertEqual([
             'Creating view\n',
-            'Excluding relation relation_name_refC from view because table does not exist\n',
+            'Excluding relation relation_name_refC from view because table does not exist or empty\n',
+            'Excluding relation relation_name_refE from view because table does not exist or empty\n',
             'Utility view catalog.v_collection created\n'
         ], list(db_dumper.create_utility_view()))
 
@@ -566,7 +583,7 @@ left join (
         self.assertQueryEquals(expected_query, called_query)
 
 
-    def test_sync_dump(self, mock_create_engine, mock_url):
+    def test_sync_dump(self, mock_datastore_factory):
         db_dumper = self._get_dumper_for_dump_to_db()
 
         db_dumper._dump_entities = MagicMock()
@@ -589,20 +606,20 @@ left join (
         db_dumper._dump_entities.assert_called_with(filter=db_dumper._filter_last_events_lambda.return_value)
 
     @patch('gobapi.dump.to_db.get_src_count')
-    def test_count_src(self, mock_get_count, mock_create_engine, mock_url):
+    def test_count_src(self, mock_get_count, mock_datastore_factory):
         db_dumper = DbDumper('catalog', 'collection', {'db': {}})
         result = db_dumper._count_src()
         self.assertEqual(result, mock_get_count.return_value)
         mock_get_count.assert_called_with('catalog', 'collection')
 
     @patch('gobapi.dump.to_db.get_dst_count')
-    def test_count_dst(self, mock_get_count, mock_create_engine, mock_url):
+    def test_count_dst(self, mock_get_count, mock_datastore_factory):
         db_dumper = DbDumper('catalog', 'collection', {'db': {}})
         db_dumper._count_dst()
         mock_get_count.assert_called_with('catalog', 'collection')
 
     @patch('gobapi.dump.to_db.get_entity_refs_after')
-    def test_dump_scenarios(self, mock_get_entity_refs_after, mock_create_engine, mock_url):
+    def test_dump_scenarios(self, mock_get_entity_refs_after, mock_datastore_factory):
         def mock_dump(*args):
             yield "dump"
             return None, None
@@ -701,24 +718,17 @@ left join (
         db_dumper._full_dump.assert_not_called()
         db_dumper._sync_dump.assert_not_called()
 
-    def test_execute(self, mock_create_engine, mock_url):
+    def test_execute(self, mock_datastore_factory):
         db_dumper = DbDumper('catalog', 'collection', {'db': {}})
-        db_dumper.engine = MagicMock()
-        execute_result = MagicMock()
-        execute_result.returns_rows = True
-        db_dumper.engine.execute.return_value = execute_result
+        db_dumper._execute('some query')
+        db_dumper.datastore.execute.assert_called_with('some query')
 
-        # 1. Execute provides results
-        self.assertEqual(execute_result, db_dumper._execute('some query'))
-        db_dumper.engine.execute.assert_called_with('some query')
+    def test_query(self, mock_datastore_factory):
+        db_dumper = DbDumper('catalog', 'collection', {'db': {}})
+        res = db_dumper._query('some query')
+        self.assertEqual(db_dumper.datastore.query.return_value, res)
+        db_dumper.datastore.query.assert_called_with('some query')
 
-        # Result proxy should not be closed yet
-        execute_result.close.assert_not_called()
-
-        # 2. No results. Result proxy should be closed manually
-        execute_result.returns_rows = False
-        self.assertIsNone(db_dumper._execute('some query'))
-        execute_result.close.assert_called_once()
 
 @patch('gobapi.dump.to_db.DbDumper')
 class TestModuleFunctions(TestCase):
