@@ -1,8 +1,6 @@
 import traceback
 
 from gobcore.typesystem import fully_qualified_type_name, GOB
-from sqlalchemy import create_engine
-from sqlalchemy.engine.url import URL
 from typing import Tuple, List
 
 from gobapi.storage import dump_entities
@@ -10,6 +8,7 @@ from gobapi.storage import dump_entities
 from gobcore.model import GOBModel
 from gobcore.model.metadata import FIELD
 from gobcore.model.relations import get_relation_name
+from gobcore.datastore.factory import DatastoreFactory
 
 from gobapi.dump.config import SKIP_RELATIONS, UNIQUE_ID, UNIQUE_REL_ID
 from gobapi.dump.sql import _create_schema, _create_table, _rename_table, _delete_table
@@ -49,9 +48,10 @@ class DbDumper:
         self.catalog_name = catalog_name
         self.collection_name = collection_name
         self.tmp_collection_name = f"tmp_{collection_name}"
-        self.engine = create_engine(URL(**config['db']))
-        self.config = config
-        self.config['engine'] = self.engine
+
+        self.datastore = DatastoreFactory.get_datastore(config['db'])
+        self.datastore.connect()
+
         self.schema = self._get_dst_schema(config, catalog_name, collection_name)
 
         _, self.model = get_table_and_model(catalog_name, collection_name)
@@ -85,8 +85,18 @@ class DbDumper:
                 f" FROM information_schema.tables" \
                 f" WHERE table_schema='{self.schema}' AND table_name='{table_name}'" \
                 f")"
-        result = self._execute(query)
+        result = self._query(query)
         return next(result)[0]
+
+    def _table_empty(self, table_name: str) -> bool:
+        query = f"SELECT * FROM {self.schema}.{table_name} LIMIT 1"
+        result = self._query(query)
+
+        try:
+            next(result)
+        except StopIteration:
+            return True
+        return False
 
     def _get_columns(self, table_name: str) -> List[Tuple[str, str]]:
         """Returns a list of tuples (column_name, column_type) for given table_name. """
@@ -95,7 +105,7 @@ class DbDumper:
                 f"FROM information_schema.columns " \
                 f"WHERE table_schema='{self.schema}' AND table_name='{table_name}'"
 
-        result = self._execute(query)
+        result = self._query(query)
         return [tuple(row) for row in result]
 
     def _table_columns_equal(self, table_a: str, table_b: str) -> bool:
@@ -132,7 +142,7 @@ class DbDumper:
         """Get max eventid from table_name
 
         """
-        result = self._execute(get_max_eventid(self.schema, table_name))
+        result = self._query(get_max_eventid(self.schema, table_name))
         max_eventid = next(result)[0]
 
         return max_eventid
@@ -149,7 +159,7 @@ class DbDumper:
         Get number of rows in destination table
 
         """
-        result = self._execute(get_dst_count(self.schema, self.collection_name))
+        result = self._query(get_dst_count(self.schema, self.collection_name))
         return next(result)[0]
 
     def _max_eventid_dst(self):
@@ -190,7 +200,7 @@ class DbDumper:
             self._execute(_create_index(self.schema, self.collection_name, **index))
 
     def _dump_entities_to_table(self, entities, model):
-        connection = self.engine.raw_connection()
+        connection = self.datastore.connection
         stream = CSVStream(csv_entities(entities, model), STREAM_PER)
 
         with connection.cursor() as cursor:
@@ -295,8 +305,8 @@ class DbDumper:
                 # Undefined relation
                 continue
 
-            if not self._table_exists(relation_name):
-                yield f"Excluding relation {relation_name} from view because table does not exist\n"
+            if not self._table_exists(relation_name) or self._table_empty(relation_name):
+                yield f"Excluding relation {relation_name} from view because table does not exist or empty\n"
                 continue
 
             relation_table = f'{self.catalog_name}.{relation_name}'
@@ -424,15 +434,11 @@ from {self.catalog_name}.{self.collection_name} {main_alias}
 
         return self._dump_entities(filter=filter)
 
+    def _query(self, query: str):
+        return self.datastore.query(query)
+
     def _execute(self, query: str):
-        result_proxy = self.engine.execute(query)
-
-        if result_proxy.returns_rows:
-            # Will close automatically
-            return result_proxy
-
-        # Result proxy does not return rows. Close explicitly
-        result_proxy.close()
+        self.datastore.execute(query)
 
 
 def _dump_relations(catalog_name, collection_name, config):
@@ -460,11 +466,11 @@ def dump_to_db(catalog_name, collection_name, config):
         dumper = DbDumper(catalog_name, collection_name, config)
         yield from dumper.dump_to_db()
 
-        if catalog_name != 'rel':
-            yield from dumper.create_utility_view()
-
         if config.get('include_relations', True):
             yield from _dump_relations(catalog_name, collection_name, config)
+
+        if catalog_name != 'rel':
+            yield from dumper.create_utility_view()
 
         yield "Export completed\n"
     except Exception as e:
