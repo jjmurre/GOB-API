@@ -425,8 +425,14 @@ from {self.catalog_name}.{self.collection_name} {main_alias}
         return self._dump_entities(filter=filter)
 
     def _execute(self, query: str):
-        with self.engine.begin() as connection:
-            return connection.execute(query)
+        result_proxy = self.engine.execute(query)
+
+        if result_proxy.returns_rows:
+            # Will close automatically
+            return result_proxy
+
+        # Result proxy does not return rows. Close explicitly
+        result_proxy.close()
 
 
 def _dump_relations(catalog_name, collection_name, config):
