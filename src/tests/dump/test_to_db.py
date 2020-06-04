@@ -704,10 +704,21 @@ left join (
     def test_execute(self, mock_create_engine, mock_url):
         db_dumper = DbDumper('catalog', 'collection', {'db': {}})
         db_dumper.engine = MagicMock()
+        execute_result = MagicMock()
+        execute_result.returns_rows = True
+        db_dumper.engine.execute.return_value = execute_result
 
-        connection = db_dumper.engine.begin().__enter__()
-        self.assertEqual(connection.execute.return_value, db_dumper._execute('some query'))
-        connection.execute.assert_called_with('some query')
+        # 1. Execute provides results
+        self.assertEqual(execute_result, db_dumper._execute('some query'))
+        db_dumper.engine.execute.assert_called_with('some query')
+
+        # Result proxy should not be closed yet
+        execute_result.close.assert_not_called()
+
+        # 2. No results. Result proxy should be closed manually
+        execute_result.returns_rows = False
+        self.assertIsNone(db_dumper._execute('some query'))
+        execute_result.close.assert_called_once()
 
 @patch('gobapi.dump.to_db.DbDumper')
 class TestModuleFunctions(TestCase):
