@@ -1,7 +1,9 @@
 from unittest import TestCase
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch, call, ANY
 
-from gobapi.graphql_streaming.api import GraphQLStreamingApi, GraphQLStreamingResponseBuilder, NoAccessException
+from gobapi.graphql_streaming.api import GraphQLStreamingApi, NoAccessException
+from gobapi.graphql_streaming.response import GraphQLStreamingResponseBuilder
+from gobapi.graphql_streaming.response_custom import GraphQLCustomStreamingResponseBuilder
 
 from gobcore.exceptions import GOBException
 from gobcore.model.metadata import FIELD
@@ -16,11 +18,11 @@ class TestGraphQLStreamingApi(TestCase):
     @patch("gobapi.graphql_streaming.api.request")
     @patch("gobapi.graphql_streaming.api.get_session")
     @patch("gobapi.graphql_streaming.api.GraphQL2SQL")
-    @patch("gobapi.graphql_streaming.api.GraphQLStreamingResponseBuilder")
+    @patch("gobapi.graphql_streaming.api.GraphQLCustomStreamingResponseBuilder")
     @patch("gobapi.graphql_streaming.api.text", lambda x: 'text_' + x)
     def test_entrypoint(self, mock_response_builder, mock_graphql2sql, mock_get_session, mock_request):
         mock_request.data.decode.return_value = '{"query": "some query"}'
-        mock_request.args.get.return_value = None
+        mock_request.args.get.return_value = ''
         graphql2sql_instance = mock_graphql2sql.return_value
         graphql2sql_instance.sql.return_value = 'parsed query'
 
@@ -30,9 +32,17 @@ class TestGraphQLStreamingApi(TestCase):
         mock_get_session.return_value.connection.return_value.execution_options.assert_called_with(stream_results=True)
         execute = mock_get_session.return_value.connection.return_value.execution_options.return_value.execute
         execute.assert_called_with('text_parsed query')
+        options = {
+            'flatten': False,
+            'condens': [],
+            'lowercase': False,
+            'id': [],
+            'geojson': []
+        }
         mock_response_builder.assert_called_with(execute.return_value,
                                                  graphql2sql_instance.relations_hierarchy,
-                                                 graphql2sql_instance.selections)
+                                                 graphql2sql_instance.selections,
+                                                 request_args=mock_request.args)
         self.assertEqual(result, mock_response_builder.return_value)
 
     @patch("gobapi.graphql_streaming.api.request")
@@ -570,8 +580,8 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
             'relationD': [FIELD.SOURCE_VALUE, FIELD.SOURCE_INFO],
         }, builder._get_requested_sourcevalues())
 
-    @patch("gobapi.graphql_streaming.api.dict_to_camelcase", lambda x: x)
-    @patch("gobapi.graphql_streaming.api.stream_response", lambda x: 'streamed_' + x)
+    @patch("gobapi.graphql_streaming.response.dict_to_camelcase", lambda x: x)
+    @patch("gobapi.graphql_streaming.response.stream_response", lambda x: 'streamed_' + x)
     def test_iter(self):
         builder = self.get_instance()
         builder._determine_relation_evaluation_order = MagicMock(return_value=('eval order', 'root rel'))
@@ -624,3 +634,232 @@ class TestGraphQLStreamingResponseBuilder(TestCase):
 
         with self.assertRaises(GOBException):
             builder._determine_relation_evaluation_order()
+
+class TestGraphQLCustomStreamingResponseBuilder(TestCase):
+
+    def test_init(self):
+        rb = GraphQLCustomStreamingResponseBuilder(None, None, None)
+        self.assertIsInstance(rb, GraphQLCustomStreamingResponseBuilder)
+        self.assertEqual(rb.condens, [])
+        self.assertEqual(rb.flatten, False)
+
+    @patch('gobapi.graphql_streaming.response_custom.GraphQLStreamingResponseBuilder._build_entity')
+    def test_build_entity(self, mock_super_build_entity):
+        rb = GraphQLCustomStreamingResponseBuilder(None, None, None)
+        rb._customized_entity = MagicMock()
+        result = rb._build_entity('any entity')
+        mock_super_build_entity.assert_called_with('any entity')
+        rb._customized_entity.assert_not_called()
+        self.assertEqual(result, mock_super_build_entity.return_value)
+
+        request = {
+            'condens': 'any condens'
+        }
+        rb = GraphQLCustomStreamingResponseBuilder(None, None, None, request_args=request)
+        rb._customized_entity = MagicMock()
+        result = rb._build_entity('any entity')
+        rb._customized_entity.assert_called_with(mock_super_build_entity.return_value)
+        self.assertEqual(result, rb._customized_entity.return_value)
+
+        request = {
+            'flatten': 'true'
+        }
+        rb = GraphQLCustomStreamingResponseBuilder(None, None, None, request_args=request)
+        rb._customized_entity = MagicMock()
+        rb._build_entity('any entity')
+        rb._customized_entity.assert_called()
+
+    def test_flatten(self):
+        entity = {
+            "identificatie": "10281154",
+            "status": {
+                "code": 1,
+                "omschrijving": "Actueel"
+            }
+        }
+        request = {
+            'flatten': 'true'
+        }
+        rb = GraphQLCustomStreamingResponseBuilder(None, None, None, request_args=request)
+        self.assertTrue(rb.has_options)
+        result = rb._customized_entity(entity)
+        expect = {
+            'identificatie': '10281154',
+            'statuscode': 1,
+            'statusomschrijving': 'Actueel'
+        }
+        self.assertEqual(result, expect)
+
+    def test_lowercase(self):
+        entity = {
+            'identificatie': '10281154',
+            "ligtInBouwblok": {
+                "edges": [
+                    {
+                        "node": {
+                            "identificatie": "03630012101200",
+                            "volgnummer": 1
+                        }
+                    }
+                ]
+            }
+        }
+        request = {
+            'lowercase': 'true'
+        }
+        rb = GraphQLCustomStreamingResponseBuilder(None, None, None, request_args=request)
+        self.assertTrue(rb.has_options)
+        result = rb._customized_entity(entity)
+        expect = {
+            'identificatie': '10281154',
+            "ligtinbouwblok": {
+                "edges": [
+                    {
+                        "node": {
+                            "identificatie": "03630012101200",
+                            "volgnummer": 1
+                        }
+                    }
+                ]
+            }
+        }
+        self.assertEqual(result, expect)
+
+    def test_condens(self):
+        entity = {
+            'identificatie': '10281154',
+            "ligtInBouwblok": {
+                "edges": [
+                    {
+                        "node": {
+                            "identificatie": "03630012101200",
+                            "volgnummer": 1
+                        }
+                    }
+                ]
+            }
+        }
+        request = {
+            'condens': 'edges,node'
+        }
+        rb = GraphQLCustomStreamingResponseBuilder(None, None, None, request_args=request)
+        self.assertTrue(rb.has_options)
+        result = rb._customized_entity(entity)
+        expect = {
+            'identificatie': '10281154',
+            'ligtInBouwblok': {
+                'identificatie': '03630012101200',
+                'volgnummer': 1
+            }
+        }
+        self.assertEqual(result, expect)
+
+    def test_id(self):
+        entity = {
+            'identificatie': '10281154',
+            "ligtInBouwblok": {
+                "edges": [
+                    {
+                        "node": {
+                            "identificatie": "03630012101200",
+                            "volgnummer": 1
+                        }
+                    }
+                ]
+            }
+        }
+        request = {
+            'id': 'identificatie,volgnummer'
+        }
+        rb = GraphQLCustomStreamingResponseBuilder(None, None, None, request_args=request)
+        self.assertTrue(rb.has_options)
+        result = rb._customized_entity(entity)
+        expect = {
+            'id': '10281154',
+            'identificatie': '10281154',
+            "ligtInBouwblok": {
+                "edges": [
+                    {
+                        "node": {
+                            "id": "03630012101200.1",
+                            "identificatie": "03630012101200",
+                            "volgnummer": 1
+                        }
+                    }
+                ]
+            }
+        }
+        self.assertEqual(result, expect)
+
+    def test_id_condens(self):
+        entity = {
+            'identificatie': '10281154',
+            "ligtInBouwblok": {
+                "edges": [
+                    {
+                        "node": {
+                            "identificatie": "03630012101200",
+                            "volgnummer": 1
+                        }
+                    }
+                ]
+            }
+        }
+        request = {
+            'id': 'identificatie,volgnummer',
+            'condens': 'edges,node,id'
+        }
+        rb = GraphQLCustomStreamingResponseBuilder(None, None, None, request_args=request)
+        self.assertTrue(rb.has_options)
+        result = rb._customized_entity(entity)
+        expect = {
+            'id': '10281154',
+            'identificatie': '10281154',
+            "ligtInBouwblok": "03630012101200.1"
+        }
+        self.assertEqual(result, expect)
+
+    def test_geojson(self):
+        entity = {
+            "identificatie": "10281154",
+            "geometrie1": "POINT(119411.7 487201.6)",
+            "geometrie2": "POINT(119411.7 487201.6)",
+            "geometrie3": "POINT(119411.7 487201.6)"
+        }
+        request = {
+            'geojson': 'geometrie1,geometrie3'
+        }
+        rb = GraphQLCustomStreamingResponseBuilder(None, None, None, request_args=request)
+        self.assertTrue(rb.has_options)
+        result = rb._customized_entity(entity)
+        expect = {
+            'identificatie': '10281154',
+            'geometrie1': {
+                "type": "Point",
+                "coordinates": [119411.7, 487201.6]
+            },
+            'geometrie2': 'POINT(119411.7 487201.6)',
+            'geometrie3': {
+                "type": "Point",
+                "coordinates": [119411.7, 487201.6]
+            },
+        }
+        self.assertEqual(result, expect)
+
+    @patch('gobapi.graphql_streaming.response_custom.GraphQLStreamingResponseBuilder._build_entity')
+    def test_schema(self, mock_super_build_entity):
+        entity = {
+            "identificatie": "10281154"
+        }
+        request = {
+            'schema': 'schema name'
+        }
+        rb = GraphQLCustomStreamingResponseBuilder(None, None, None, request_args=request)
+        self.assertTrue(rb.has_options)
+        mock_super_build_entity.return_value = entity
+        result = rb._build_entity(entity)
+        expect = {
+            'identificatie': '10281154',
+            'schema': 'schema name'
+        }
+        self.assertEqual(result, expect)
