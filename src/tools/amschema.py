@@ -16,7 +16,7 @@ model = GOBModel()
 sys.stdout = sys.__stdout__
 
 
-def get_schema(catalog_name, collection_name=None):  # noqa: C901, too complex
+def get_schema(catalog_name, collection_name=None):
     """
     Get a Amsterdam Schema for the given catalog
 
@@ -252,7 +252,7 @@ def get_curl(catalog_name, collection_name, path):
     return f"curl -s --location --request POST '{url}' --header '{header}' --data-raw '{query}'"
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":   # noqa: C901, too complex
     class CollectionAction(argparse.Action):
         def __call__(self, parser, namespace, values, option_string=None):
             if namespace.format in ['query', 'curl'] and values is None:
