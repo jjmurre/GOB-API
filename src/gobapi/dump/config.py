@@ -40,7 +40,8 @@ SQL_TYPE_CONVERSIONS = {
     "GOB.Boolean": "boolean",
     "GOB.Geo.Geometry": "geometry",
     "GOB.Geo.Polygon": "geometry",
-    "GOB.Geo.Point": "geometry"
+    "GOB.Geo.Point": "geometry",
+    "GOB.JSON": "jsonb"
 }
 # Add constants for secure types (match on their base type)
 for t in GOB_SECURE_TYPES:
