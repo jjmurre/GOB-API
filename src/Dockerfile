@@ -1,4 +1,4 @@
-FROM amsterdam/python:3.7-buster
+FROM amsterdam/python:latest
 MAINTAINER datapunt@amsterdam.nl
 
 # Install ANTLR
