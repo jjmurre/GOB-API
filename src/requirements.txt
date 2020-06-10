@@ -13,7 +13,7 @@ GeoAlchemy2==0.5.0
 geomet==0.2.0.post2
 geojson==2.5.0
 -e git+https://github.com/Amsterdam/flask-audit-log.git@v0.1.0a-rc1#egg=flask-audit-log
--e git+https://github.com/Amsterdam/GOB-Core.git@v0.16.4#egg=gobcore
+-e git+https://github.com/Amsterdam/GOB-Core.git@v0.16.7#egg=gobcore
 graphene==2.1.3
 graphene-sqlalchemy==2.1.0
 graphql-core==2.1
