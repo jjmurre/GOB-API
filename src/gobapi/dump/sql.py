@@ -139,7 +139,7 @@ def _create_index(schema, collection_name, field, method="btree"):
     """
     table = _quoted_tablename(schema, collection_name)
     return f"""
-CREATE INDEX {collection_name}_{field} ON {table} USING {method} ({field})
+CREATE INDEX IF NOT EXISTS {collection_name}_{field} ON {table} USING {method} ({field})
 """
 
 

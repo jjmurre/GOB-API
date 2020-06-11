@@ -135,7 +135,7 @@ class TestSQL(TestCase):
 
     def test_create_index(self):
         result = _create_index('schema', 'collection', 'field', 'method')
-        self.assertEqual('\nCREATE INDEX collection_field ON "schema"."collection" USING method (field)\n', result)
+        self.assertEqual('\nCREATE INDEX IF NOT EXISTS collection_field ON "schema"."collection" USING method (field)\n', result)
 
     def test_get_max_eventid(self):
         result = get_max_eventid('schema', 'collection')
