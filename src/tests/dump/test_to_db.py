@@ -194,16 +194,19 @@ class TestDbDumper(TestCase):
             db_dumper.model,
         )
 
-    @patch("gobapi.dump.to_db._rename_table")
-    def test_rename_tmp_table(self, mock_rename, mock_datastore_factory):
+    @patch("gobapi.dump.to_db._insert_into_table")
+    def test_copy_tmp_table(self, mock_copy, mock_datastore_factory):
         db_dumper = self._get_dumper()
         db_dumper._execute = MagicMock()
-        list(db_dumper._rename_tmp_table())
+        db_dumper._delete_tmp_table = MagicMock()
+        list(db_dumper._copy_tmp_table())
 
-        mock_rename.assert_called_with(db_dumper.schema,
-                                       current_name=db_dumper.tmp_collection_name,
-                                       new_name=db_dumper.collection_name)
-        db_dumper._execute.assert_called_with(mock_rename.return_value)
+        mock_copy.assert_called_with(db_dumper.schema,
+                                       src_name=db_dumper.tmp_collection_name,
+                                       dst_name=db_dumper.collection_name)
+        db_dumper._execute.assert_called_with(mock_copy.return_value)
+        
+        db_dumper._delete_tmp_table.assert_called()
 
     @patch("gobapi.dump.to_db._delete_table")
     def test_delete_tmp_table(self, mock_delete, mock_datastore_factory):
@@ -294,7 +297,7 @@ class TestDbDumper(TestCase):
         db_dumper = self._get_dumper()
         db_dumper._prepare_destination = MagicMock(return_value="")
         db_dumper._dump_entities_to_table = MagicMock(return_value="")
-        db_dumper._rename_tmp_table = MagicMock(return_value="")
+        db_dumper._copy_tmp_table = MagicMock(return_value="")
         db_dumper._create_indexes = MagicMock(return_value="")
         db_dumper._copy_table_into = MagicMock()
         db_dumper._delete_dst_entities = MagicMock()
@@ -630,7 +633,7 @@ left join (
             db_dumper._full_dump = MagicMock(side_effect=mock_dump)
             db_dumper._sync_dump = MagicMock(side_effect=mock_dump)
             db_dumper._dump_entities_to_table = MagicMock()
-            db_dumper._rename_tmp_table = MagicMock()
+            db_dumper._copy_tmp_table = MagicMock()
             db_dumper._create_indexes = MagicMock()
 
         db_dumper = DbDumper('catalog', 'collection', {'db': {}})
