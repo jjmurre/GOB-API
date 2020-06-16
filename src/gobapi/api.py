@@ -18,6 +18,7 @@ from flask_cors import CORS
 from flask_audit_log.middleware import AuditLogMiddleware
 
 from gobcore.model import GOBModel
+from gobcore.model.metadata import FIELD
 from gobcore.views import GOBViews
 
 from gobapi.config import API_BASE_PATH, API_SECURE_BASE_PATH
@@ -195,7 +196,10 @@ def _dump(catalog_name, collection_name):
 
     if method == 'GET':
         format = request.args.get('format')
-        entities, model = dump_entities(catalog_name, collection_name)
+        exclude_deleted = request.args.get('exclude_deleted') == 'true'
+
+        filter = (lambda table: getattr(table, FIELD.DATE_DELETED).is_(None)) if exclude_deleted else None
+        entities, model = dump_entities(catalog_name, collection_name, filter=filter)
 
         if format == "csv":
             result = csv_entities(entities, model)
