@@ -11,7 +11,7 @@ from gobcore.model.relations import get_relation_name
 from gobcore.datastore.factory import DatastoreFactory
 
 from gobapi.dump.config import SKIP_RELATIONS, UNIQUE_ID, UNIQUE_REL_ID
-from gobapi.dump.sql import _create_schema, _create_table, _rename_table, _delete_table
+from gobapi.dump.sql import _create_schema, _create_table, _insert_into_table, _delete_table
 from gobapi.dump.sql import _create_indexes, _create_index, get_max_eventid, get_count as get_dst_count
 from gobapi.dump.csv import csv_entities
 from gobapi.dump.csv_stream import CSVStream
@@ -175,14 +175,23 @@ class DbDumper:
         create_schema = _create_schema(self.schema)
         self._execute(create_schema)
 
+        yield f"Create dst table {self.collection_name}\n"
+        create_table = _create_table(self.schema, self.catalog_name, self.collection_name, self.model)
+        self._execute(create_table)
+
         yield f"Create tmp table {self.tmp_collection_name}\n"
         create_table = _create_table(self.schema, self.catalog_name, self.tmp_collection_name, self.model)
         self._execute(create_table)
 
-    def _rename_tmp_table(self):
-        yield f"Rename {self.tmp_collection_name} to {self.collection_name}\n"
-        rename_table = _rename_table(self.schema, current_name=self.tmp_collection_name, new_name=self.collection_name)
-        self._execute(rename_table)
+    def _copy_tmp_table(self):
+        yield f"Truncate {self.collection_name} and insert {self.tmp_collection_name} in to {self.collection_name}\n"
+        insert_into_table = _insert_into_table(self.schema,
+                                               src_name=self.tmp_collection_name,
+                                               dst_name=self.collection_name)
+        self._execute(insert_into_table)
+
+        yield f"Delete temporary table\n"
+        self._delete_tmp_table()
 
     def _delete_tmp_table(self):
         delete_table = _delete_table(self.schema, self.tmp_collection_name)
@@ -266,7 +275,7 @@ class DbDumper:
             entities, model = yield from self._sync_dump(dst_max_eventid, source_ids_to_update)
 
         yield from self._dump_entities_to_table(entities, model)
-        yield from self._rename_tmp_table()
+        yield from self._copy_tmp_table()
         yield from self._create_indexes(model)
 
     def _ref(self, rel_alias: str, with_seqnr: bool):

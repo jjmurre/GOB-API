@@ -2,7 +2,7 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 from gobapi.dump.sql import _create_table, _create_schema, _import_csv, sql_entities, get_max_eventid, \
-    delete_entities_with_source_ids, _quoted_tablename, _rename_table, _delete_table, _create_indexes, _create_index, to_sql_string_value, \
+    delete_entities_with_source_ids, _quoted_tablename, _insert_into_table, _delete_table, _create_indexes, _create_index, to_sql_string_value, \
     get_count
 from gobapi.dump.config import REFERENCE_FIELDS
 
@@ -90,10 +90,10 @@ class TestSQL(TestCase):
         self.assertEqual('DROP TABLE IF EXISTS "any schema"."any name" CASCADE',
                          result)
 
-    def test_rename_table(self):
-        result = _rename_table('schema', 'current_name', 'new_name')
-        self.assertEqual('\nDROP  TABLE IF EXISTS "schema"."new_name"     CASCADE;\n'
-                         'ALTER TABLE IF EXISTS "schema"."current_name" RENAME TO new_name\n',
+    def test_insert_into_table(self):
+        result = _insert_into_table('schema', 'current_name', 'new_name')
+        self.assertEqual('\nTRUNCATE TABLE "schema"."new_name";\n'
+                         'INSERT INTO "schema"."new_name" SELECT * FROM "schema"."current_name"\n',
                          result)
 
     @patch('gobapi.dump.sql.get_reference_fields')

@@ -96,20 +96,20 @@ def _delete_table(schema, name):
     return f"DROP TABLE IF EXISTS {table} CASCADE"
 
 
-def _rename_table(schema, current_name, new_name):
+def _insert_into_table(schema, src_name, dst_name):
     """
-    Rename table with the given current_name in the given schema to new_name in the same schema
+    Truncates the dst_table and copy the data from src_table in the given schema to dst_name in the same schema
 
     :param schema:
-    :param current_name:
-    :param new_name:
+    :param src_name:
+    :param dst_name:
     :return:
     """
-    current_table = _quoted_tablename(schema, current_name)
-    new_table = _quoted_tablename(schema, new_name)
+    src_table = _quoted_tablename(schema, src_name)
+    dst_table = _quoted_tablename(schema, dst_name)
     return f"""
-DROP  TABLE IF EXISTS {new_table}     CASCADE;
-ALTER TABLE IF EXISTS {current_table} RENAME TO {new_name}
+TRUNCATE TABLE {dst_table};
+INSERT INTO {dst_table} SELECT * FROM {src_table}
 """
 
 
@@ -218,8 +218,6 @@ def _create_table(schema, catalog_name, collection_name, model):
     primary_key = f",PRIMARY KEY ({UNIQUE_ID})" if UNIQUE_ID in order else ""
 
     return f"""
-DROP TABLE IF EXISTS {table_name} CASCADE;
--- TRUNCATE TABLE {table_name};
 CREATE TABLE IF NOT EXISTS {table_name}
 (
   {table_fields}
