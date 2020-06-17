@@ -612,7 +612,13 @@ def _add_relations(query, catalog_name, collection_name):
                     )
                 ).label('source_values')
             ).filter(
-                getattr(rel_table, FIELD.DATE_DELETED).is_(None)
+                and_(
+                    getattr(rel_table, FIELD.DATE_DELETED).is_(None),
+                    or_(
+                        getattr(rel_table, FIELD.EXPIRATION_DATE).is_(None),
+                        getattr(rel_table, FIELD.EXPIRATION_DATE) > func.now()
+                    )
+                )
             ).group_by(
                 *select_attrs
             ).subquery()

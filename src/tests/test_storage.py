@@ -1036,12 +1036,22 @@ class TestStorage(TestCase):
     @mock.patch("gobapi.storage.func.json_build_object")
     @mock.patch("gobapi.storage.session")
     @mock.patch("gobapi.storage.and_")
+    @mock.patch("gobapi.storage.or_")
+    @mock.patch("gobapi.storage.func.now")
     @mock.patch("gobapi.storage.get_relation_name", lambda m, cat, col, ref: None if ref is None else f'{cat}_{col}_{ref}')
-    def test_add_relations(self, mock_and, mock_session, mock_json_build_object, mock_json_agg, mock_get_table_and_model, mock_model):
+    def test_add_relations(self, mock_now, mock_or, mock_and, mock_session, mock_json_build_object, mock_json_agg, mock_get_table_and_model, mock_model):
         mock_src_table = type('MockSrcTable', (), {
             '_id': 'the src id',
             'volgnummer': 'the src volgnummer',
         })
+
+        mock_and.side_effect = lambda *args: f"({' AND '.join([str(arg) for arg in args])})"
+        mock_or.side_effect = lambda *args: f"({' OR '.join([str(arg) for arg in args])})"
+
+        expiration_date = MagicMock()
+        expiration_date.is_ = lambda x: 'is_expiration_date_' + str(x)
+        expiration_date.__gt__ = lambda self, other: 'greater than now' if other == mock_now() else None
+
         mock_rel_table = type('MockRelTable', (), {
             'src_id': 'rel table src id',
             'src_volgnummer': 'rel table src volgnummer',
@@ -1049,7 +1059,8 @@ class TestStorage(TestCase):
             'dst_id': 'rel table dst id',
             '_date_deleted': type('MockIs', (), {
                 'is_': lambda x: 'is_date_deleted_' + str(x)
-            })
+            }),
+            '_expiration_date': expiration_date
         })
         mock_model.return_value.get_collection.return_value = {
             'has_states': False,
@@ -1091,7 +1102,7 @@ class TestStorage(TestCase):
         )
 
         # Filtered by _date_deleted
-        mock_session.query.return_value.filter.assert_called_with('is_date_deleted_None')
+        mock_session.query.return_value.filter.assert_called_with('(is_date_deleted_None AND (is_expiration_date_None OR greater than now))')
 
         # Grouped by rel table src id
         mock_session.query.return_value.filter.return_value.group_by.assert_called_with('rel table src id')
@@ -1099,7 +1110,7 @@ class TestStorage(TestCase):
         # Check subquery is LEFT OUTER joined
         mock_query.join.assert_called_with(
             mocked_subquery,
-            mock_and.return_value,
+            '(False)',  # Result of comparison of mocked _id and src_id
             isouter=True
         )
 
