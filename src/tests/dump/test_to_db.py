@@ -1,6 +1,6 @@
 import re
 from unittest import TestCase
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch, call, Mock
 
 from gobapi.dump.to_db import dump_to_db, DbDumper, _dump_relations, FIELD, MAX_SYNC_ITEMS
 from gobapi.dump.config import UNIQUE_REL_ID
@@ -180,11 +180,20 @@ class TestDbDumper(TestCase):
     def test_prepare_destination(self, mock_table, mock_schema, mock_datastore_factory):
         db_dumper = self._get_dumper()
         db_dumper._execute = MagicMock()
+        db_dumper._delete_tmp_table = MagicMock()
+
+        # Use mock manager to assert call order
+        mock_manager = Mock()
+        mock_manager.attach_mock(db_dumper._execute, '_execute')
+        mock_manager.attach_mock(db_dumper._delete_tmp_table, '_delete_tmp_table')
+
         list(db_dumper._prepare_destination())
 
-        db_dumper._execute.assert_has_calls([
-            call(mock_schema.return_value),
-            call(mock_table.return_value),
+        mock_manager.assert_has_calls([
+            call._execute(mock_schema.return_value),
+            call._execute(mock_table.return_value),
+            call._delete_tmp_table(),
+            call._execute(mock_table.return_value),
         ])
         mock_schema.assert_called_with(db_dumper.schema)
         mock_table.assert_called_with(
@@ -193,6 +202,7 @@ class TestDbDumper(TestCase):
             db_dumper.tmp_collection_name,
             db_dumper.model,
         )
+
 
     @patch("gobapi.dump.to_db._insert_into_table")
     def test_copy_tmp_table(self, mock_copy, mock_datastore_factory):
