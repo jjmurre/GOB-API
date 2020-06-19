@@ -63,6 +63,12 @@ class TestConfig(TestCase):
         result = joined_names(1, "2", 3.5)
         self.assertEqual(result, "1_2_3.5")
 
+        result = joined_names("a", None)
+        self.assertEqual(result, "a_")
+
+        result = joined_names("a", None, "b", None)
+        self.assertEqual(result, "a__b_")
+
     def test_add_unique_reference(self):
         result = add_unique_reference({})
         self.assertEqual(result, {'ref': None})

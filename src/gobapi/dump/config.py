@@ -203,7 +203,9 @@ def joined_names(*args):
     :param args:
     :return:
     """
-    return "_".join(str(arg) for arg in args)
+    # Replace None with empty string because generating a joined name is done in the database (and perhaps other
+    # systems) as well.
+    return "_".join(str(arg) if arg is not None else '' for arg in args)
 
 
 def add_unique_reference(dst):
