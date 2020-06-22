@@ -199,8 +199,9 @@ class TestDbDumper(TestCase):
         mock_table.assert_called_with(
             db_dumper.schema,
             self.catalog_name,
-            db_dumper.tmp_collection_name,
+            db_dumper.collection_name,
             db_dumper.model,
+            tablename=db_dumper.tmp_collection_name
         )
 
 

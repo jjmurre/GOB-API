@@ -61,6 +61,11 @@ class TestSQL(TestCase):
             self.assertTrue(f"\"a_{s}\"" in result)
             self.assertTrue(f"character varying" in result)
 
+        # With alternative tablename (used for tmp table)
+        result = _create_table('any_schema', catalogue, 'any_table', {}, tablename='the table name')
+        self.assertTrue("CREATE TABLE IF NOT EXISTS \"any_schema\".\"the table name\"" in result)
+        self.assertTrue("COMMENT ON TABLE  \"any_schema\".\"the table name\"" in result)
+
     def test_import_csv(self):
         result = _import_csv('any_schema', 'any_collection', 'any_collection.csv')
         self.assertTrue("\COPY \"any_schema\".\"any_collection\" FROM 'any_collection.csv'" in result)

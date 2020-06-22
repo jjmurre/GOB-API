@@ -184,7 +184,8 @@ class DbDumper:
         # Delete tmp table if still exists from a previous run
         self._delete_tmp_table()
 
-        create_table = _create_table(self.schema, self.catalog_name, self.tmp_collection_name, self.model)
+        create_table = _create_table(self.schema, self.catalog_name, self.collection_name, self.model,
+                                     tablename=self.tmp_collection_name)
         self._execute(create_table)
 
     def _copy_tmp_table(self):
