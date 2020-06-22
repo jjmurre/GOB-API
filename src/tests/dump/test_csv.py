@@ -20,6 +20,9 @@ class MockEntity:
             },
             'b': {
                 'type': 'GOB.Integer'
+            },
+            'c': {
+                'type': 'GOB.String'
             }
         }
 
@@ -169,7 +172,8 @@ class TestCSV(TestCase):
             'all_fields': MockEntity.specs()
         }
         results = []
-        for result in csv_entities(entities, model):
+        # Field c should be ignored
+        for result in csv_entities(entities, model, ['c']):
             results.append(result)
 
         self.assertEqual(results, ['"a";"b";"ref"\n', '"a";5;"a"\n', '"a";5;"a"\n'])
