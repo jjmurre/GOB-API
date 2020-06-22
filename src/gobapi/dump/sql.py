@@ -175,7 +175,7 @@ def _autorized_order(order, catalog_name, collection_name):
     return [o for o in order if o not in suppress_columns]
 
 
-def _create_table(schema, catalog_name, collection_name, model):
+def _create_table(schema, catalog_name, collection_name, model, tablename=None):
     """
     Returns a SQL statement to create a table in a schema
     The table fields are constructed from the specs
@@ -183,6 +183,7 @@ def _create_table(schema, catalog_name, collection_name, model):
     :param schema:
     :param collection_name:
     :param specs:
+    :param tablename: if None, collection_name is used
     :return:
     """
     specs = get_field_specifications(model)
@@ -207,7 +208,7 @@ def _create_table(schema, catalog_name, collection_name, model):
     field_lengths = [len(field['name']) for field in fields]
     max_length = max(field_lengths) if field_lengths else 1
 
-    table_name = (f"{_quote(schema)}.{_quote(collection_name)}")
+    table_name = (f"{_quote(schema)}.{_quote(tablename or collection_name)}")
     table_fields = ",\n  ".join([f"{field['name']:{max_length}} {field['type']}" for field in fields])
 
     comments = ";\n".join([
