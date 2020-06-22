@@ -261,7 +261,8 @@ class TestDbDumper(TestCase):
         self.assertEqual(db_dumper._execute.call_count, 2)
 
     @patch('gobapi.dump.to_db.CSVStream')
-    @patch('gobapi.dump.to_db.csv_entities', lambda x, _: x)
+    @patch('gobapi.dump.to_db.Authority', MagicMock())
+    @patch('gobapi.dump.to_db.csv_entities', lambda x, model, cols: x)
     @patch('gobapi.dump.to_db.COMMIT_PER', 1)
     @patch('gobapi.dump.to_db.BUFFER_PER', 99)
     def test_dump_entities_to_table(self, mock_stream, mock_datastore_factory):
@@ -284,7 +285,8 @@ class TestDbDumper(TestCase):
         )
 
     @patch('gobapi.dump.to_db.CSVStream', MockStream)
-    @patch('gobapi.dump.to_db.csv_entities', lambda x, _: x)
+    @patch('gobapi.dump.to_db.Authority', MagicMock())
+    @patch('gobapi.dump.to_db.csv_entities', lambda x, model, cols : x)
     @patch('gobapi.dump.to_db.COMMIT_PER', 11)
     def test_dump_entities_dots(self, mock_datastore_factory):
         mock_connection = MagicMock()
@@ -295,6 +297,19 @@ class TestDbDumper(TestCase):
         results = list(db_dumper._dump_entities_to_table(entities, MagicMock()))
         self.assertEqual(mock_connection.commit.call_count, 1)
         self.assertTrue("Export data.\nExported" in "".join(results))
+
+    @patch('gobapi.dump.to_db.CSVStream', MockStream)
+    @patch('gobapi.dump.to_db.Authority')
+    @patch('gobapi.dump.to_db.csv_entities')
+    def test_dump_entities_suppress_cols(self, mock_csv_entities, mock_authority, mock_datastore_factory):
+        db_dumper = self._get_dumper()
+        db_dumper.datastore.connection = MagicMock()
+        entities = iter([])
+        model = MagicMock()
+        results = list(db_dumper._dump_entities_to_table(entities, model))
+
+        # Suppressed columns are passed to csv entities.
+        mock_csv_entities.assert_called_with(entities, model, mock_authority().get_suppressed_columns())
 
     def test_filter_last_events_lambda(self, mock_datastore_factory):
         db_dumper = self._get_dumper()

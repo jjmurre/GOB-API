@@ -128,7 +128,7 @@ def _csv_record(entity, field_specs, field_order):
     return fields
 
 
-def csv_entities(entities, model):
+def csv_entities(entities, model, ignore_fields=None):
     """
     Yield the given entities as a list, starting with a header.
 
@@ -136,8 +136,9 @@ def csv_entities(entities, model):
     :param model:
     :return:
     """
+    ignore_fields = ignore_fields or []
     field_specifications = get_field_specifications(model)
-    field_order = get_field_order(model)
+    field_order = [f for f in get_field_order(model) if f not in ignore_fields]
 
     header = _csv_header(field_specifications, field_order)
     for entity in entities:

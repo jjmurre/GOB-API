@@ -3,6 +3,7 @@ import traceback
 from gobcore.typesystem import fully_qualified_type_name, GOB
 from typing import Tuple, List
 
+from gobapi.auth.auth_query import Authority
 from gobapi.storage import dump_entities
 
 from gobcore.model import GOBModel
@@ -214,8 +215,11 @@ class DbDumper:
             self._execute(_create_index(self.schema, self.collection_name, **index))
 
     def _dump_entities_to_table(self, entities, model):
+        authority = Authority(self.catalog_name, self.collection_name)
+        suppress_columns = authority.get_suppressed_columns()
+
         connection = self.datastore.connection
-        stream = CSVStream(csv_entities(entities, model), STREAM_PER)
+        stream = CSVStream(csv_entities(entities, model, suppress_columns), STREAM_PER)
 
         with connection.cursor() as cursor:
             yield "Export data"
