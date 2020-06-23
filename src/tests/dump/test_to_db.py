@@ -74,19 +74,6 @@ class TestDbDumper(TestCase):
         db_dumper._query.assert_called_with("SELECT EXISTS ( SELECT 1 FROM information_schema.tables "
                                               "WHERE table_schema='schema' AND table_name='some_table')")
 
-    def test_table_empty(self, mock_datastore_config):
-        db_dumper = self._get_dumper()
-        db_dumper.schema = 'schema'
-        db_dumper._query = MagicMock(return_value=iter([1,2]))
-
-        # 1. Not empty
-        self.assertFalse(db_dumper._table_empty('table'))
-        db_dumper._query.assert_called_with("SELECT * FROM schema.table LIMIT 1")
-
-        # 2. Empty
-        db_dumper._query = MagicMock(return_value=iter([]))
-        self.assertTrue(db_dumper._table_empty('table'))
-
     def test_get_columns(self, mock_datastore_factory):
         result = [
             ('col_a', 'type_a'),
@@ -520,7 +507,6 @@ class TestDbDumper(TestCase):
         mock_model.return_value = MockedModel()
         db_dumper = DbDumper('catalog', 'collection', {'db': {}})
         db_dumper._table_exists = lambda relname: relname != 'relation_name_refC'
-        db_dumper._table_empty = lambda relname: relname == 'relation_name_refE'
         db_dumper._execute = MagicMock()
         db_dumper.model = {
             'abbreviation': 'abbr',
@@ -530,7 +516,6 @@ class TestDbDumper(TestCase):
                 'refB': {},
                 'refC': {},
                 'refD': {},
-                'refE': {},
             },
             'all_fields': {
                 'refA': {
@@ -546,8 +531,6 @@ class TestDbDumper(TestCase):
                 # refD will be ignored because no relation_name is returned by get_relation_name, which indicates an
                 # undefined relation
                 'refD': {},
-                # refE will be ignored because its table is empty
-                'refE': {},
             }
         }
 
@@ -573,8 +556,7 @@ left join catalog.relation_name_refB refB on refB.src_id = abbr._id
 
         self.assertEqual([
             'Creating view\n',
-            'Excluding relation relation_name_refC from view because table does not exist or empty\n',
-            'Excluding relation relation_name_refE from view because table does not exist or empty\n',
+            'Excluding relation relation_name_refC from view because table does not exist\n',
             'Utility view catalog.v_collection created\n'
         ], list(db_dumper.create_utility_view()))
 

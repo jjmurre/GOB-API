@@ -89,16 +89,6 @@ class DbDumper:
         result = self._query(query)
         return next(result)[0]
 
-    def _table_empty(self, table_name: str) -> bool:
-        query = f"SELECT * FROM {self.schema}.{table_name} LIMIT 1"
-        result = self._query(query)
-
-        try:
-            next(result)
-        except StopIteration:
-            return True
-        return False
-
     def _get_columns(self, table_name: str) -> List[Tuple[str, str]]:
         """Returns a list of tuples (column_name, column_type) for given table_name. """
 
@@ -323,8 +313,8 @@ class DbDumper:
                 # Undefined relation
                 continue
 
-            if not self._table_exists(relation_name) or self._table_empty(relation_name):
-                yield f"Excluding relation {relation_name} from view because table does not exist or empty\n"
+            if not self._table_exists(relation_name):
+                yield f"Excluding relation {relation_name} from view because table does not exist\n"
                 continue
 
             relation_table = f'{self.catalog_name}.{relation_name}'
