@@ -168,6 +168,8 @@ class TestDbDumper(TestCase):
         db_dumper = self._get_dumper()
         db_dumper._execute = MagicMock()
         db_dumper._delete_tmp_table = MagicMock()
+        db_dumper._table_exists = MagicMock(return_value=True)
+        db_dumper._table_columns_equal = MagicMock(return_value=True)
 
         # Use mock manager to assert call order
         mock_manager = Mock()
@@ -178,19 +180,53 @@ class TestDbDumper(TestCase):
 
         mock_manager.assert_has_calls([
             call._execute(mock_schema.return_value),
-            call._execute(mock_table.return_value),
             call._delete_tmp_table(),
+            call._execute(mock_table.return_value),
             call._execute(mock_table.return_value),
         ])
         mock_schema.assert_called_with(db_dumper.schema)
-        mock_table.assert_called_with(
-            db_dumper.schema,
-            self.catalog_name,
-            db_dumper.collection_name,
-            db_dumper.model,
-            tablename=db_dumper.tmp_collection_name
-        )
 
+        mock_table.assert_has_calls([
+            call(
+                db_dumper.schema,
+                self.catalog_name,
+                db_dumper.collection_name,
+                db_dumper.model,
+                tablename=db_dumper.tmp_collection_name
+            ),
+            call(
+                db_dumper.schema,
+                self.catalog_name,
+                db_dumper.collection_name,
+                db_dumper.model,
+            )
+        ])
+
+    @patch("gobapi.dump.to_db._create_schema")
+    @patch("gobapi.dump.to_db._create_table")
+    def test_prepare_destination_replace_dst(self, mock_table, mock_schema, mock_datastore_factory):
+        db_dumper = self._get_dumper()
+        db_dumper._execute = MagicMock()
+        db_dumper._delete_tmp_table = MagicMock()
+        db_dumper._delete_table = MagicMock()
+        db_dumper._table_exists = MagicMock(return_value=True)
+        db_dumper._table_columns_equal = MagicMock(return_value=False)
+
+        # Use mock manager to assert call order
+        mock_manager = Mock()
+        mock_manager.attach_mock(db_dumper._execute, '_execute')
+        mock_manager.attach_mock(db_dumper._delete_tmp_table, '_delete_tmp_table')
+        mock_manager.attach_mock(db_dumper._delete_table, '_delete_table')
+
+        list(db_dumper._prepare_destination())
+
+        mock_manager.assert_has_calls([
+            call._execute(mock_schema.return_value),
+            call._delete_tmp_table(),
+            call._execute(mock_table.return_value),
+            call._delete_table(db_dumper.collection_name),
+            call._execute(mock_table.return_value),
+        ])
 
     @patch("gobapi.dump.to_db._insert_into_table")
     def test_copy_tmp_table(self, mock_copy, mock_datastore_factory):
@@ -207,14 +243,21 @@ class TestDbDumper(TestCase):
         db_dumper._delete_tmp_table.assert_called()
 
     @patch("gobapi.dump.to_db._delete_table")
-    def test_delete_tmp_table(self, mock_delete, mock_datastore_factory):
+    def test_delete_table(self, mock_delete, mock_datastore_factory):
         db_dumper = self._get_dumper()
         db_dumper._execute = MagicMock()
+        db_dumper._delete_table('some table')
+
+        mock_delete.assert_called_with(db_dumper.schema, 'some table')
+        db_dumper._execute.assert_called_with(mock_delete.return_value)
+
+    def test_delete_tmp_table(self, mock_datastore_factory):
+        db_dumper = self._get_dumper()
+        db_dumper._execute = MagicMock()
+        db_dumper._delete_table = MagicMock()
         db_dumper._delete_tmp_table()
 
-        mock_delete.assert_called_with(db_dumper.schema,
-                                       db_dumper.tmp_collection_name)
-        db_dumper._execute.assert_called_with(mock_delete.return_value)
+        db_dumper._delete_table.assert_called_with(db_dumper.tmp_collection_name)
 
     @patch('gobapi.dump.to_db._create_indexes')
     def test_create_indexes(self, mock_indexes, mock_datastore_factory):
