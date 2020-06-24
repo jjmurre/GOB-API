@@ -83,8 +83,20 @@ def _csv_values(value, spec):
     if spec['type'] in REFERENCE_TYPES:
         return _csv_reference_values(value, spec)
     elif spec['type'] == 'GOB.JSON':
-        value = value or {}
-        return [_csv_value(value.get(field)) for field in spec['attributes'].keys()]
+        if type(value) == list:
+            values = []
+            value = value or []
+            for field in spec['attributes'].keys():
+                sub_values = []
+                for row in value:
+                    print(row)
+                    sub_value = row.get(field, '')
+                    sub_values.append(_csv_value(sub_value))
+                values.append("[" + ",".join(sub_values) + "]")
+            return values
+        else:
+            value = value or {}
+            return [_csv_value(value.get(field)) for field in spec['attributes'].keys()]
     else:
         return [_csv_value(value)]
 

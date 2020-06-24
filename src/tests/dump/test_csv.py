@@ -125,6 +125,22 @@ class TestCSV(TestCase):
         result = _csv_values(value, spec)
         self.assertEqual(result, ['1', ''])
 
+        # Test JSON many values
+        value = [{'a': 1}, {'a': 2}]
+        spec = {'type': 'GOB.JSON', 'attributes': {'a': 'some a'}}
+        result = _csv_values(value, spec)
+        self.assertEqual(result, ['[1,2]'])
+
+        value = [{'a': '1'}, {'a': '2'}]
+        spec = {'type': 'GOB.JSON', 'attributes': {'a': 'some a'}}
+        result = _csv_values(value, spec)
+        self.assertEqual(result, ['["1","2"]'])
+
+        value = [{'a': '1'}, {'a': '2'}]
+        spec = {'type': 'GOB.JSON', 'attributes': {'a': 'some a', 'b': 'some b'}}
+        result = _csv_values(value, spec)
+        self.assertEqual(result, ['["1","2"]', '["",""]'])
+
         value = None
         spec = {'type': 'GOB.JSON', 'attributes': {'a': 'some a', 'b': 'some b'}}
         result = _csv_values(value, spec)
