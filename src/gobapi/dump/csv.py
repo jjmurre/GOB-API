@@ -85,11 +85,9 @@ def _csv_values(value, spec):
     elif spec['type'] == 'GOB.JSON':
         if type(value) == list:
             values = []
-            value = value or []
             for field in spec['attributes'].keys():
                 sub_values = []
                 for row in value:
-                    print(row)
                     sub_value = row.get(field, '')
                     sub_values.append(_csv_value(sub_value))
                 values.append("[" + ",".join(sub_values) + "]")
