@@ -89,16 +89,6 @@ class DbDumper:
         result = self._query(query)
         return next(result)[0]
 
-    def _table_empty(self, table_name: str) -> bool:
-        query = f"SELECT * FROM {self.schema}.{table_name} LIMIT 1"
-        result = self._query(query)
-
-        try:
-            next(result)
-        except StopIteration:
-            return True
-        return False
-
     def _get_columns(self, table_name: str) -> List[Tuple[str, str]]:
         """Returns a list of tuples (column_name, column_type) for given table_name. """
 
@@ -176,10 +166,6 @@ class DbDumper:
         create_schema = _create_schema(self.schema)
         self._execute(create_schema)
 
-        yield f"Create dst table {self.collection_name}\n"
-        create_table = _create_table(self.schema, self.catalog_name, self.collection_name, self.model)
-        self._execute(create_table)
-
         yield f"Create tmp table {self.tmp_collection_name}\n"
 
         # Delete tmp table if still exists from a previous run
@@ -187,6 +173,16 @@ class DbDumper:
 
         create_table = _create_table(self.schema, self.catalog_name, self.collection_name, self.model,
                                      tablename=self.tmp_collection_name)
+        self._execute(create_table)
+
+        if self._table_exists(self.collection_name) and \
+                not self._table_columns_equal(self.collection_name, self.tmp_collection_name):
+            yield f"Existing dst table {self.collection_name} has invalid structure. Remove existing table\n"
+
+            self._delete_table(self.collection_name)
+
+        yield f"Create dst table {self.collection_name}\n"
+        create_table = _create_table(self.schema, self.catalog_name, self.collection_name, self.model)
         self._execute(create_table)
 
     def _copy_tmp_table(self):
@@ -199,9 +195,12 @@ class DbDumper:
         yield f"Delete temporary table\n"
         self._delete_tmp_table()
 
-    def _delete_tmp_table(self):
-        delete_table = _delete_table(self.schema, self.tmp_collection_name)
+    def _delete_table(self, table_name: str):
+        delete_table = _delete_table(self.schema, table_name)
         self._execute(delete_table)
+
+    def _delete_tmp_table(self):
+        self._delete_table(self.tmp_collection_name)
 
     def _create_indexes(self, model):
         """
@@ -323,8 +322,8 @@ class DbDumper:
                 # Undefined relation
                 continue
 
-            if not self._table_exists(relation_name) or self._table_empty(relation_name):
-                yield f"Excluding relation {relation_name} from view because table does not exist or empty\n"
+            if not self._table_exists(relation_name):
+                yield f"Excluding relation {relation_name} from view because table does not exist\n"
                 continue
 
             relation_table = f'{self.catalog_name}.{relation_name}'
