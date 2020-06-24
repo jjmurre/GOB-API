@@ -48,6 +48,20 @@ GOB_AUTH_SCHEME = {
             }
         }
     },
+    "any": {
+        "collections": {
+            "data": {
+                "attributes": {
+                    "auto": {
+                        "roles": [GOB_ADMIN]
+                    },
+                    "functie": {
+                        "roles": [GOB_ADMIN]
+                    }
+                }
+            }
+        }
+    },
     "test_catalogue": {
         "collections": {
             "secure": {
@@ -59,16 +73,6 @@ GOB_AUTH_SCHEME = {
                         "roles": [GOB_ADMIN]
                     },
                     "secure_reference": {
-                        "roles": [GOB_ADMIN]
-                    }
-                }
-            },
-            "anydata": {
-                "attributes": {
-                    "auto": {
-                        "roles": [GOB_ADMIN]
-                    },
-                    "functie": {
                         "roles": [GOB_ADMIN]
                     }
                 }
