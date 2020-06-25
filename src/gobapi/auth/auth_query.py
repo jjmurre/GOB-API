@@ -246,14 +246,13 @@ class AuthorizedQuery(Query):
             secure_columns = {}
 
         for entity in super().__iter__():
-            for entity in super().__iter__():
-                if isinstance(entity, tuple):
-                    self._suppress_columns(entity[0], suppressed_columns)
-                    self._handle_secure_columns(entity[0], secure_columns)
-                else:
-                    self._suppress_columns(entity, suppressed_columns)
-                    self._handle_secure_columns(entity, secure_columns)
-                yield entity
+            if isinstance(entity, tuple):
+                self._suppress_columns(entity[0], suppressed_columns)
+                self._handle_secure_columns(entity[0], secure_columns)
+            else:
+                self._suppress_columns(entity, suppressed_columns)
+                self._handle_secure_columns(entity, secure_columns)
+            yield entity
 
     def _handle_secure_columns(self, entity, secure_columns):
         for column, info in secure_columns.items():
