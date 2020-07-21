@@ -118,11 +118,13 @@ def _get_field_property(field_name, field, description=None):
         # Any GOB base type
         property = {
             'GOB.String': lambda: {'type': "string"},
+            'GOB.SecureString': lambda: {'type': "string"},
             'GOB.Character': lambda: {'type': "string"},
             'GOB.Decimal': lambda: {'type': "number"},
             'GOB.Integer': lambda: {'type': "integer"},
             'GOB.Boolean': lambda: {'type': "boolean"},
             'GOB.Date': lambda: {'type': "string", 'format': "date"},
+            'GOB.SecureDate': lambda: {'type': "string", 'format': "date"},
             'GOB.DateTime': lambda: {'type': "string", 'format': "datetime"},
             'GOB.Reference': lambda: {'type': "string", 'relation': field['ref']}
         }.get(field_type, lambda: None)()
