@@ -164,7 +164,7 @@ def get_graphql_query(catalog_name, collection_name):    # noqa: C901, too compl
     """
     collection = model.get_collection(catalog_name, collection_name)
     node = {
-        'identificatie': ''
+        collection['entity_id']: ''
     }
     if model.has_states(catalog_name, collection_name):
         node[FIELD.SEQNR] = ''
@@ -175,11 +175,12 @@ def get_graphql_query(catalog_name, collection_name):    # noqa: C901, too compl
         if re.match(r'^_', field_name):
             # Skip meta fields
             continue
-        elif re.match(r'^GOB\..*Reference', field_type):
-            # Build an edges-nodes structure for any reference field
+        elif re.match(r'^GOB\.(?!Very).*Reference', field_type):
+            # Build an edges-nodes structure for any reference field (except VeryManyReference)
             ref = field['ref']
             ref_catalog_name, ref_collection_name = ref.split(':')
-            ref_node = {'identificatie': ''}
+            ref_collection = model.get_collection(ref_catalog_name, ref_collection_name)
+            ref_node = {ref_collection['entity_id']: ''}
             if model.has_states(ref_catalog_name, ref_collection_name):
                 ref_node[FIELD.SEQNR] = ''
             node[cc_field_name] = {
