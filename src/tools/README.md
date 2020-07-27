@@ -107,3 +107,17 @@ much data to fetch and return in too little time.
 Use cursor-based GraphQL pagination to fetch the data in smaller chunks. See
 [GraphQL Pagination](https://graphql.org/learn/pagination/). The `cursor` field is already returned when using
 the generated GraphQL query. All that is left is to add the `first` and `after` parameters.
+
+## CURL for Secure endpoints
+Secured collections cannot be fetched through the public GOB endpoint, but will need to be accessed
+through the secure endpoint.
+When `amschema.py curl` encounters a secured collection, it will replace the public GOB API path
+with the secure version (if the path provided isn't already the secure version).
+With `login_keycloak.py` a token can be requested and placed in the `GOB_API_AUTH_HEADER`
+environment variable. If that environment variable is set, the generated CURL command will include
+that header in the output. If not, a placeholder will be added.
+Note that this is for demonstration purposes only; tokens will expire, which may well happen when
+pagination is used. Handling this correctly is up to the user.
+
+Refer to `src/gobapi/auth/schemes.py` to see which catalog/collections/attributes are secured, and which
+roles are permitted access.

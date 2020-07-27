@@ -8,6 +8,10 @@ import json
 import os
 import sys
 
+# To have access to the gobapi module, while still being able to run python amschema.py
+sys.path.append(os.path.join('..'))
+from gobapi.auth.auth_query import Authority  # noqa: E402, module level import not at top of file
+
 # Suppress any output from GOBModel class (otherwise GOB Model messages can appear in the schema output)
 sys.stdout = open(os.devnull, 'w')
 from gobcore.model import GOBModel  # noqa: E402, module level import not at top of file
@@ -248,6 +252,10 @@ def get_url(catalog_name, collection_name, path):
     return f'{path}?{args}'
 
 
+def print_yellow(msg):
+    print(f"\033[33m{msg}\033[0m")
+
+
 def get_curl(catalog_name, collection_name, path):
     """
     Get the curl statement to retrieve the dataset in the Amsterdam Schema format
@@ -256,11 +264,26 @@ def get_curl(catalog_name, collection_name, path):
     :param collection_name:
     :return:
     """
+    auth_header = None
+
+    # Make request to secure API if secured colllection
+    if Authority(args.catalog, args.collection).is_secured():
+        if '/gob/secure' not in path:
+            path = path.replace('/gob', '/gob/secure')
+        auth_header = os.getenv('GOB_API_AUTH_HEADER')
+
+        if not auth_header:
+            print_yellow("Generating a curl request for a secure endpoint, but missing Auth header env variable\n"
+                         "Use login_keycloak.py to generate the Auth header to use with the secure endpoint.\n"
+                         "Generated curl request contains a placeholder for now\n")
+            auth_header = 'AUTH_HEADER_PLACEHOLDER'
+
     query = get_graphql_query(catalog_name, collection_name).replace('\n', '')
     query = '{"query":"%s"}' % query
     header = 'Content-Type: application/x-ndjson'
+    auth = f"--header 'Authorization: {auth_header}' " if auth_header else ""
     url = get_url(catalog_name, collection_name, path)
-    return f"curl -s --location --request POST '{url}' --header '{header}' --data-raw '{query}'"
+    return f"curl -s --location --request POST '{url}' --header '{header}' {auth}--data-raw '{query}'"
 
 
 if __name__ == "__main__":   # noqa: C901, too complex
@@ -303,5 +326,4 @@ if __name__ == "__main__":   # noqa: C901, too complex
 
     if args.format in ('query', 'curl'):
         print("")
-        print("\033[33mNOTE: For large collections, use pagination in the query (using first, after and cursor)"
-              "\033[0m")
+        print_yellow("NOTE: For large collections, use pagination in the query (using first, after and cursor)")
