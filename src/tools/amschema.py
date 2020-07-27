@@ -131,7 +131,7 @@ def _get_field_property(field_name, field, description=None):
             'GOB.Boolean': lambda: {'type': "boolean"},
             'GOB.Date': lambda: {'type': "string", 'format': "date"},
             'GOB.SecureDate': lambda: {'type': "string", 'format': "date"},
-            'GOB.DateTime': lambda: {'type': "string", 'format': "datetime"},
+            'GOB.DateTime': lambda: {'type': "string", 'format': "date-time"},
             'GOB.Reference': lambda: {'type': "string", 'relation': field['ref']}
         }.get(field_type, lambda: None)()
 
@@ -142,7 +142,7 @@ def _get_field_property(field_name, field, description=None):
     # Include description
     property['description'] = description or field.get('description', '')
     # Property names are lowercase strings without underscores
-    field_name = field_name.replace('_', '').lower()
+    field_name = to_camel_case(field_name.lower())
     return field_name, property
 
 
