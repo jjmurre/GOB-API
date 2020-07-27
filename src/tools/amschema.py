@@ -206,7 +206,7 @@ def get_graphql_query(catalog_name, collection_name):    # noqa: C901, too compl
     # Use json.dumps to nicely format the GraphQL query
     json_schema = json.dumps(query, indent=2)
     json_schema = re.sub(r'[":,]', '', json_schema)
-    return json_schema.replace('__NAME__', f'{name}(${filter})')
+    return json_schema.replace('__NAME__', f'{name}({filter})')
 
 
 def get_url(catalog_name, collection_name, path):
