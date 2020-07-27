@@ -164,7 +164,8 @@ def get_graphql_query(catalog_name, collection_name):    # noqa: C901, too compl
     """
     collection = model.get_collection(catalog_name, collection_name)
     node = {
-        collection['entity_id']: ''
+        collection['entity_id']: '',
+        'cursor': ''
     }
     if model.has_states(catalog_name, collection_name):
         node[FIELD.SEQNR] = ''
@@ -292,3 +293,8 @@ if __name__ == "__main__":   # noqa: C901, too complex
     }[args.format]()
 
     print(result)
+
+    if args.format in ('query', 'curl'):
+        print("")
+        print("\033[33mNOTE: For large collections, use pagination in the query (using first, after and cursor)"
+              "\033[0m")

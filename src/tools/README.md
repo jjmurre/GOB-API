@@ -99,3 +99,11 @@ Many hyperlinks refer to out-of-date documentation or not working observables
 - The schema validation tool is rather basic. Error messages are somewhat vague.
 - The schema does not allow to have additional fields in the dataset.
 - The schema requires a schema string to be present in every line of the dataset; inclusion of non-data.
+
+## Large collections
+The generated GraphQL for large collections may result in a 504 Gateway Timeout, because there is simply too
+much data to fetch and return in too little time.
+
+Use cursor-based GraphQL pagination to fetch the data in smaller chunks. See
+[GraphQL Pagination](https://graphql.org/learn/pagination/). The `cursor` field is already returned when using
+the generated GraphQL query. All that is left is to add the `first` and `after` parameters.
