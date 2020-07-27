@@ -37,7 +37,9 @@ def get_schema(catalog_name, collection_name=None):
     else:
         tables = []
         collections = model.get_collections(catalog_name)
+        include_temporal = False
         for collection_name, collection in collections.items():
+            include_temporal = include_temporal or collection.get('has_states', False)
             collection_schema = _get_collection_schema(catalog_name, collection_name)
             tables.append({
                 "id": f"{collection_name}",
@@ -51,8 +53,20 @@ def get_schema(catalog_name, collection_name=None):
             "status": "beschikbaar",
             "version": "0.0.1",
             "crs": "EPSG:28992",
-            "tables": tables
         }
+
+        if include_temporal:
+            schema['temporal'] = {
+                'identifier': FIELD.SEQNR,
+                'dimensions': {
+                    'geldigOp': [
+                        to_camel_case(FIELD.START_VALIDITY),
+                        to_camel_case(FIELD.END_VALIDITY),
+                    ]
+                }
+            }
+
+        schema['tables'] = tables
     return json.dumps(schema, indent=2, ensure_ascii=False)
 
 
@@ -93,15 +107,21 @@ def _get_collection_schema(catalog_name, collection_name):
         else:
             property_name, property = _get_field_property(field_name, field)
             properties[property_name] = property
-    return {
+    schema = {
         "$id": f"https://github.com/Amsterdam/schemas/{catalog_name}/{collection_name}.json",
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
         "additionalProperties": False,
+        "identifier": "id",
         "required": required,
         "display": "id",
         "properties": properties
     }
+
+    if 'geometrie' in properties:
+        schema['mainGeometry'] = 'geometrie'
+
+    return schema
 
 
 def _get_field_property(field_name, field, description=None):
