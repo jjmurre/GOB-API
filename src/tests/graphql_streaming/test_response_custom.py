@@ -193,10 +193,11 @@ class TestGraphQLCustomStreamingResponseBuilder(TestCase):
             "identificatie": "10281154",
             "geometrie1": "POINT(119411.7 487201.6)",
             "geometrie2": "POINT(119411.7 487201.6)",
-            "geometrie3": "POINT(119411.7 487201.6)"
+            "geometrie3": "POINT(119411.7 487201.6)",
+            "geometrie4": None,
         }
         request = {
-            'geojson': 'geometrie1,geometrie3'
+            'geojson': 'geometrie1,geometrie3,geometrie4'
         }
         rb = GraphQLCustomStreamingResponseBuilder(None, None, None, request_args=request)
         self.assertTrue(rb.has_options)
@@ -212,6 +213,7 @@ class TestGraphQLCustomStreamingResponseBuilder(TestCase):
                 "type": "Point",
                 "coordinates": [119411.7, 487201.6]
             },
+            'geometrie4': None,
         }
         self.assertEqual(result, expect)
 
