@@ -12,7 +12,9 @@ import sys
 sys.stdout = open(os.devnull, 'w')
 from gobcore.model import GOBModel  # noqa: E402, module level import not at top of file
 from gobcore.model.metadata import FIELD  # noqa: E402, module level import not at top of file
+from gobcore.sources import GOBSources  # noqa: E402, module level import not at top of file
 model = GOBModel()
+sources = GOBSources()
 sys.stdout = sys.__stdout__
 
 
@@ -181,14 +183,19 @@ def get_graphql_query(catalog_name, collection_name):    # noqa: C901, too compl
             ref = field['ref']
             ref_catalog_name, ref_collection_name = ref.split(':')
             ref_collection = model.get_collection(ref_catalog_name, ref_collection_name)
-            ref_node = {ref_collection['entity_id']: ''}
-            if model.has_states(ref_catalog_name, ref_collection_name):
-                ref_node[FIELD.SEQNR] = ''
-            node[cc_field_name] = {
-                'edges': {
-                    'node': ref_node
+
+            if ref_collection:
+                ref_node = {ref_collection['entity_id']: ''}
+                if model.has_states(ref_catalog_name, ref_collection_name):
+                    ref_node[FIELD.SEQNR] = ''
+                node[cc_field_name] = {
+                    'edges': {
+                        'node': ref_node
+                    }
                 }
-            }
+            else:
+                # Undefined relation
+                node[cc_field_name] = ''
         else:
             node[cc_field_name] = ''
 
