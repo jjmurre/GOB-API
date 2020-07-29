@@ -48,6 +48,18 @@ class Authority():
             return {}
         return collection_scheme.get('attributes', {})
 
+    def is_secured(self):
+        """Returns True if there are any restrictions on this catalog/collection combination
+
+        :return:
+        """
+        catalog_scheme = self._auth_scheme.get(self._catalog)
+
+        if not catalog_scheme:
+            return False
+
+        return bool(catalog_scheme.get('roles') or catalog_scheme['collections'].get(self._collection))
+
     def allows_access(self):
         """
         Test if the request has access to the catalog/collection

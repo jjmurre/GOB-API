@@ -202,6 +202,19 @@ class TestAuthority(TestCase):
         mock_user.assert_called_with(mock_request)
         mock_secure_type.get_value.assert_called_with("any user")
 
+    @patch("gobapi.auth.auth_query.GOB_AUTH_SCHEME", mock_scheme)
+    def test_is_secured(self):
+        testcases = [
+            ('any catalog', 'any collection', True),
+            ('secure catalog', 'any collection', True),
+            ('any catalog', 'some other collection', False),
+            ('open catalog', 'collection', False),
+        ]
+
+        for cat, coll, result in testcases:
+            authority = Authority(cat, coll)
+            self.assertEqual(result, authority.is_secured())
+
     @patch("gobapi.auth.auth_query.request", mock_request)
     @patch("gobapi.auth.auth_query.GOB_AUTH_SCHEME", mock_scheme)
     def test_allows_access(self):

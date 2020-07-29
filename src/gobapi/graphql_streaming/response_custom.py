@@ -133,7 +133,7 @@ class GraphQLCustomStreamingResponseBuilder(GraphQLStreamingResponseBuilder):
         for key, value in entity.items():
             keyvalue = self.key(key)
             if key in self.geojson:
-                result[keyvalue] = self.to_geojson(entity[key])
+                result[keyvalue] = self.to_geojson(entity[key]) if entity[key] else None
             elif self.flatten:
                 flat_value = self._customized_entity(value)
                 if isinstance(flat_value, dict):

@@ -8,11 +8,17 @@ import json
 import os
 import sys
 
+# To have access to the gobapi module, while still being able to run python amschema.py
+sys.path.append(os.path.join('..'))
+from gobapi.auth.auth_query import Authority  # noqa: E402, module level import not at top of file
+
 # Suppress any output from GOBModel class (otherwise GOB Model messages can appear in the schema output)
 sys.stdout = open(os.devnull, 'w')
 from gobcore.model import GOBModel  # noqa: E402, module level import not at top of file
 from gobcore.model.metadata import FIELD  # noqa: E402, module level import not at top of file
+from gobcore.sources import GOBSources  # noqa: E402, module level import not at top of file
 model = GOBModel()
+sources = GOBSources()
 sys.stdout = sys.__stdout__
 
 
@@ -31,7 +37,9 @@ def get_schema(catalog_name, collection_name=None):
     else:
         tables = []
         collections = model.get_collections(catalog_name)
+        include_temporal = False
         for collection_name, collection in collections.items():
+            include_temporal = include_temporal or collection.get('has_states', False)
             collection_schema = _get_collection_schema(catalog_name, collection_name)
             tables.append({
                 "id": f"{collection_name}",
@@ -45,8 +53,20 @@ def get_schema(catalog_name, collection_name=None):
             "status": "beschikbaar",
             "version": "0.0.1",
             "crs": "EPSG:28992",
-            "tables": tables
         }
+
+        if include_temporal:
+            schema['temporal'] = {
+                'identifier': FIELD.SEQNR,
+                'dimensions': {
+                    'geldigOp': [
+                        to_camel_case(FIELD.START_VALIDITY),
+                        to_camel_case(FIELD.END_VALIDITY),
+                    ]
+                }
+            }
+
+        schema['tables'] = tables
     return json.dumps(schema, indent=2, ensure_ascii=False)
 
 
@@ -87,15 +107,21 @@ def _get_collection_schema(catalog_name, collection_name):
         else:
             property_name, property = _get_field_property(field_name, field)
             properties[property_name] = property
-    return {
+    schema = {
         "$id": f"https://github.com/Amsterdam/schemas/{catalog_name}/{collection_name}.json",
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
         "additionalProperties": False,
+        "identifier": "id",
         "required": required,
         "display": "id",
         "properties": properties
     }
+
+    if 'geometrie' in properties:
+        schema['mainGeometry'] = 'geometrie'
+
+    return schema
 
 
 def _get_field_property(field_name, field, description=None):
@@ -125,7 +151,7 @@ def _get_field_property(field_name, field, description=None):
             'GOB.Boolean': lambda: {'type': "boolean"},
             'GOB.Date': lambda: {'type': "string", 'format': "date"},
             'GOB.SecureDate': lambda: {'type': "string", 'format': "date"},
-            'GOB.DateTime': lambda: {'type': "string", 'format': "datetime"},
+            'GOB.DateTime': lambda: {'type': "string", 'format': "date-time"},
             'GOB.Reference': lambda: {'type': "string", 'relation': field['ref']}
         }.get(field_type, lambda: None)()
 
@@ -136,7 +162,7 @@ def _get_field_property(field_name, field, description=None):
     # Include description
     property['description'] = description or field.get('description', '')
     # Property names are lowercase strings without underscores
-    field_name = field_name.replace('_', '').lower()
+    field_name = to_camel_case(field_name.lower())
     return field_name, property
 
 
@@ -164,7 +190,8 @@ def get_graphql_query(catalog_name, collection_name):    # noqa: C901, too compl
     """
     collection = model.get_collection(catalog_name, collection_name)
     node = {
-        collection['entity_id']: ''
+        collection['entity_id']: '',
+        'cursor': ''
     }
     if model.has_states(catalog_name, collection_name):
         node[FIELD.SEQNR] = ''
@@ -180,14 +207,19 @@ def get_graphql_query(catalog_name, collection_name):    # noqa: C901, too compl
             ref = field['ref']
             ref_catalog_name, ref_collection_name = ref.split(':')
             ref_collection = model.get_collection(ref_catalog_name, ref_collection_name)
-            ref_node = {ref_collection['entity_id']: ''}
-            if model.has_states(ref_catalog_name, ref_collection_name):
-                ref_node[FIELD.SEQNR] = ''
-            node[cc_field_name] = {
-                'edges': {
-                    'node': ref_node
+
+            if ref_collection:
+                ref_node = {ref_collection['entity_id']: ''}
+                if model.has_states(ref_catalog_name, ref_collection_name):
+                    ref_node[FIELD.SEQNR] = ''
+                node[cc_field_name] = {
+                    'edges': {
+                        'node': ref_node
+                    }
                 }
-            }
+            else:
+                # Undefined relation
+                node[cc_field_name] = ''
         else:
             node[cc_field_name] = ''
 
@@ -205,7 +237,7 @@ def get_graphql_query(catalog_name, collection_name):    # noqa: C901, too compl
     # Use json.dumps to nicely format the GraphQL query
     json_schema = json.dumps(query, indent=2)
     json_schema = re.sub(r'[":,]', '', json_schema)
-    return json_schema.replace('__NAME__', f'{name}(${filter})')
+    return json_schema.replace('__NAME__', f'{name}({filter})')
 
 
 def get_url(catalog_name, collection_name, path):
@@ -240,6 +272,10 @@ def get_url(catalog_name, collection_name, path):
     return f'{path}?{args}'
 
 
+def print_yellow(msg):
+    print(f"\033[33m{msg}\033[0m")
+
+
 def get_curl(catalog_name, collection_name, path):
     """
     Get the curl statement to retrieve the dataset in the Amsterdam Schema format
@@ -248,11 +284,26 @@ def get_curl(catalog_name, collection_name, path):
     :param collection_name:
     :return:
     """
+    auth_header = None
+
+    # Make request to secure API if secured colllection
+    if Authority(args.catalog, args.collection).is_secured():
+        if '/gob/secure' not in path:
+            path = path.replace('/gob', '/gob/secure')
+        auth_header = os.getenv('GOB_API_AUTH_HEADER')
+
+        if not auth_header:
+            print_yellow("Generating a curl request for a secure endpoint, but missing Auth header env variable\n"
+                         "Use login_keycloak.py to generate the Auth header to use with the secure endpoint.\n"
+                         "Generated curl request contains a placeholder for now\n")
+            auth_header = 'AUTH_HEADER_PLACEHOLDER'
+
     query = get_graphql_query(catalog_name, collection_name).replace('\n', '')
     query = '{"query":"%s"}' % query
     header = 'Content-Type: application/x-ndjson'
+    auth = f"--header 'Authorization: {auth_header}' " if auth_header else ""
     url = get_url(catalog_name, collection_name, path)
-    return f"curl -s --location --request POST '{url}' --header '{header}' --data-raw '{query}'"
+    return f"curl -s --location --request POST '{url}' --header '{header}' {auth}--data-raw '{query}'"
 
 
 if __name__ == "__main__":   # noqa: C901, too complex
@@ -292,3 +343,7 @@ if __name__ == "__main__":   # noqa: C901, too complex
     }[args.format]()
 
     print(result)
+
+    if args.format in ('query', 'curl'):
+        print("")
+        print_yellow("NOTE: For large collections, use pagination in the query (using first, after and cursor)")
