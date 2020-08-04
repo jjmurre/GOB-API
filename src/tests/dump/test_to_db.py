@@ -798,6 +798,14 @@ class TestModuleFunctions(TestCase):
         list(_dump_relations('catalog_name', 'collection_name', config))
 
         mock_dumper.assert_called_once_with('rel', 'rel1', config)
+        mock_dumper.return_value.dump_to_db.assert_called_once_with(full_dump=False)
+
+        config = {'force_full': True}
+        mock_dumper.reset_mock()
+        # mock_dumper.return_value.dump_to_db.reset_mock()
+        list(_dump_relations('catalog_name', 'collection_name', config))
+
+        mock_dumper.assert_called_once_with('rel', 'rel1', config)
         mock_dumper.return_value.dump_to_db.assert_called_once_with(full_dump=True)
 
     @patch('gobapi.dump.to_db._dump_relations')
@@ -808,12 +816,15 @@ class TestModuleFunctions(TestCase):
         list(dump_to_db('catalog_name', 'collection_name', config))
 
         mock_dumper.assert_called_with('catalog_name', 'collection_name', config)
+        mock_dumper().dump_to_db.assert_called_with(full_dump=False)
         mock_dump_relations.assert_called_with('catalog_name', 'collection_name', config)
         mock_dumper.return_value.create_utility_view.assert_called_once()
 
         mock_dump_relations.reset_mock()
         config['include_relations'] = False
+        config['force_full'] = True
         list(dump_to_db('catalog_name', 'collection_name', config))
+        mock_dumper().dump_to_db.assert_called_with(full_dump=True)
         mock_dump_relations.assert_not_called()
 
         # Assert create_utility_view not called for 'rel' dumps

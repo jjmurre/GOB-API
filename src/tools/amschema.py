@@ -17,6 +17,7 @@ sys.stdout = open(os.devnull, 'w')
 from gobcore.model import GOBModel  # noqa: E402, module level import not at top of file
 from gobcore.model.metadata import FIELD  # noqa: E402, module level import not at top of file
 from gobcore.sources import GOBSources  # noqa: E402, module level import not at top of file
+
 model = GOBModel()
 sources = GOBSources()
 sys.stdout = sys.__stdout__
@@ -107,8 +108,17 @@ def _get_collection_schema(catalog_name, collection_name):
         else:
             property_name, property = _get_field_property(field_name, field)
             properties[property_name] = property
+
+    return _build_schema(
+        f"https://github.com/Amsterdam/schemas/{catalog_name}/{collection_name}.json",
+        required,
+        properties
+    )
+
+
+def _build_schema(id: str, required: list, properties: dict):
     schema = {
-        "$id": f"https://github.com/Amsterdam/schemas/{catalog_name}/{collection_name}.json",
+        "$id": id,
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
         "additionalProperties": False,
@@ -177,7 +187,7 @@ def to_camel_case(snake_str):
     return components[0] + ''.join(x.title() for x in components[1:])
 
 
-def get_graphql_query(catalog_name, collection_name):    # noqa: C901, too complex
+def get_graphql_query(catalog_name, collection_name):  # noqa: C901, too complex
     """
     Get the GraphQL query for the given catalog collection
 
@@ -306,7 +316,7 @@ def get_curl(catalog_name, collection_name, path):
     return f"curl -s --location --request POST '{url}' --header '{header}' {auth}--data-raw '{query}'"
 
 
-if __name__ == "__main__":   # noqa: C901, too complex
+if __name__ == "__main__":  # noqa: C901, too complex
     class CollectionAction(argparse.Action):
         def __call__(self, parser, namespace, values, option_string=None):
             if namespace.format in ['query', 'curl'] and values is None:
