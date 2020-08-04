@@ -475,13 +475,13 @@ def _dump_relations(catalog_name, collection_name, config):
         yield f"Export {catalog_name} {collection_name} {relation}\n"
 
         rel_dumper = DbDumper('rel', relation_name, config)
-        yield from rel_dumper.dump_to_db(full_dump=True)
+        yield from rel_dumper.dump_to_db(full_dump=config.get('force_full', False))
 
 
 def dump_to_db(catalog_name, collection_name, config):
     try:
         dumper = DbDumper(catalog_name, collection_name, config)
-        yield from dumper.dump_to_db()
+        yield from dumper.dump_to_db(full_dump=config.get('force_full', False))
 
         if config.get('include_relations', True):
             yield from _dump_relations(catalog_name, collection_name, config)
