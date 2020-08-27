@@ -6,6 +6,8 @@ Dumps of catalog collections in sql format
 import re
 
 from gobcore.model import GOBModel
+from gobcore.typesystem.gob_types import String
+from gobcore.typesystem import fully_qualified_type_name
 
 from gobapi.auth.auth_query import Authority
 from gobapi.dump.config import DELIMITER_CHAR
@@ -197,11 +199,13 @@ def _create_table(schema, catalog_name, collection_name, model, tablename=None):
         if field_spec['type'] in REFERENCE_TYPES:
             for reference_field in get_reference_fields(field_spec):
                 name = joined_names(field_name, reference_field)
-                fields.append(_create_field(name, 'GOB.String', f"{field_description} ({reference_field})"))
+                fields.append(_create_field(name, fully_qualified_type_name(String),
+                                            f"{field_description} ({reference_field})"))
         elif field_spec['type'] == 'GOB.JSON':
             for field, spec in field_spec['attributes'].items():
                 name = joined_names(field_name, field)
-                fields.append(_create_field(name, spec['type'], f"{field_description} ({field})"))
+                # Make all JSON attribute columns of type String (in case the resulting values are merged into a list)
+                fields.append(_create_field(name, fully_qualified_type_name(String), f"{field_description} ({field})"))
         else:
             fields.append(_create_field(field_name, field_spec['type'], field_description))
 
