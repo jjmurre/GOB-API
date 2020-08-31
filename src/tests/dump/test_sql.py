@@ -52,13 +52,14 @@ class TestSQL(TestCase):
         mock_specs.return_value = {
             'a': {
                 'type': 'GOB.JSON',
-                'attributes': {'a': {'type': 'GOB.String'}, 'b': {'type': 'GOB.String'}},
+                'attributes': {'a': {'type': 'GOB.String'}, 'b': {'type': 'GOB.Integer'}},
                 'description': 'Any description'
             }
         }
         result = _create_table(catalogue, 'any_schema', 'any_table', {})
         for s in ['a', 'b']:
             self.assertTrue(f"\"a_{s}\"" in result)
+            # Nested JSON attributes should always have type character varying, to account for possible merged values.
             self.assertTrue(f"character varying" in result)
 
         # With alternative tablename (used for tmp table)
