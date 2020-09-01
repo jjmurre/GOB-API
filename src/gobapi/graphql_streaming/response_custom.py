@@ -1,3 +1,4 @@
+from distutils.util import strtobool
 import geojson
 import shapely.wkt
 
@@ -38,8 +39,8 @@ class GraphQLCustomStreamingResponseBuilder(GraphQLStreamingResponseBuilder):
             items = [s.strip() for s in items]
             return [s for s in items if s]
 
-        self.flatten = request_args.get('flatten') or False
-        self.lowercase = request_args.get('lowercase') or False
+        self.flatten = strtobool(request_args.get('flatten') or 'false')
+        self.lowercase = strtobool(request_args.get('lowercase') or 'false')
 
         self.condens = parse_list(request_args.get('condens'))
         self.id = parse_list(request_args.get('id'))
